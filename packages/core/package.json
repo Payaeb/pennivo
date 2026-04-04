@@ -1,0 +1,25 @@
+{
+  "name": "@pennivo/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pennivo editor engine - framework-agnostic markdown editing",
+  "author": "Paya Ebrahimi <payaeb@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  }
+}

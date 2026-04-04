@@ -1,0 +1,33 @@
+{
+  "name": "@pennivo/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pennivo desktop application",
+  "author": "Paya Ebrahimi <payaeb@gmail.com>",
+  "license": "MIT",
+  "main": "dist/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pennivo/core": "workspace:*",
+    "@pennivo/ui": "workspace:*",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "electron": "^35.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.3.0",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.0"
+  }
+}

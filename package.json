@@ -1,0 +1,27 @@
+{
+  "name": "pennivo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A beautiful markdown editor for writers",
+  "author": "Paya Ebrahimi <payaeb@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "dev": "pnpm --filter @pennivo/desktop dev",
+    "build": "pnpm --filter @pennivo/core build && pnpm --filter @pennivo/ui build && pnpm --filter @pennivo/desktop build",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "lint:fix": "eslint packages/*/src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,css}\"",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r test:watch",
+    "clean": "pnpm -r clean"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}
