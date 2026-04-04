@@ -1,30 +1,30 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import electron from "vite-plugin-electron";
-import renderer from "vite-plugin-electron-renderer";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import electron from 'vite-plugin-electron';
+import renderer from 'vite-plugin-electron-renderer';
 
 export default defineConfig({
   plugins: [
     react(),
     electron([
       {
-        entry: "src/main/main.ts",
+        entry: 'src/main/main.ts',
         vite: {
           build: {
-            outDir: "dist/main",
+            outDir: 'dist/main',
             rollupOptions: {
-              external: ["electron"],
+              external: ['electron'],
             },
           },
         },
       },
       {
-        entry: "src/main/preload.ts",
+        entry: 'src/main/preload.ts',
         vite: {
           build: {
-            outDir: "dist/preload",
+            outDir: 'dist/preload',
             rollupOptions: {
-              external: ["electron"],
+              external: ['electron'],
             },
           },
         },
@@ -36,6 +36,6 @@ export default defineConfig({
     renderer(),
   ],
   build: {
-    outDir: "dist/renderer",
+    outDir: 'dist/renderer',
   },
 });

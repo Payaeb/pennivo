@@ -1,0 +1,43 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.app-toolbar-row {
+  flex-shrink: 0;
+}
+
+.app-editor-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--editor-padding-v) var(--editor-padding-h);
+  display: flex;
+  justify-content: center;
+}
+
+.app-editor-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-editor-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-editor-area::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 3px;
+}
+
+.app-editor-area::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+.app-editor-column {
+  width: 100%;
+  max-width: var(--editor-max-width);
+}

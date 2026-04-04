@@ -6,9 +6,8 @@
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
   "license": "MIT",
   "main": "dist/main/main.js",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "env -u ELECTRON_RUN_AS_NODE vite",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",

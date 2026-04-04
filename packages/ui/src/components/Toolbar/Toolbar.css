@@ -1,0 +1,72 @@
+.toolbar {
+  height: var(--toolbar-height);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 2px;
+  flex-shrink: 0;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-mid);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.tool-btn {
+  width: 30px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.tool-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.tool-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tool-btn--active:hover {
+  background: var(--accent-hover);
+}
+
+.tool-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tool-label-sm {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  font-family: var(--font-ui);
+}

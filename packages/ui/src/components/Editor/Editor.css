@@ -1,0 +1,205 @@
+/* ─── Editor wrapper ─── */
+
+.editor-wrapper {
+  width: 100%;
+}
+
+/* Milkdown shell — remove default focus ring */
+.milkdown {
+  outline: none;
+}
+
+.milkdown .editor {
+  outline: none;
+}
+
+/* ─── ProseMirror prose styles ─── */
+
+.ProseMirror {
+  outline: none;
+  white-space: pre-wrap;
+  font-family: var(--font-editor);
+  font-size: var(--text-base);
+  line-height: 1.78;
+  color: var(--text-primary);
+  caret-color: var(--accent);
+  min-height: 60vh;
+  word-break: break-word;
+}
+
+/* Paragraphs */
+.ProseMirror p {
+  margin-bottom: 18px;
+}
+
+/* ── Headings ── */
+.ProseMirror h1 {
+  font-family: var(--font-editor);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 0;
+  margin-bottom: 28px;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+
+.ProseMirror h2 {
+  font-family: var(--font-editor);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 36px;
+  margin-bottom: 14px;
+  color: var(--text-primary);
+}
+
+.ProseMirror h3 {
+  font-family: var(--font-editor);
+  font-size: 17px;
+  font-weight: 600;
+  margin-top: 28px;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+}
+
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 {
+  font-family: var(--font-editor);
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+/* ── Inline emphasis ── */
+.ProseMirror strong { font-weight: 700; }
+.ProseMirror em     { font-style: italic; }
+.ProseMirror s      { text-decoration: line-through; color: var(--text-muted); }
+
+/* ── Inline code ── */
+.ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  color: var(--accent);
+}
+
+/* ── Code block ── */
+.ProseMirror pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  font-size: 13.5px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  border-radius: 0;
+}
+
+/* ── Blockquote ── */
+.ProseMirror blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 24px 0;
+  padding: 4px 0 4px 20px;
+}
+
+.ProseMirror blockquote p {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 0;
+}
+
+/* ── Lists ── */
+.ProseMirror ul,
+.ProseMirror ol {
+  margin: 0 0 18px 0;
+  padding-left: 28px;
+}
+
+.ProseMirror li {
+  margin-bottom: 5px;
+  line-height: 1.78;
+}
+
+.ProseMirror ul li::marker {
+  color: var(--accent);
+}
+
+.ProseMirror ol li::marker {
+  color: var(--text-muted);
+  font-size: 0.92em;
+}
+
+/* ── Links ── */
+.ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.ProseMirror a:hover {
+  opacity: 0.75;
+}
+
+/* ── Horizontal rule ── */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border-mid);
+  margin: 32px 0;
+}
+
+/* ── Images ── */
+.ProseMirror img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  margin: 12px 0;
+}
+
+/* ── Table (GFM) ── */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 20px 0;
+  font-size: 15px;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border-mid);
+  padding: 8px 14px;
+  text-align: left;
+}
+
+.ProseMirror th {
+  background: var(--bg-surface);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Selection ── */
+.ProseMirror ::selection {
+  background: var(--selection-bg);
+}
+
+/* ── Placeholder (empty first block) ── */
+.ProseMirror > p:first-child:only-child:empty::before {
+  content: 'Start writing…';
+  color: var(--text-faint);
+  pointer-events: none;
+}

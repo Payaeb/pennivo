@@ -1,0 +1,81 @@
+.titlebar {
+  height: var(--titlebar-height);
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--titlebar-border);
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-app-region: drag;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.titlebar-app-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.titlebar-filename {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titlebar-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+/* ── Caption buttons (Windows-style, right side) ── */
+.titlebar-caption-buttons {
+  display: flex;
+  align-items: stretch;
+  height: var(--titlebar-height);
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.caption-btn {
+  width: 46px;
+  height: var(--titlebar-height);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.caption-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.caption-btn--close:hover {
+  background: #C42B1C;
+  color: #fff;
+}
+
+.caption-btn svg {
+  width: 10px;
+  height: 10px;
+}

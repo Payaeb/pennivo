@@ -1,0 +1,25 @@
+.editor-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 24px;
+  color: var(--text-muted);
+  font-family: var(--font-editor);
+  font-size: var(--text-base);
+  line-height: 1.75;
+}
+
+.editor-placeholder-hint {
+  font-size: 14px;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}

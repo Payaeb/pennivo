@@ -1,0 +1,62 @@
+/* ─── Pennivo Design Tokens ─── */
+
+:root {
+  /* Fonts */
+  --font-ui:     "Segoe UI", system-ui, sans-serif;
+  --font-editor: "Georgia", "Times New Roman", serif;
+  --font-mono:   "Cascadia Code", "Fira Code", "Consolas", monospace;
+
+  /* Font sizes */
+  --text-xs:   11px;
+  --text-sm:   12.5px;
+  --text-base: 17px;
+
+  /* Layout */
+  --titlebar-height:    36px;
+  --toolbar-height:     38px;
+  --statusbar-height:   28px;
+  --editor-max-width:   680px;
+  --editor-padding-v:   56px;
+  --editor-padding-h:   24px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* Transitions */
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.2s ease;
+
+  /* ── Light theme ── */
+  --bg:              #FAFAF8;
+  --bg-surface:      #F2F0EC;
+  --bg-overlay:      #ECEAE5;
+  --text-primary:    #1A1A18;
+  --text-muted:      #7A7872;
+  --text-faint:      #AEACA6;
+  --accent:          #4A7C59;
+  --accent-soft:     rgba(74, 124, 89, 0.12);
+  --accent-hover:    rgba(74, 124, 89, 0.18);
+  --border:          rgba(0, 0, 0, 0.08);
+  --border-mid:      rgba(0, 0, 0, 0.13);
+  --titlebar-bg:     #F0EEE9;
+  --titlebar-border: rgba(0, 0, 0, 0.10);
+  --selection-bg:    rgba(74, 124, 89, 0.15);
+}
+
+[data-theme="dark"] {
+  --bg:              #141414;
+  --bg-surface:      #1C1C1C;
+  --bg-overlay:      #242424;
+  --text-primary:    #E8E6E1;
+  --text-muted:      #7A7872;
+  --text-faint:      #4A4845;
+  --accent:          #5E9E74;
+  --accent-soft:     rgba(94, 158, 116, 0.14);
+  --accent-hover:    rgba(94, 158, 116, 0.22);
+  --border:          rgba(255, 255, 255, 0.07);
+  --border-mid:      rgba(255, 255, 255, 0.11);
+  --titlebar-bg:     #0F0F0F;
+  --titlebar-border: rgba(255, 255, 255, 0.07);
+  --selection-bg:    rgba(94, 158, 116, 0.18);
+}

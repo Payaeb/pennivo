@@ -1,0 +1,32 @@
+/* ─── Pennivo Base Styles ─── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+button {
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--selection-bg);
+}
