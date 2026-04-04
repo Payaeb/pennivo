@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Milkdown, useEditor } from '@milkdown/react';
 import { Editor as MilkdownEditorCore, defaultValueCtx, rootCtx } from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
@@ -46,9 +47,14 @@ interface EditorProps {
   onWordCountChange?: (count: number) => void;
   onMarkdownChange?: (markdown: string) => void;
   onViewUpdate?: (view: EditorView) => void;
+  onImagePaste?: (file: File) => Promise<string | null>;
 }
 
-export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, onMarkdownChange, onViewUpdate }: EditorProps) {
+export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, onMarkdownChange, onViewUpdate, onImagePaste }: EditorProps) {
+  // Ref so the paste plugin always sees the latest callback without re-creating the editor
+  const onImagePasteRef = useRef(onImagePaste);
+  onImagePasteRef.current = onImagePaste;
+
   useEditor((root) => {
     // ProseMirror plugin that fires on every state update — most reliable timing
     const toolbarSync = $prose(() => new Plugin({
@@ -57,6 +63,57 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
           onViewUpdate?.(view);
         },
       }),
+    }));
+
+    // Extract an image File from a DataTransfer (clipboard or drag), if any
+    function getImageFile(dt: DataTransfer | null): File | null {
+      if (!dt) return null;
+      for (let i = 0; i < dt.items.length; i++) {
+        const item = dt.items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) return file;
+        }
+      }
+      for (let i = 0; i < dt.files.length; i++) {
+        const file = dt.files[i];
+        if (file.type.startsWith('image/')) return file;
+      }
+      return null;
+    }
+
+    // Save an image file via the callback and insert it into the editor
+    function handleImageFile(file: File, view: EditorView) {
+      const handler = onImagePasteRef.current;
+      if (!handler) return;
+
+      handler(file).then((src) => {
+        if (!src) return;
+        // Insert image node directly via ProseMirror transaction
+        const { schema } = view.state;
+        const imageNode = schema.nodes['image'].create({ src, alt: '' });
+        view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+      });
+    }
+
+    // Intercept clipboard paste and drag-drop for images
+    const imagePaste = $prose(() => new Plugin({
+      props: {
+        handlePaste: (view, event) => {
+          const file = getImageFile(event.clipboardData);
+          if (!file) return false;
+          event.preventDefault();
+          handleImageFile(file, view);
+          return true;
+        },
+        handleDrop: (view, event) => {
+          const file = getImageFile(event.dataTransfer);
+          if (!file) return false;
+          event.preventDefault();
+          handleImageFile(file, view);
+          return true;
+        },
+      },
     }));
 
     return MilkdownEditorCore.make()
@@ -69,6 +126,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(listener)
       .use(history)
       .use(toolbarSync)
+      .use(imagePaste)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
           onWordCountChange?.(countWords(markdown));

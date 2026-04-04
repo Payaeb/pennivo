@@ -11,6 +11,8 @@ interface PennivoAPI {
   resetZoom: () => void;
 
   // File I/O
+  saveImage: (filePath: string, buffer: number[], mimeType: string) => Promise<{ relativePath: string; absolutePath: string }>;
+  pickImage: (filePath: string) => Promise<{ relativePath: string; absolutePath: string } | null>;
   openFile: () => Promise<{ filePath: string; content: string } | null>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
   saveFileAs: (content: string) => Promise<string | null>;
@@ -19,6 +21,7 @@ interface PennivoAPI {
   closeAfterSave: () => void;
 
   // Menu events (returns cleanup function)
+  onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;
   onMenuSave: (cb: () => void) => () => void;
   onMenuSaveAs: (cb: () => void) => () => void;

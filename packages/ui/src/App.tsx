@@ -228,9 +228,85 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [focusMode]);
 
+  // --- Toast state ---
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // --- Image paste handler ---
+  // Returns the src to use for the image node (file:// URL for display).
+  // The markdown serializer will write this as the image src.
+  const handleImagePaste = useCallback(async (file: File): Promise<string | null> => {
+    let currentPath = filePathRef.current;
+
+    if (!currentPath) {
+      const saved = await doSaveAs();
+      if (!saved) return null;
+      currentPath = filePathRef.current;
+      if (!currentPath) return null;
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Array.from(new Uint8Array(arrayBuffer));
+      const mimeType = file.type || 'image/png';
+      const result = await window.pennivo?.saveImage(currentPath, buffer, mimeType);
+      if (result) {
+        showToast('Image saved');
+        // Use custom protocol so the image displays in the editor
+        // (file:// is blocked when page is served from http://localhost in dev)
+        return `pennivo-file:///${result.absolutePath}`;
+      }
+      return null;
+    } catch {
+      showToast('Failed to save image');
+      return null;
+    }
+  }, [showToast, doSaveAs]);
+
+  // Insert a saved image into the editor
+  const insertImage = useCallback((src: string) => {
+    if (loading) return;
+    const editor = getInstance();
+    if (!editor) return;
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const imageNode = view.state.schema.nodes['image'].create({ src, alt: '' });
+      view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+    });
+  }, [loading, getInstance]);
+
   // --- Menu event listeners ---
   useEffect(() => {
     const cleanups = [
+      window.pennivo?.onMenuPaste(async () => {
+        // Electron's native paste (webContents.paste) doesn't include image data
+        // in the DOM paste event. Read the clipboard directly for images.
+        try {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            const imageType = item.types.find(t => t.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              const file = new File([blob], 'clipboard.png', { type: imageType });
+              const result = await handleImagePaste(file);
+              if (result) {
+                insertImage(result);
+                return;
+              }
+            }
+          }
+        } catch {
+          // Clipboard API not available or no image — fall through to text paste
+        }
+        // No image found, do normal text paste
+        window.pennivo?.paste();
+      }),
       window.pennivo?.onMenuOpen(() => doOpen()),
       window.pennivo?.onMenuSave(() => doSave()),
       window.pennivo?.onMenuSaveAs(() => doSaveAs()),
@@ -243,12 +319,27 @@ function AppContent() {
       window.pennivo?.onMenuToggleFocusMode(() => toggleFocusMode()),
     ];
     return () => cleanups.forEach(cleanup => cleanup?.());
-  }, [doOpen, doSave, doSaveAs, toggleFocusMode]);
+  }, [doOpen, doSave, doSaveAs, toggleFocusMode, handleImagePaste, insertImage]);
 
-  // Cleanup auto-save timer on unmount
+  // Prevent Electron from navigating when files are dragged onto the window
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener('dragover', prevent);
+    document.addEventListener('drop', prevent);
+    return () => {
+      document.removeEventListener('dragover', prevent);
+      document.removeEventListener('drop', prevent);
+    };
+  }, []);
+
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
@@ -262,7 +353,24 @@ function AppContent() {
     (action: ToolbarAction) => {
       if (action === 'toggleTheme') { toggleTheme(); return; }
       if (action === 'focusMode') { toggleFocusMode(); return; }
-      if (action === 'link' || action === 'image') return;
+      if (action === 'link') return;
+      if (action === 'image') {
+        (async () => {
+          let currentPath = filePathRef.current;
+          if (!currentPath) {
+            const saved = await doSaveAs();
+            if (!saved) return;
+            currentPath = filePathRef.current;
+            if (!currentPath) return;
+          }
+          const result = await window.pennivo?.pickImage(currentPath);
+          if (!result) return;
+          const src = `pennivo-file:///${result.absolutePath}`;
+          insertImage(src);
+          showToast('Image inserted');
+        })();
+        return;
+      }
       if (loading) return;
 
       const editor = getInstance();
@@ -332,7 +440,7 @@ function AppContent() {
           break;
       }
     },
-    [loading, getInstance, toggleTheme, toggleFocusMode],
+    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs],
   );
 
   // --- Hamburger menu actions ---
@@ -397,7 +505,9 @@ function AppContent() {
         onWordCountChange={setWordCount}
         onMarkdownChange={handleMarkdownChange}
         onViewUpdate={handleViewUpdate}
+        onImagePaste={handleImagePaste}
       />
+      {toast && <div className="toast">{toast}</div>}
     </AppShell>
   );
 }

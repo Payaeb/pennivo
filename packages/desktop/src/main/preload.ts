@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('pennivo', {
   resetZoom:     () => ipcRenderer.send('window:zoom-reset'),
 
   // File I/O
+  saveImage:      (filePath: string, buffer: number[], mimeType: string) => ipcRenderer.invoke('file:save-image', { filePath, buffer, mimeType }) as Promise<{ relativePath: string; absolutePath: string }>,
+  pickImage:      (filePath: string) => ipcRenderer.invoke('file:pick-image', { filePath }) as Promise<{ relativePath: string; absolutePath: string } | null>,
   openFile:       () => ipcRenderer.invoke('file:open') as Promise<{ filePath: string; content: string } | null>,
   saveFile:       (filePath: string, content: string) => ipcRenderer.invoke('file:save', { filePath, content }) as Promise<boolean>,
   saveFileAs:     (content: string) => ipcRenderer.invoke('file:save-as', { content }) as Promise<string | null>,
@@ -21,6 +23,7 @@ contextBridge.exposeInMainWorld('pennivo', {
   closeAfterSave: () => ipcRenderer.send('file:close-after-save'),
 
   // Menu events from main process
+  onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },
   onMenuSave:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:save', handler); return () => { ipcRenderer.removeListener('menu:save', handler); }; },
   onMenuSaveAs:       (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:save-as', handler); return () => { ipcRenderer.removeListener('menu:save-as', handler); }; },

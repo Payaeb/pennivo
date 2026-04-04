@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +24,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Prevent Electron from navigating when files are dragged onto the window
+  mainWindow.webContents.on('will-navigate', (e) => {
+    e.preventDefault();
   });
 
   mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
@@ -95,7 +100,16 @@ function createMenu() {
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
-        { role: 'paste' },
+        {
+          label: 'Paste',
+          accelerator: 'CmdOrCtrl+V',
+          click: () => {
+            // Use document.execCommand('paste') via the renderer so ProseMirror's
+            // handlePaste fires and can intercept clipboard images.
+            // The built-in { role: 'paste' } bypasses the DOM paste event entirely.
+            mainWindow?.webContents.send('menu:paste');
+          },
+        },
         { role: 'selectAll' },
       ],
     },
@@ -203,6 +217,71 @@ function registerIpcHandlers() {
     return filePath;
   });
 
+  // Save image to images/ subfolder next to the current .md file
+  ipcMain.handle('file:save-image', async (_e, args: { filePath: string; buffer: number[]; mimeType: string }) => {
+    const dir = path.dirname(args.filePath);
+    const imagesDir = path.join(dir, 'images');
+    await fs.mkdir(imagesDir, { recursive: true });
+
+    const ext = args.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      '-',
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
+    const filename = `paste-${stamp}.${ext}`;
+
+    const absolutePath = path.join(imagesDir, filename);
+    await fs.writeFile(absolutePath, Buffer.from(args.buffer));
+    return {
+      relativePath: `./images/${filename}`,
+      absolutePath: absolutePath.replace(/\\/g, '/'),
+    };
+  });
+
+  // Pick an image via file dialog, copy it to images/ subfolder, return paths
+  ipcMain.handle('file:pick-image', async (_e, args: { filePath: string }) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+
+    if (canceled || filePaths.length === 0) return null;
+
+    const srcPath = filePaths[0];
+    const ext = path.extname(srcPath).toLowerCase() || '.png';
+    const dir = path.dirname(args.filePath);
+    const imagesDir = path.join(dir, 'images');
+    await fs.mkdir(imagesDir, { recursive: true });
+
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      '-',
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
+    const filename = `image-${stamp}${ext}`;
+    const absolutePath = path.join(imagesDir, filename);
+
+    await fs.copyFile(srcPath, absolutePath);
+    return {
+      relativePath: `./images/${filename}`,
+      absolutePath: absolutePath.replace(/\\/g, '/'),
+    };
+  });
+
   // Confirm-discard dialog (used before opening a file when dirty)
   ipcMain.handle('file:confirm-discard', async () => {
     const { response } = await dialog.showMessageBox(mainWindow!, {
@@ -218,7 +297,21 @@ function registerIpcHandlers() {
   });
 }
 
+// Register custom protocol to serve local image files in the editor.
+// file:// URLs are blocked when the page is served from http://localhost (dev mode).
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'pennivo-file',
+  privileges: { standard: false, supportFetchAPI: true, stream: true },
+}]);
+
 app.whenReady().then(() => {
+  // Handle pennivo-file:// protocol — serves local files by absolute path
+  protocol.handle('pennivo-file', (request) => {
+    // URL format: pennivo-file:///C:/path/to/image.png
+    const filePath = decodeURIComponent(request.url.replace('pennivo-file:///', ''));
+    return net.fetch(pathToFileURL(filePath).href);
+  });
+
   registerIpcHandlers();
   createMenu();
   createWindow();
