@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -165,6 +165,13 @@ function registerIpcHandlers() {
   ipcMain.on('window:zoom-reset', () => {
     const wc = mainWindow?.webContents;
     if (wc) wc.zoomLevel = 0;
+  });
+
+  // Open external URL in default browser
+  ipcMain.on('shell:open-external', (_e, url: string) => {
+    if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+      shell.openExternal(url);
+    }
   });
 
   // Dirty state tracking (renderer tells main)

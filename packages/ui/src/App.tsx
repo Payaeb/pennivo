@@ -21,6 +21,7 @@ import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
 import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
+import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
 import type { MenuAction } from './components/Titlebar/TitlebarMenu';
 import { useTheme } from './hooks/useTheme';
@@ -238,6 +239,86 @@ function AppContent() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // --- Link popover state ---
+  const [linkPopover, setLinkPopover] = useState<{
+    hasSelection: boolean;
+    selectedText: string;
+    anchorRect: { top: number; left: number };
+  } | null>(null);
+
+  const openLinkPopover = useCallback(() => {
+    if (loading) return;
+    const editor = getInstance();
+    if (!editor) return;
+
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const { from, to, empty } = state.selection;
+
+      // Get position for popover anchor
+      const coords = view.coordsAtPos(from);
+      const selectedText = empty ? '' : state.doc.textBetween(from, to, ' ');
+
+      setLinkPopover({
+        hasSelection: !empty,
+        selectedText,
+        anchorRect: { top: coords.bottom, left: coords.left },
+      });
+    });
+  }, [loading, getInstance]);
+
+  const handleLinkConfirm = useCallback(
+    (url: string, text: string) => {
+      setLinkPopover(null);
+      if (loading) return;
+      const editor = getInstance();
+      if (!editor) return;
+
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { from, to, empty } = state.selection;
+
+        if (empty) {
+          // No selection — insert [text](url) as a text node with link mark
+          const linkMark = state.schema.marks['link'].create({ href: url });
+          const textNode = state.schema.text(text, [linkMark]);
+          view.dispatch(state.tr.replaceSelectionWith(textNode, false));
+        } else {
+          // Has selection — wrap it with the link mark
+          const linkMark = state.schema.marks['link'].create({ href: url });
+          view.dispatch(state.tr.addMark(from, to, linkMark));
+        }
+        view.focus();
+      });
+    },
+    [loading, getInstance],
+  );
+
+  const handleLinkCancel = useCallback(() => {
+    setLinkPopover(null);
+    // Re-focus editor
+    if (loading) return;
+    const editor = getInstance();
+    if (!editor) return;
+    editor.action((ctx) => {
+      ctx.get(editorViewCtx).focus();
+    });
+  }, [loading, getInstance]);
+
+  // Ctrl+K shortcut for link insert
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        openLinkPopover();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openLinkPopover]);
+
   // --- Image paste handler ---
   // Returns the src to use for the image node (file:// URL for display).
   // The markdown serializer will write this as the image src.
@@ -353,7 +434,7 @@ function AppContent() {
     (action: ToolbarAction) => {
       if (action === 'toggleTheme') { toggleTheme(); return; }
       if (action === 'focusMode') { toggleFocusMode(); return; }
-      if (action === 'link') return;
+      if (action === 'link') { openLinkPopover(); return; }
       if (action === 'image') {
         (async () => {
           let currentPath = filePathRef.current;
@@ -440,7 +521,7 @@ function AppContent() {
           break;
       }
     },
-    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs],
+    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs, openLinkPopover],
   );
 
   // --- Hamburger menu actions ---
@@ -508,6 +589,15 @@ function AppContent() {
         onImagePaste={handleImagePaste}
       />
       {toast && <div className="toast">{toast}</div>}
+      {linkPopover && (
+        <LinkPopover
+          hasSelection={linkPopover.hasSelection}
+          initialText={linkPopover.selectedText}
+          anchorRect={linkPopover.anchorRect}
+          onConfirm={handleLinkConfirm}
+          onCancel={handleLinkCancel}
+        />
+      )}
     </AppShell>
   );
 }

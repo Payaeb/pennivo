@@ -96,6 +96,61 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       });
     }
 
+    // Ctrl+Click to follow links, hover to show URL preview
+    const linkClick = $prose(() => new Plugin({
+      props: {
+        handleClick: (view, pos, event) => {
+          if (!(event.ctrlKey || event.metaKey)) return false;
+          const { doc } = view.state;
+          const $pos = doc.resolve(pos);
+          const marks = $pos.marks();
+          const linkMark = marks.find(m => m.type.name === 'link');
+          if (!linkMark) return false;
+          const href = linkMark.attrs['href'] as string;
+          if (href) {
+            window.pennivo?.openExternal(href);
+          }
+          return true;
+        },
+        handleDOMEvents: {
+          mousemove: (view, event) => {
+            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            const editorEl = view.dom.closest('.editor-wrapper');
+            if (!pos || !editorEl) return false;
+
+            // Remove existing preview
+            const existing = editorEl.querySelector('.link-url-preview');
+
+            const $pos = view.state.doc.resolve(pos.pos);
+            const linkMark = $pos.marks().find(m => m.type.name === 'link');
+            if (!linkMark) {
+              existing?.remove();
+              return false;
+            }
+
+            const href = linkMark.attrs['href'] as string;
+            if (!href) { existing?.remove(); return false; }
+
+            if (existing) {
+              existing.textContent = `${href}  —  Ctrl+Click to open`;
+              return false;
+            }
+
+            const preview = document.createElement('div');
+            preview.className = 'link-url-preview';
+            preview.textContent = `${href}  —  Ctrl+Click to open`;
+            editorEl.appendChild(preview);
+            return false;
+          },
+          mouseleave: (view) => {
+            const editorEl = view.dom.closest('.editor-wrapper');
+            editorEl?.querySelector('.link-url-preview')?.remove();
+            return false;
+          },
+        },
+      },
+    }));
+
     // Intercept clipboard paste and drag-drop for images
     const imagePaste = $prose(() => new Plugin({
       props: {
@@ -126,6 +181,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(listener)
       .use(history)
       .use(toolbarSync)
+      .use(linkClick)
       .use(imagePaste)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {

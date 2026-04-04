@@ -1,3 +1,4 @@
+import { useState, useRef, useCallback } from 'react';
 import './Toolbar.css';
 
 export type ToolbarAction =
@@ -7,62 +8,116 @@ export type ToolbarAction =
   | 'link' | 'image' | 'code'
   | 'focusMode' | 'toggleTheme';
 
+interface TooltipInfo {
+  label: string;
+  shortcut?: string;
+  syntax?: string;
+}
+
+const TOOLTIP_DATA: Record<string, TooltipInfo> = {
+  bold:          { label: 'Bold',          shortcut: 'Ctrl+B',       syntax: '**text**' },
+  italic:        { label: 'Italic',        shortcut: 'Ctrl+I',       syntax: '*text*' },
+  strikethrough: { label: 'Strikethrough',                            syntax: '~~text~~' },
+  h1:            { label: 'Heading 1',                                syntax: '# text' },
+  h2:            { label: 'Heading 2',                                syntax: '## text' },
+  bulletList:    { label: 'Bullet List',                              syntax: '- text' },
+  orderedList:   { label: 'Ordered List',                             syntax: '1. text' },
+  blockquote:    { label: 'Blockquote',                               syntax: '> text' },
+  link:          { label: 'Link',          shortcut: 'Ctrl+K',       syntax: '[text](url)' },
+  image:         { label: 'Image',                                    syntax: '![alt](url)' },
+  code:          { label: 'Code Block',                               syntax: '```code```' },
+  toggleTheme:   { label: 'Toggle Theme' },
+  focusMode:     { label: 'Focus Mode',    shortcut: 'Ctrl+Shift+F' },
+};
+
 interface ToolbarProps {
   activeFormats?: Set<ToolbarAction>;
   onAction?: (action: ToolbarAction) => void;
 }
 
 export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
-  const btn = (action: ToolbarAction, label: string, children: React.ReactNode, title: string) => (
+  const [tooltip, setTooltip] = useState<{ action: string; rect: DOMRect } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const showTooltip = useCallback((action: string, el: HTMLElement) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setTooltip({ action, rect: el.getBoundingClientRect() });
+    }, 400);
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setTooltip(null);
+  }, []);
+
+  const btn = (action: ToolbarAction, label: string, children: React.ReactNode) => (
     <button
       key={action}
       className={`tool-btn${activeFormats.has(action) ? ' tool-btn--active' : ''}`}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onAction?.(action)}
-      title={title}
+      onClick={() => { onAction?.(action); hideTooltip(); }}
       tabIndex={-1}
       aria-label={label}
       aria-pressed={activeFormats.has(action)}
+      onMouseEnter={(e) => showTooltip(action, e.currentTarget)}
+      onMouseLeave={hideTooltip}
     >
       {children}
     </button>
   );
 
+  const tip = TOOLTIP_DATA[tooltip?.action ?? ''];
+
   return (
     <div className="toolbar" role="toolbar" aria-label="Formatting">
       <div className="toolbar-group">
-        {btn('bold',          'Bold',          <b>B</b>,            'Bold (Ctrl+B)')}
-        {btn('italic',        'Italic',        <em>I</em>,          'Italic (Ctrl+I)')}
-        {btn('strikethrough', 'Strikethrough', <s>S</s>,            'Strikethrough')}
+        {btn('bold',          'Bold',          <b>B</b>)}
+        {btn('italic',        'Italic',        <em>I</em>)}
+        {btn('strikethrough', 'Strikethrough', <s>S</s>)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('h1', 'Heading 1', <span className="tool-label-sm">H1</span>, 'Heading 1')}
-        {btn('h2', 'Heading 2', <span className="tool-label-sm">H2</span>, 'Heading 2')}
+        {btn('h1', 'Heading 1', <span className="tool-label-sm">H1</span>)}
+        {btn('h2', 'Heading 2', <span className="tool-label-sm">H2</span>)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('bulletList',   'Bullet list',   <BulletListIcon />,   'Bullet list')}
-        {btn('orderedList',  'Ordered list',  <span className="tool-label-sm">1.</span>, 'Ordered list')}
-        {btn('blockquote',   'Blockquote',    <BlockquoteIcon />,   'Blockquote')}
+        {btn('bulletList',   'Bullet list',   <BulletListIcon />)}
+        {btn('orderedList',  'Ordered list',  <span className="tool-label-sm">1.</span>)}
+        {btn('blockquote',   'Blockquote',    <BlockquoteIcon />)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('link',  'Link',       <LinkIcon />,  'Insert link (Ctrl+K)')}
-        {btn('image', 'Image',      <ImageIcon />, 'Insert image')}
-        {btn('code',  'Code block', <CodeIcon />,  'Code block')}
+        {btn('link',  'Link',       <LinkIcon />)}
+        {btn('image', 'Image',      <ImageIcon />)}
+        {btn('code',  'Code block', <CodeIcon />)}
       </div>
 
       <div className="toolbar-spacer" />
 
-      {btn('toggleTheme', 'Toggle theme', <ThemeIcon />, 'Toggle light / dark theme')}
-      {btn('focusMode',   'Focus mode',   <FocusIcon />, 'Focus mode (Ctrl+Shift+F)')}
+      {btn('toggleTheme', 'Toggle theme', <ThemeIcon />)}
+      {btn('focusMode',   'Focus mode',   <FocusIcon />)}
+
+      {tooltip && tip && (
+        <div
+          className="toolbar-tooltip"
+          style={{
+            left: tooltip.rect.left + tooltip.rect.width / 2,
+            top: tooltip.rect.top - 6,
+          }}
+        >
+          <span className="toolbar-tooltip-label">{tip.label}</span>
+          {tip.shortcut && <span className="toolbar-tooltip-shortcut">{tip.shortcut}</span>}
+          {tip.syntax && <span className="toolbar-tooltip-syntax">{tip.syntax}</span>}
+        </div>
+      )}
     </div>
   );
 }

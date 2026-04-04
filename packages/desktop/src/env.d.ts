@@ -9,6 +9,7 @@ interface PennivoAPI {
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
+  openExternal: (url: string) => void;
 
   // File I/O
   saveImage: (filePath: string, buffer: number[], mimeType: string) => Promise<{ relativePath: string; absolutePath: string }>;

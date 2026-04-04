@@ -2,6 +2,27 @@
 
 .editor-wrapper {
   width: 100%;
+  position: relative;
+}
+
+/* Link URL preview on hover */
+.link-url-preview {
+  position: fixed;
+  bottom: 32px;
+  left: 12px;
+  background: var(--text-primary);
+  color: var(--bg);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  z-index: 800;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
 }
 
 /* Milkdown shell — remove default focus ring */

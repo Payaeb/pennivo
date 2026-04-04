@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('pennivo', {
   zoomIn:        () => ipcRenderer.send('window:zoom-in'),
   zoomOut:       () => ipcRenderer.send('window:zoom-out'),
   resetZoom:     () => ipcRenderer.send('window:zoom-reset'),
+  openExternal:  (url: string) => ipcRenderer.send('shell:open-external', url),
 
   // File I/O
   saveImage:      (filePath: string, buffer: number[], mimeType: string) => ipcRenderer.invoke('file:save-image', { filePath, buffer, mimeType }) as Promise<{ relativePath: string; absolutePath: string }>,
