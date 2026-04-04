@@ -1,11 +1,15 @@
+import { TitlebarMenu, type MenuAction } from './TitlebarMenu';
 import './Titlebar.css';
 
 interface TitlebarProps {
   filename: string;
   isDirty: boolean;
+  onMenuAction?: (action: MenuAction) => void;
 }
 
-export function Titlebar({ filename, isDirty }: TitlebarProps) {
+export type { MenuAction };
+
+export function Titlebar({ filename, isDirty, onMenuAction }: TitlebarProps) {
   const handleMinimize = () => window.pennivo?.minimize();
   const handleMaximize = () => window.pennivo?.maximize();
   const handleClose    = () => window.pennivo?.close();
@@ -13,6 +17,7 @@ export function Titlebar({ filename, isDirty }: TitlebarProps) {
   return (
     <div className="titlebar">
       <div className="titlebar-left">
+        {onMenuAction && <TitlebarMenu onAction={onMenuAction} />}
         <AppIcon />
         <span className="titlebar-filename">{filename}</span>
         {isDirty && <span className="titlebar-dirty" title="Unsaved changes" />}

@@ -22,6 +22,7 @@ import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
 import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
+import type { MenuAction } from './components/Titlebar/TitlebarMenu';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -73,6 +74,7 @@ function AppContent() {
   const [loading, getInstance] = useInstance();
   const [wordCount, setWordCount] = useState(0);
   const [activeFormats, setActiveFormats] = useState<Set<ToolbarAction>>(new Set());
+  const [focusMode, setFocusMode] = useState(false);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -204,6 +206,28 @@ function AppContent() {
     }
   }, [scheduleAutoSave]);
 
+  // --- Focus mode toggle ---
+  const toggleFocusMode = useCallback(() => {
+    setFocusMode((prev) => {
+      const next = !prev;
+      window.pennivo?.setFullScreen(next);
+      return next;
+    });
+  }, []);
+
+  // Escape exits focus mode
+  useEffect(() => {
+    if (!focusMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFocusMode(false);
+        window.pennivo?.setFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusMode]);
+
   // --- Menu event listeners ---
   useEffect(() => {
     const cleanups = [
@@ -216,9 +240,10 @@ function AppContent() {
           window.pennivo?.closeAfterSave();
         }
       }),
+      window.pennivo?.onMenuToggleFocusMode(() => toggleFocusMode()),
     ];
     return () => cleanups.forEach(cleanup => cleanup?.());
-  }, [doOpen, doSave, doSaveAs]);
+  }, [doOpen, doSave, doSaveAs, toggleFocusMode]);
 
   // Cleanup auto-save timer on unmount
   useEffect(() => {
@@ -236,7 +261,8 @@ function AppContent() {
   const handleAction = useCallback(
     (action: ToolbarAction) => {
       if (action === 'toggleTheme') { toggleTheme(); return; }
-      if (action === 'link' || action === 'image' || action === 'focusMode') return;
+      if (action === 'focusMode') { toggleFocusMode(); return; }
+      if (action === 'link' || action === 'image') return;
       if (loading) return;
 
       const editor = getInstance();
@@ -306,8 +332,56 @@ function AppContent() {
           break;
       }
     },
-    [loading, getInstance, toggleTheme],
+    [loading, getInstance, toggleTheme, toggleFocusMode],
   );
+
+  // --- Hamburger menu actions ---
+  const focusEditor = useCallback(() => {
+    if (loading) return;
+    const editor = getInstance();
+    if (!editor) return;
+    editor.action((ctx) => {
+      ctx.get(editorViewCtx).focus();
+    });
+  }, [loading, getInstance]);
+
+  const handleMenuAction = useCallback(
+    (action: MenuAction) => {
+      switch (action) {
+        case 'open':        doOpen(); break;
+        case 'save':        doSave(); break;
+        case 'saveAs':      doSaveAs(); break;
+        case 'quit':        window.pennivo?.close(); break;
+        case 'undo':
+        case 'redo':
+        case 'cut':
+        case 'copy':
+        case 'paste':
+        case 'selectAll': {
+          // Refocus editor first — menu click steals focus
+          focusEditor();
+          queueMicrotask(() => {
+            if (action === 'paste') {
+              window.pennivo?.paste();
+            } else {
+              document.execCommand(action);
+            }
+          });
+          break;
+        }
+        case 'focusMode':   toggleFocusMode(); break;
+        case 'toggleTheme': toggleTheme(); break;
+        case 'zoomIn':      window.pennivo?.zoomIn(); break;
+        case 'zoomOut':     window.pennivo?.zoomOut(); break;
+        case 'resetZoom':   window.pennivo?.resetZoom(); break;
+      }
+    },
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor],
+  );
+
+  const toolbarFormats = focusMode
+    ? new Set([...activeFormats, 'focusMode' as ToolbarAction])
+    : activeFormats;
 
   return (
     <AppShell
@@ -315,7 +389,9 @@ function AppContent() {
       isDirty={isDirty}
       wordCount={wordCount}
       saveStatus={saveStatus}
-      toolbar={<Toolbar activeFormats={activeFormats} onAction={handleAction} />}
+      focusMode={focusMode}
+      onMenuAction={handleMenuAction}
+      toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} />}
     >
       <Editor
         onWordCountChange={setWordCount}

@@ -3,6 +3,12 @@ interface PennivoAPI {
   minimize: () => void;
   maximize: () => void;
   close: () => void;
+  setFullScreen: (flag: boolean) => void;
+  isFullScreen: () => Promise<boolean>;
+  paste: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
 
   // File I/O
   openFile: () => Promise<{ filePath: string; content: string } | null>;
@@ -17,6 +23,7 @@ interface PennivoAPI {
   onMenuSave: (cb: () => void) => () => void;
   onMenuSaveAs: (cb: () => void) => () => void;
   onMenuSaveAndClose: (cb: () => void) => () => void;
+  onMenuToggleFocusMode: (cb: () => void) => () => void;
 }
 
 declare interface Window {

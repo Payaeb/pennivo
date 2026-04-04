@@ -102,6 +102,12 @@ function createMenu() {
     {
       label: 'View',
       submenu: [
+        {
+          label: 'Focus Mode',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow?.webContents.send('menu:toggle-focus-mode'),
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
@@ -123,6 +129,29 @@ function registerIpcHandlers() {
     else mainWindow?.maximize();
   });
   ipcMain.on('window:close', () => mainWindow?.close());
+
+  // Fullscreen (for focus mode)
+  ipcMain.on('window:set-fullscreen', (_e, flag: boolean) => {
+    mainWindow?.setFullScreen(flag);
+  });
+  ipcMain.handle('window:is-fullscreen', () => mainWindow?.isFullScreen() ?? false);
+
+  // Edit commands (paste needs native Electron support)
+  ipcMain.on('edit:paste', () => mainWindow?.webContents.paste());
+
+  // Zoom
+  ipcMain.on('window:zoom-in', () => {
+    const wc = mainWindow?.webContents;
+    if (wc) wc.zoomLevel = wc.zoomLevel + 0.5;
+  });
+  ipcMain.on('window:zoom-out', () => {
+    const wc = mainWindow?.webContents;
+    if (wc) wc.zoomLevel = wc.zoomLevel - 0.5;
+  });
+  ipcMain.on('window:zoom-reset', () => {
+    const wc = mainWindow?.webContents;
+    if (wc) wc.zoomLevel = 0;
+  });
 
   // Dirty state tracking (renderer tells main)
   ipcMain.on('file:set-dirty', (_e, dirty: boolean) => {

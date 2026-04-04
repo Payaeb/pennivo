@@ -62,7 +62,7 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
       <div className="toolbar-spacer" />
 
       {btn('toggleTheme', 'Toggle theme', <ThemeIcon />, 'Toggle light / dark theme')}
-      {btn('focusMode',   'Focus mode',   <FocusIcon />, 'Focus mode (coming soon)')}
+      {btn('focusMode',   'Focus mode',   <FocusIcon />, 'Focus mode (Ctrl+Shift+F)')}
     </div>
   );
 }

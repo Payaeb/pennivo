@@ -41,3 +41,54 @@
   width: 100%;
   max-width: var(--editor-max-width);
 }
+
+/* ─── Focus mode ─── */
+
+.app-shell--focus .statusbar {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.app-shell--focus .app-editor-area {
+  padding-top: var(--editor-padding-v);
+}
+
+.app-shell--focus .app-editor-column {
+  max-width: 620px;
+}
+
+/* Chrome header (titlebar + toolbar) auto-hides together */
+.app-shell--focus .titlebar,
+.app-shell--focus .app-toolbar-row {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.app-shell--chrome-hidden .titlebar,
+.app-shell--chrome-hidden .app-toolbar-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.app-shell--chrome-hidden .titlebar {
+  top: 0;
+}
+
+.app-shell--chrome-hidden .app-toolbar-row {
+  top: var(--titlebar-height);
+}
+
+/* When chrome is visible (not hidden), keep normal flow */
+.app-shell--focus:not(.app-shell--chrome-hidden) .titlebar,
+.app-shell--focus:not(.app-shell--chrome-hidden) .app-toolbar-row {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
