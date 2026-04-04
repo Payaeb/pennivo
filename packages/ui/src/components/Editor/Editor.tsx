@@ -32,9 +32,9 @@ function countWords(markdown: string): number {
     .replace(/```[\s\S]*?```/g, '')
     .replace(/`[^`]+`/g, '')
     .replace(/#{1,6}\s+/g, '')
-    .replace(/\*{1,2}|_{1,2}|~~|\[|\]|\(|\)/g, '')
-    .replace(/!\[.*?\]\(.*?\)/g, '')
-    .replace(/\[.*?\]\(.*?\)/g, '')
+    .replace(/!\[.*?\]\(.*?\)/g, '')           // Remove images (alt text is not content)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')   // Links → keep link text, drop URL
+    .replace(/\*{1,2}|_{1,2}|~~/g, '')         // Remove formatting markers
     .replace(/^\s*[-*+>]\s/gm, '')
     .replace(/^\s*\d+\.\s/gm, '')
     .trim();
@@ -82,17 +82,21 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       return null;
     }
 
-    // Save an image file via the callback and insert it into the editor
-    function handleImageFile(file: File, view: EditorView) {
+    // Save an image file via the callback and insert it into the editor.
+    // If dropPos is provided (external drop), insert at that position.
+    function handleImageFile(file: File, view: EditorView, dropPos?: number) {
       const handler = onImagePasteRef.current;
       if (!handler) return;
 
       handler(file).then((src) => {
         if (!src) return;
-        // Insert image node directly via ProseMirror transaction
         const { schema } = view.state;
         const imageNode = schema.nodes['image'].create({ src, alt: '' });
-        view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+        if (dropPos != null) {
+          view.dispatch(view.state.tr.insert(dropPos, imageNode));
+        } else {
+          view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+        }
       });
     }
 
@@ -162,10 +166,16 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
           return true;
         },
         handleDrop: (view, event) => {
+          // Internal drag (e.g. moving an image within the editor) —
+          // let ProseMirror handle the move natively so the original is deleted.
+          if (view.dragging) return false;
+
           const file = getImageFile(event.dataTransfer);
           if (!file) return false;
           event.preventDefault();
-          handleImageFile(file, view);
+          // Resolve drop position from mouse coordinates
+          const dropCoords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+          handleImageFile(file, view, dropCoords?.pos);
           return true;
         },
       },

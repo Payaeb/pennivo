@@ -216,19 +216,6 @@ function AppContent() {
     });
   }, []);
 
-  // Escape exits focus mode
-  useEffect(() => {
-    if (!focusMode) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setFocusMode(false);
-        window.pennivo?.setFullScreen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode]);
-
   // --- Toast state ---
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -245,6 +232,21 @@ function AppContent() {
     selectedText: string;
     anchorRect: { top: number; left: number };
   } | null>(null);
+
+  // Escape exits focus mode — but not if a popover or menu is open
+  useEffect(() => {
+    if (!focusMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Let the link popover or titlebar menu handle Escape first
+      if (linkPopover) return;
+      if (document.querySelector('.titlebar-menu-dropdown')) return;
+      setFocusMode(false);
+      window.pennivo?.setFullScreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusMode, linkPopover]);
 
   const openLinkPopover = useCallback(() => {
     if (loading) return;
@@ -362,32 +364,33 @@ function AppContent() {
     });
   }, [loading, getInstance]);
 
+  // Image-aware paste: checks clipboard for images before falling back to text.
+  // Used by both the Electron menu paste (Ctrl+V) and the hamburger menu paste.
+  const doSmartPaste = useCallback(async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find(t => t.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], 'clipboard.png', { type: imageType });
+          const result = await handleImagePaste(file);
+          if (result) {
+            insertImage(result);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Clipboard API not available or no image — fall through to text paste
+    }
+    window.pennivo?.paste();
+  }, [handleImagePaste, insertImage]);
+
   // --- Menu event listeners ---
   useEffect(() => {
     const cleanups = [
-      window.pennivo?.onMenuPaste(async () => {
-        // Electron's native paste (webContents.paste) doesn't include image data
-        // in the DOM paste event. Read the clipboard directly for images.
-        try {
-          const items = await navigator.clipboard.read();
-          for (const item of items) {
-            const imageType = item.types.find(t => t.startsWith('image/'));
-            if (imageType) {
-              const blob = await item.getType(imageType);
-              const file = new File([blob], 'clipboard.png', { type: imageType });
-              const result = await handleImagePaste(file);
-              if (result) {
-                insertImage(result);
-                return;
-              }
-            }
-          }
-        } catch {
-          // Clipboard API not available or no image — fall through to text paste
-        }
-        // No image found, do normal text paste
-        window.pennivo?.paste();
-      }),
+      window.pennivo?.onMenuPaste(() => doSmartPaste()),
       window.pennivo?.onMenuOpen(() => doOpen()),
       window.pennivo?.onMenuSave(() => doSave()),
       window.pennivo?.onMenuSaveAs(() => doSaveAs()),
@@ -400,7 +403,7 @@ function AppContent() {
       window.pennivo?.onMenuToggleFocusMode(() => toggleFocusMode()),
     ];
     return () => cleanups.forEach(cleanup => cleanup?.());
-  }, [doOpen, doSave, doSaveAs, toggleFocusMode, handleImagePaste, insertImage]);
+  }, [doOpen, doSave, doSaveAs, toggleFocusMode, doSmartPaste]);
 
   // Prevent Electron from navigating when files are dragged onto the window
   useEffect(() => {
@@ -551,7 +554,7 @@ function AppContent() {
           focusEditor();
           queueMicrotask(() => {
             if (action === 'paste') {
-              window.pennivo?.paste();
+              doSmartPaste();
             } else {
               document.execCommand(action);
             }
@@ -565,7 +568,7 @@ function AppContent() {
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste],
   );
 
   const toolbarFormats = focusMode
