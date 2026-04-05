@@ -4,7 +4,8 @@ import './Toolbar.css';
 export type ToolbarAction =
   | 'bold' | 'italic' | 'strikethrough'
   | 'h1' | 'h2'
-  | 'bulletList' | 'orderedList' | 'blockquote'
+  | 'bulletList' | 'orderedList' | 'taskList' | 'blockquote'
+  | 'table'
   | 'link' | 'image' | 'code'
   | 'focusMode' | 'toggleTheme';
 
@@ -22,7 +23,9 @@ const TOOLTIP_DATA: Record<string, TooltipInfo> = {
   h2:            { label: 'Heading 2',                                syntax: '## text' },
   bulletList:    { label: 'Bullet List',                              syntax: '- text' },
   orderedList:   { label: 'Ordered List',                             syntax: '1. text' },
+  taskList:      { label: 'Task List',                                syntax: '- [ ] text' },
   blockquote:    { label: 'Blockquote',                               syntax: '> text' },
+  table:         { label: 'Table',                                    syntax: '| | |' },
   link:          { label: 'Link',          shortcut: 'Ctrl+K',       syntax: '[text](url)' },
   image:         { label: 'Image',                                    syntax: '![alt](url)' },
   code:          { label: 'Code Block',                               syntax: '```code```' },
@@ -89,6 +92,7 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
       <div className="toolbar-group">
         {btn('bulletList',   'Bullet list',   <BulletListIcon />)}
         {btn('orderedList',  'Ordered list',  <span className="tool-label-sm">1.</span>)}
+        {btn('taskList',     'Task list',     <TaskListIcon />)}
         {btn('blockquote',   'Blockquote',    <BlockquoteIcon />)}
       </div>
 
@@ -98,6 +102,7 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
         {btn('link',  'Link',       <LinkIcon />)}
         {btn('image', 'Image',      <ImageIcon />)}
         {btn('code',  'Code block', <CodeIcon />)}
+        {btn('table', 'Table',      <TableIcon />)}
       </div>
 
       <div className="toolbar-spacer" />
@@ -129,6 +134,18 @@ function BulletListIcon() {
       <line x1="6" y1="5.5" x2="14" y2="5.5" />
       <circle cx="2.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" />
       <line x1="6" y1="10.5" x2="14" y2="10.5" />
+    </svg>
+  );
+}
+
+function TaskListIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="4" width="4" height="4" rx="0.8" />
+      <polyline points="2.5,6.2 3.3,7 4.8,5" />
+      <line x1="8" y1="6" x2="14" y2="6" />
+      <rect x="1.5" y="9.5" width="4" height="4" rx="0.8" />
+      <line x1="8" y1="11.5" x2="14" y2="11.5" />
     </svg>
   );
 }
@@ -167,6 +184,18 @@ function CodeIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="5,5 2,8 5,11" />
       <polyline points="11,5 14,8 11,11" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <line x1="1.5" y1="6.5" x2="14.5" y2="6.5" />
+      <line x1="1.5" y1="10.5" x2="14.5" y2="10.5" />
+      <line x1="6" y1="2.5" x2="6" y2="13.5" />
+      <line x1="10.5" y1="2.5" x2="10.5" y2="13.5" />
     </svg>
   );
 }

@@ -15,7 +15,10 @@ import {
   turnIntoTextCommand,
   liftListItemCommand,
 } from '@milkdown/preset-commonmark';
-import { toggleStrikethroughCommand } from '@milkdown/preset-gfm';
+import {
+  toggleStrikethroughCommand,
+  insertTableCommand,
+} from '@milkdown/preset-gfm';
 import './styles/tokens.css';
 import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
@@ -62,7 +65,16 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
 
   for (let d = $from.depth; d >= 0; d--) {
     const node = $from.node(d);
-    if (node.type.name === 'bullet_list') { active.add('bulletList'); break; }
+    if (node.type.name === 'bullet_list') {
+      // Check if this is a task list (list items have checked attr)
+      const listItem = d + 1 <= $from.depth ? $from.node(d + 1) : null;
+      if (listItem && listItem.attrs['checked'] != null) {
+        active.add('taskList');
+      } else {
+        active.add('bulletList');
+      }
+      break;
+    }
     if (node.type.name === 'ordered_list') { active.add('orderedList'); break; }
     if (node.type.name === 'blockquote') { active.add('blockquote'); break; }
   }
@@ -74,6 +86,7 @@ function AppContent() {
   const { toggleTheme } = useTheme();
   const [loading, getInstance] = useInstance();
   const [wordCount, setWordCount] = useState(0);
+  const [charCount, setCharCount] = useState(0);
   const [activeFormats, setActiveFormats] = useState<Set<ToolbarAction>>(new Set());
   const [focusMode, setFocusMode] = useState(false);
 
@@ -491,17 +504,60 @@ function AppContent() {
         case 'bulletList':
           editor.action((ctx) => {
             const view = ctx.get(editorViewCtx);
-            const inList = getActiveFormats(view).has('bulletList');
-            if (inList) callCommand(liftListItemCommand.key)(ctx);
-            else callCommand(wrapInBulletListCommand.key)(ctx);
+            const formats = getActiveFormats(view);
+            if (formats.has('bulletList')) {
+              callCommand(liftListItemCommand.key)(ctx);
+            } else {
+              // Lift out of any existing list first (task list or ordered list)
+              if (formats.has('taskList') || formats.has('orderedList')) {
+                callCommand(liftListItemCommand.key)(ctx);
+              }
+              callCommand(wrapInBulletListCommand.key)(ctx);
+            }
           });
           break;
         case 'orderedList':
           editor.action((ctx) => {
             const view = ctx.get(editorViewCtx);
-            const inList = getActiveFormats(view).has('orderedList');
-            if (inList) callCommand(liftListItemCommand.key)(ctx);
-            else callCommand(wrapInOrderedListCommand.key)(ctx);
+            const formats = getActiveFormats(view);
+            if (formats.has('orderedList')) {
+              callCommand(liftListItemCommand.key)(ctx);
+            } else {
+              // Lift out of any existing list first (task list or bullet list)
+              if (formats.has('taskList') || formats.has('bulletList')) {
+                callCommand(liftListItemCommand.key)(ctx);
+              }
+              callCommand(wrapInOrderedListCommand.key)(ctx);
+            }
+          });
+          break;
+
+        case 'taskList':
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const formats = getActiveFormats(view);
+            if (formats.has('taskList')) {
+              callCommand(liftListItemCommand.key)(ctx);
+            } else {
+              // Lift out of any existing list first
+              if (formats.has('orderedList') || formats.has('bulletList')) {
+                callCommand(liftListItemCommand.key)(ctx);
+              }
+              callCommand(wrapInBulletListCommand.key)(ctx);
+              // Set the list_item's checked attribute to make it a task list
+              queueMicrotask(() => {
+                const { state, dispatch } = view;
+                const { $from } = state.selection;
+                for (let d = $from.depth; d >= 0; d--) {
+                  const node = $from.node(d);
+                  if (node.type.name === 'list_item') {
+                    const pos = $from.before(d);
+                    dispatch(state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: false }));
+                    break;
+                  }
+                }
+              });
+            }
           });
           break;
 
@@ -512,6 +568,10 @@ function AppContent() {
             if (inBq) lift(view.state, view.dispatch);
             else callCommand(wrapInBlockquoteCommand.key)(ctx);
           });
+          break;
+
+        case 'table':
+          editor.action(callCommand(insertTableCommand.key, { row: 2, col: 3 }));
           break;
 
         case 'code':
@@ -580,6 +640,7 @@ function AppContent() {
       filename={filename}
       isDirty={isDirty}
       wordCount={wordCount}
+      charCount={charCount}
       saveStatus={saveStatus}
       focusMode={focusMode}
       onMenuAction={handleMenuAction}
@@ -587,6 +648,7 @@ function AppContent() {
     >
       <Editor
         onWordCountChange={setWordCount}
+        onCharCountChange={setCharCount}
         onMarkdownChange={handleMarkdownChange}
         onViewUpdate={handleViewUpdate}
         onImagePaste={handleImagePaste}

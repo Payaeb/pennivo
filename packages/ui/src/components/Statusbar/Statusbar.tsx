@@ -4,10 +4,11 @@ export type SaveStatus = 'saved' | 'saving' | 'unsaved';
 
 interface StatusbarProps {
   wordCount: number;
+  charCount: number;
   saveStatus: SaveStatus;
 }
 
-export function Statusbar({ wordCount, saveStatus }: StatusbarProps) {
+export function Statusbar({ wordCount, charCount, saveStatus }: StatusbarProps) {
   const readingMinutes = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
@@ -15,6 +16,8 @@ export function Statusbar({ wordCount, saveStatus }: StatusbarProps) {
       <StatusSave status={saveStatus} />
       <span className="status-sep">·</span>
       <span className="status-item">{wordCount.toLocaleString()} words</span>
+      <span className="status-sep">·</span>
+      <span className="status-item">{charCount.toLocaleString()} characters</span>
       <span className="status-sep">·</span>
       <span className="status-item">{readingMinutes} min read</span>
     </div>

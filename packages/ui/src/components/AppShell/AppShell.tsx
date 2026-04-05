@@ -7,6 +7,7 @@ interface AppShellProps {
   filename?: string;
   isDirty?: boolean;
   wordCount?: number;
+  charCount?: number;
   saveStatus?: SaveStatus;
   focusMode?: boolean;
   onMenuAction?: (action: MenuAction) => void;
@@ -18,6 +19,7 @@ export function AppShell({
   filename = 'untitled.md',
   isDirty = false,
   wordCount = 0,
+  charCount = 0,
   saveStatus = 'saved',
   focusMode = false,
   onMenuAction,
@@ -82,7 +84,7 @@ export function AppShell({
       <main className="app-editor-area">
         <div className="app-editor-column">{children}</div>
       </main>
-      <Statusbar wordCount={wordCount} saveStatus={saveStatus} />
+      <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history } from '@milkdown/plugin-history';
 import { $prose } from '@milkdown/utils';
 import { Plugin } from '@milkdown/prose/state';
+import { InputRule, inputRules } from '@milkdown/prose/inputrules';
 import type { EditorView } from '@milkdown/prose/view';
 import './Editor.css';
 
@@ -27,8 +28,8 @@ Plain text, rendered beautifully. Saved reliably. Nothing more. The file format 
 - Type \`## \` at the start of a line for a heading
 `;
 
-function countWords(markdown: string): number {
-  const text = markdown
+function stripMarkdown(markdown: string): string {
+  return markdown
     .replace(/```[\s\S]*?```/g, '')
     .replace(/`[^`]+`/g, '')
     .replace(/#{1,6}\s+/g, '')
@@ -37,20 +38,34 @@ function countWords(markdown: string): number {
     .replace(/\*{1,2}|_{1,2}|~~/g, '')         // Remove formatting markers
     .replace(/^\s*[-*+>]\s/gm, '')
     .replace(/^\s*\d+\.\s/gm, '')
+    .replace(/^\s*-\s*\[[ x]\]\s*/gm, '')     // Remove task list markers
+    .replace(/\|/g, '')                         // Remove table pipes
+    .replace(/-{3,}/g, '')                      // Remove horizontal rules / table separators
     .trim();
+}
+
+function countWords(markdown: string): number {
+  const text = stripMarkdown(markdown);
   if (!text) return 0;
   return text.split(/\s+/).filter(Boolean).length;
+}
+
+function countCharacters(markdown: string): number {
+  const text = stripMarkdown(markdown);
+  // Count non-whitespace characters for a meaningful character count
+  return text.replace(/\s/g, '').length;
 }
 
 interface EditorProps {
   initialContent?: string;
   onWordCountChange?: (count: number) => void;
+  onCharCountChange?: (count: number) => void;
   onMarkdownChange?: (markdown: string) => void;
   onViewUpdate?: (view: EditorView) => void;
   onImagePaste?: (file: File) => Promise<string | null>;
 }
 
-export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, onMarkdownChange, onViewUpdate, onImagePaste }: EditorProps) {
+export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, onCharCountChange, onMarkdownChange, onViewUpdate, onImagePaste }: EditorProps) {
   // Ref so the paste plugin always sees the latest callback without re-creating the editor
   const onImagePasteRef = useRef(onImagePaste);
   onImagePasteRef.current = onImagePaste;
@@ -99,6 +114,67 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
         }
       });
     }
+
+    // Auto-convert typed URLs into links when followed by a space
+    const autolinkPlugin = $prose(() => {
+      const urlRegex = /(?:https?:\/\/)[^\s<]+[^\s<.,;:!?"')}\]]/;
+      return inputRules({
+        rules: [
+          new InputRule(
+            new RegExp(`(^|\\s)(${urlRegex.source})\\s$`),
+            (state, match, start, end) => {
+              const linkMark = state.schema.marks['link'];
+              if (!linkMark) return null;
+
+              const prefix = match[1] || '';
+              const url = match[2]!;
+              const linkStart = start + prefix.length;
+              const linkEnd = linkStart + url.length;
+
+              const mark = linkMark.create({ href: url });
+              return state.tr
+                .addMark(linkStart, linkEnd, mark)
+                .insertText(' ', end - 1, end);
+            },
+          ),
+        ],
+      });
+    });
+
+    // Click on task list checkboxes to toggle checked state
+    const taskListClick = $prose(() => new Plugin({
+      props: {
+        handleClick: (view, pos, event) => {
+          const { state } = view;
+          const $pos = state.doc.resolve(pos);
+
+          // Walk up to find the list_item with a checked attribute
+          for (let d = $pos.depth; d >= 0; d--) {
+            const node = $pos.node(d);
+            if (node.type.name === 'list_item' && node.attrs['checked'] != null) {
+              // Check if the click was on the checkbox area (left side of the li)
+              const domNode = view.nodeDOM(view.state.doc.resolve($pos.before(d)).pos) as HTMLElement | null;
+              if (!domNode) break;
+
+              const rect = domNode.getBoundingClientRect();
+              // Checkbox is rendered via CSS ::before at the left edge
+              const clickInCheckboxArea = event.clientX < rect.left + 28;
+              if (!clickInCheckboxArea) break;
+
+              const nodePos = $pos.before(d);
+              view.dispatch(
+                state.tr.setNodeMarkup(nodePos, undefined, {
+                  ...node.attrs,
+                  checked: !node.attrs['checked'],
+                }),
+              );
+              return true;
+            }
+          }
+          return false;
+        },
+      },
+    }));
 
     // Ctrl+Click to follow links, hover to show URL preview
     const linkClick = $prose(() => new Plugin({
@@ -191,11 +267,14 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(listener)
       .use(history)
       .use(toolbarSync)
+      .use(autolinkPlugin)
+      .use(taskListClick)
       .use(linkClick)
       .use(imagePaste)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
           onWordCountChange?.(countWords(markdown));
+          onCharCountChange?.(countCharacters(markdown));
           onMarkdownChange?.(markdown);
         });
       });
