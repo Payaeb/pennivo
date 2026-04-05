@@ -42,6 +42,18 @@
   --titlebar-bg:     #F0EEE9;
   --titlebar-border: rgba(0, 0, 0, 0.10);
   --selection-bg:    rgba(74, 124, 89, 0.15);
+
+  /* ── Syntax highlighting (light) ── */
+  --sh-keyword:      #7C5EB0;    /* muted purple */
+  --sh-string:       #8A6B3D;    /* warm brown */
+  --sh-number:       #B06040;    /* terracotta */
+  --sh-comment:      #9E9B93;    /* faded stone */
+  --sh-function:     #3D7A8A;    /* teal */
+  --sh-type:         #4A7C59;    /* accent green */
+  --sh-attr:         #7A6B2E;    /* olive */
+  --sh-punctuation:  #8A8880;    /* gray */
+  --sh-meta:         #8A6B8A;    /* dusty mauve */
+  --sh-tag:          #6B5038;    /* deep brown */
 }
 
 [data-theme="dark"] {
@@ -59,4 +71,16 @@
   --titlebar-bg:     #0F0F0F;
   --titlebar-border: rgba(255, 255, 255, 0.07);
   --selection-bg:    rgba(94, 158, 116, 0.18);
+
+  /* ── Syntax highlighting (dark) ── */
+  --sh-keyword:      #B699D6;    /* soft lavender */
+  --sh-string:       #C9A86C;    /* golden sand */
+  --sh-number:       #D49872;    /* soft peach */
+  --sh-comment:      #5A5852;    /* dim stone */
+  --sh-function:     #6BB5C5;    /* pale teal */
+  --sh-type:         #5E9E74;    /* accent green */
+  --sh-attr:         #B5A45A;    /* muted gold */
+  --sh-punctuation:  #6A6862;    /* dim gray */
+  --sh-meta:         #B08DB0;    /* soft plum */
+  --sh-tag:          #C29070;    /* warm clay */
 }

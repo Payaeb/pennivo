@@ -12,6 +12,7 @@ import {
   wrapInOrderedListCommand,
   wrapInBlockquoteCommand,
   createCodeBlockCommand,
+  toggleInlineCodeCommand,
   turnIntoTextCommand,
   liftListItemCommand,
 } from '@milkdown/preset-commonmark';
@@ -577,9 +578,19 @@ function AppContent() {
         case 'code':
           editor.action((ctx) => {
             const view = ctx.get(editorViewCtx);
-            const inCode = getActiveFormats(view).has('code');
-            if (inCode) callCommand(turnIntoTextCommand.key)(ctx);
-            else callCommand(createCodeBlockCommand.key)(ctx);
+            const { state } = view;
+            const inCodeBlock = state.selection.$from.parent.type.name === 'code_block';
+
+            if (inCodeBlock) {
+              // Exit code block → paragraph
+              callCommand(turnIntoTextCommand.key)(ctx);
+            } else if (state.selection.empty) {
+              // No selection → create code block
+              callCommand(createCodeBlockCommand.key)(ctx);
+            } else {
+              // Has selection → toggle inline code
+              callCommand(toggleInlineCodeCommand.key)(ctx);
+            }
           });
           break;
       }

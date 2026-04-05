@@ -28,7 +28,7 @@ const TOOLTIP_DATA: Record<string, TooltipInfo> = {
   table:         { label: 'Table',                                    syntax: '| | |' },
   link:          { label: 'Link',          shortcut: 'Ctrl+K',       syntax: '[text](url)' },
   image:         { label: 'Image',                                    syntax: '![alt](url)' },
-  code:          { label: 'Code Block',                               syntax: '```code```' },
+  code:          { label: 'Code',                                      syntax: '`inline` / ```block```' },
   toggleTheme:   { label: 'Toggle Theme' },
   focusMode:     { label: 'Focus Mode',    shortcut: 'Ctrl+Shift+F' },
 };
@@ -101,7 +101,7 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
       <div className="toolbar-group">
         {btn('link',  'Link',       <LinkIcon />)}
         {btn('image', 'Image',      <ImageIcon />)}
-        {btn('code',  'Code block', <CodeIcon />)}
+        {btn('code',  'Code',       <CodeIcon />)}
         {btn('table', 'Table',      <TableIcon />)}
       </div>
 

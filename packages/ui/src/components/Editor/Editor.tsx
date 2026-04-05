@@ -6,9 +6,10 @@ import { gfm } from '@milkdown/preset-gfm';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history } from '@milkdown/plugin-history';
 import { $prose } from '@milkdown/utils';
-import { Plugin } from '@milkdown/prose/state';
+import { Plugin, Selection } from '@milkdown/prose/state';
 import { InputRule, inputRules } from '@milkdown/prose/inputrules';
 import type { EditorView } from '@milkdown/prose/view';
+import { syntaxHighlightPlugin } from './syntaxHighlight';
 import './Editor.css';
 
 export const DEFAULT_CONTENT = `# On Writing
@@ -26,6 +27,16 @@ Plain text, rendered beautifully. Saved reliably. Nothing more. The file format 
 - Use the toolbar above to format text
 - Press \`Ctrl+B\` for bold, \`Ctrl+I\` for italic
 - Type \`## \` at the start of a line for a heading
+
+\`\`\`js
+function writeEveryDay(words) {
+  const target = 500;
+  if (words >= target) {
+    return "Well done.";
+  }
+  return \`Keep going — \${target - words} words left.\`;
+}
+\`\`\`
 `;
 
 function stripMarkdown(markdown: string): string {
@@ -140,6 +151,66 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
         ],
       });
     });
+
+    // Allow escaping code blocks: ArrowDown at end of last code block,
+    // or Enter at end of code block followed by another code block,
+    // creates a paragraph so the user isn't trapped.
+    const codeBlockEscape = $prose(() => new Plugin({
+      props: {
+        handleKeyDown: (view, event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'Enter') return false;
+
+          const { state } = view;
+          const { $from, empty } = state.selection;
+          if (!empty) return false;
+
+          const parent = $from.parent;
+          if (parent.type.name !== 'code_block') return false;
+
+          // Only act when cursor is at the end of the code block content
+          const atEnd = $from.parentOffset === parent.content.size;
+          if (!atEnd) return false;
+
+          const codeBlockPos = $from.before($from.depth);
+          const afterPos = codeBlockPos + parent.nodeSize;
+          const docSize = state.doc.content.size;
+
+          // Check if this is the last node, or next sibling is also a code block
+          const isLastNode = afterPos >= docSize;
+          const nextNode = isLastNode ? null : state.doc.nodeAt(afterPos);
+          const nextIsCodeBlock = nextNode?.type.name === 'code_block';
+
+          if (event.key === 'ArrowDown' && (isLastNode || nextIsCodeBlock)) {
+            // Insert paragraph after this code block and move cursor there
+            const paragraph = state.schema.nodes['paragraph'].create();
+            const tr = state.tr.insert(afterPos, paragraph);
+            tr.setSelection(Selection.near(tr.doc.resolve(afterPos + 1)));
+            view.dispatch(tr);
+            return true;
+          }
+
+          if (event.key === 'Enter') {
+            // If on the last line AND it's empty, exit the code block
+            const textBeforeCursor = parent.textContent;
+            const lastNewline = textBeforeCursor.lastIndexOf('\n');
+            const lastLine = lastNewline === -1 ? textBeforeCursor : textBeforeCursor.slice(lastNewline + 1);
+
+            if (lastLine === '' && (isLastNode || nextIsCodeBlock)) {
+              // Remove the trailing newline and insert a paragraph after
+              const paragraph = state.schema.nodes['paragraph'].create();
+              const tr = state.tr
+                .delete($from.pos - 1, $from.pos)
+                .insert(afterPos - 1, paragraph);
+              tr.setSelection(Selection.near(tr.doc.resolve(afterPos)));
+              view.dispatch(tr);
+              return true;
+            }
+          }
+
+          return false;
+        },
+      },
+    }));
 
     // Click on task list checkboxes to toggle checked state
     const taskListClick = $prose(() => new Plugin({
@@ -271,6 +342,8 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(taskListClick)
       .use(linkClick)
       .use(imagePaste)
+      .use(codeBlockEscape)
+      .use(syntaxHighlightPlugin)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
           onWordCountChange?.(countWords(markdown));

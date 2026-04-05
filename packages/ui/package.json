@@ -29,6 +29,9 @@
     "@milkdown/react": "^7.20.0",
     "@milkdown/utils": "^7.20.0",
     "@pennivo/core": "workspace:*",
+    "highlight.js": "^11.11.1",
+    "lowlight": "^3.3.0",
+    "prosemirror-highlight": "^0.15.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

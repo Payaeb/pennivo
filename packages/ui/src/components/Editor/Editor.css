@@ -112,6 +112,7 @@
 
 /* ── Code block ── */
 .ProseMirror pre {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-md);
@@ -127,6 +128,110 @@
   padding: 0;
   color: var(--text-primary);
   border-radius: 0;
+}
+
+/* ── Language label ── */
+.ProseMirror pre[data-language]::after {
+  content: attr(data-language);
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+.ProseMirror pre[data-language=""]::after {
+  content: none;
+}
+
+/* ── Syntax highlighting tokens ── */
+
+/* Keywords: if, else, return, const, let, function, class, import, export */
+.ProseMirror pre .hljs-keyword,
+.ProseMirror pre .hljs-selector-tag {
+  color: var(--sh-keyword);
+}
+
+/* Strings and string templates */
+.ProseMirror pre .hljs-string,
+.ProseMirror pre .hljs-template-tag,
+.ProseMirror pre .hljs-template-variable {
+  color: var(--sh-string);
+}
+
+/* Numbers and literals */
+.ProseMirror pre .hljs-number,
+.ProseMirror pre .hljs-literal {
+  color: var(--sh-number);
+}
+
+/* Comments */
+.ProseMirror pre .hljs-comment,
+.ProseMirror pre .hljs-doctag {
+  color: var(--sh-comment);
+  font-style: italic;
+}
+
+/* Function / method names */
+.ProseMirror pre .hljs-title.function_,
+.ProseMirror pre .hljs-title.class_ {
+  color: var(--sh-function);
+}
+
+/* Types, classes, built-ins */
+.ProseMirror pre .hljs-type,
+.ProseMirror pre .hljs-built_in {
+  color: var(--sh-type);
+}
+
+/* Attributes (HTML attributes, decorators) */
+.ProseMirror pre .hljs-attr,
+.ProseMirror pre .hljs-attribute,
+.ProseMirror pre .hljs-selector-class,
+.ProseMirror pre .hljs-selector-id {
+  color: var(--sh-attr);
+}
+
+/* Variables, params */
+.ProseMirror pre .hljs-variable,
+.ProseMirror pre .hljs-params {
+  color: var(--text-primary);
+}
+
+/* Operators and punctuation */
+.ProseMirror pre .hljs-punctuation,
+.ProseMirror pre .hljs-operator {
+  color: var(--sh-punctuation);
+}
+
+/* Meta / preprocessor */
+.ProseMirror pre .hljs-meta,
+.ProseMirror pre .hljs-meta .hljs-keyword {
+  color: var(--sh-meta);
+}
+
+/* HTML/XML tags */
+.ProseMirror pre .hljs-name,
+.ProseMirror pre .hljs-tag {
+  color: var(--sh-tag);
+}
+
+/* Regex */
+.ProseMirror pre .hljs-regexp {
+  color: var(--sh-string);
+}
+
+/* Sections and symbols */
+.ProseMirror pre .hljs-section,
+.ProseMirror pre .hljs-symbol {
+  color: var(--sh-keyword);
 }
 
 /* ── Blockquote ── */
