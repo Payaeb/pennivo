@@ -133,18 +133,3 @@
   position: relative;
   z-index: 100;
 }
-
-/* ─── Typewriter mode ─── */
-
-.app-shell--typewriter .app-editor-area {
-  scroll-behavior: auto;
-}
-
-.app-shell--typewriter .editor-wrapper {
-  padding-top: 40vh;
-  padding-bottom: 40vh;
-}
-
-.app-shell--typewriter .source-editor-wrapper .cm-scroller {
-  padding-top: 40vh;
-}

@@ -7,6 +7,7 @@ interface FileTreeEntry {
 
 interface PennivoAPI {
   platform: string;
+  getPathForFile: (file: File) => string;
   minimize: () => void;
   maximize: () => void;
   close: () => void;

@@ -100,8 +100,6 @@ function AppContent() {
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [typewriterMode, setTypewriterMode] = useState(false);
-  const typewriterModeRef = useRef(false);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -645,9 +643,6 @@ function AppContent() {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy';
-      }
     };
 
     const handleDrop = (e: DragEvent) => {
@@ -664,17 +659,14 @@ function AppContent() {
         const file = files[i];
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
         if (DROPPABLE_EXTENSIONS.has(ext)) {
-          // In Electron, File objects have a .path property with the full path
-          const filePath = (file as File & { path?: string }).path;
+          // Use Electron's webUtils.getPathForFile (File.path is empty with contextIsolation)
+          const filePath = window.pennivo?.getPathForFile(file);
           if (filePath) {
             openRecentFile(filePath);
             return;
           }
         }
       }
-
-      // If no text file, check for image files dropped outside the editor
-      // (Images dropped onto the editor are handled by ProseMirror's handleDrop)
     };
 
     document.addEventListener('dragenter', handleDragEnter);
@@ -706,17 +698,6 @@ function AppContent() {
   // --- Editor view update (toolbar sync) ---
   const handleViewUpdate = useCallback((view: EditorView) => {
     setActiveFormats(getActiveFormats(view));
-
-    // Typewriter mode: scroll cursor to vertical center of the editor area
-    if (typewriterModeRef.current) {
-      const area = document.querySelector('.app-editor-area');
-      if (!area) return;
-      const coords = view.coordsAtPos(view.state.selection.head);
-      const areaRect = area.getBoundingClientRect();
-      const cursorRelative = coords.top - areaRect.top + area.scrollTop;
-      const targetScroll = cursorRelative - areaRect.height / 2;
-      area.scrollTop = targetScroll;
-    }
   }, []);
 
   // --- Toolbar actions ---
@@ -1006,7 +987,6 @@ function AppContent() {
     { id: 'zoomIn',        label: 'Zoom In',                                 category: 'View' },
     { id: 'zoomOut',       label: 'Zoom Out',                                category: 'View' },
     { id: 'resetZoom',     label: 'Reset Zoom',                              category: 'View' },
-    { id: 'typewriterMode', label: 'Toggle Typewriter Mode',                  category: 'View', keywords: 'center scroll focus writing' },
   ], []);
 
   // --- Hamburger menu actions ---
@@ -1069,23 +1049,9 @@ function AppContent() {
     [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction],
   );
 
-  // --- Typewriter mode toggle ---
-  const toggleTypewriterMode = useCallback(() => {
-    setTypewriterMode(prev => {
-      const next = !prev;
-      typewriterModeRef.current = next;
-      return next;
-    });
-  }, []);
-
   // --- Command palette handler ---
   const handleCommandSelect = useCallback((id: string) => {
     setCommandPaletteOpen(false);
-
-    if (id === 'typewriterMode') {
-      toggleTypewriterMode();
-      return;
-    }
 
     const toolbarActions: Set<string> = new Set([
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
@@ -1099,7 +1065,7 @@ function AppContent() {
     } else {
       handleMenuAction(id as MenuAction);
     }
-  }, [handleAction, handleMenuAction, toggleTypewriterMode]);
+  }, [handleAction, handleMenuAction]);
 
   const toolbarFormats = (() => {
     const formats = new Set(activeFormats);
@@ -1117,7 +1083,6 @@ function AppContent() {
       saveStatus={saveStatus}
       focusMode={focusMode}
       sourceMode={sourceMode}
-      typewriterMode={typewriterMode}
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
@@ -1155,7 +1120,6 @@ function AppContent() {
         <SourceEditor
           content={sourceContent}
           active={sourceMode}
-          typewriterMode={typewriterMode}
           onMarkdownChange={handleMarkdownChange}
           onWordCountChange={setWordCount}
           onCharCountChange={setCharCount}

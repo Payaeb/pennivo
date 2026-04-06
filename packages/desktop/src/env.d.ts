@@ -7,6 +7,7 @@ interface FileTreeEntry {
 
 interface PennivoAPI {
   platform: NodeJS.Platform;
+  getPathForFile: (file: File) => string;
   minimize: () => void;
   maximize: () => void;
   close: () => void;

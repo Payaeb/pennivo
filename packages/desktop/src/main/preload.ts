@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 interface FileTreeEntry {
   name: string;
@@ -9,6 +9,7 @@ interface FileTreeEntry {
 
 contextBridge.exposeInMainWorld('pennivo', {
   platform: process.platform,
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
   close:    () => ipcRenderer.send('window:close'),
