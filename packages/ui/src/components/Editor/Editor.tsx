@@ -12,6 +12,7 @@ import type { EditorView } from '@milkdown/prose/view';
 import { countWords, countCharacters } from '../../utils/textStats';
 import { syntaxHighlightPlugin } from './syntaxHighlight';
 import { mermaidPlugin } from './mermaidPlugin';
+import { collapsibleListPlugin } from './collapsibleListPlugin';
 import { createFindReplacePlugin } from '../FindReplace/FindReplace';
 import './Editor.css';
 
@@ -323,6 +324,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(codeBlockEscape)
       .use(syntaxHighlightPlugin)
       .use(mermaidPlugin)
+      .use(collapsibleListPlugin)
       .use(findReplacePlugin)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {

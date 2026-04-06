@@ -384,6 +384,49 @@
   pointer-events: none;
 }
 
+/* ── Collapsible lists ── */
+.collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: -24px;
+  top: 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  border-radius: 3px;
+  transition: color var(--transition-fast), background var(--transition-fast), transform 0.15s ease;
+  transform: rotate(90deg);
+  user-select: none;
+  z-index: 1;
+}
+
+.collapse-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.collapse-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+.collapse-toggle--collapsed {
+  transform: rotate(0deg);
+}
+
+.list-item--collapsible,
+.list-item--collapsed {
+  position: relative;
+}
+
+.list-item--collapsed > ul,
+.list-item--collapsed > ol {
+  display: none;
+}
+
 /* ── Mermaid diagrams ── */
 .mermaid-wrapper {
   position: relative;
