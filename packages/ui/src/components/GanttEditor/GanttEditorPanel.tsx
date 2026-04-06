@@ -340,9 +340,17 @@ export function GanttEditorPanel({
                       className="gantt-input gantt-input--duration"
                       type="text"
                       value={task.duration || ''}
-                      onChange={e =>
-                        updateTask(sIdx, tIdx, t => ({ ...t, duration: e.target.value }))
-                      }
+                      onChange={e => {
+                        const dur = e.target.value;
+                        updateTask(sIdx, tIdx, t => ({
+                          ...t,
+                          duration: dur,
+                          // Auto-set milestone when duration is 0 or 0d
+                          status: (dur === '0d' || dur === '0') ? 'milestone'
+                            : t.status === 'milestone' ? undefined
+                            : t.status,
+                        }));
+                      }}
                       placeholder="5d"
                     />
 
