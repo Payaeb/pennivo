@@ -82,6 +82,7 @@ function initMermaid() {
           // Gantt-specific
           sectionBkgColor: 'rgba(0,0,0,0.02)',
           altSectionBkgColor: 'rgba(0,0,0,0.05)',
+          excludeBkgColor: 'rgba(0,0,0,0.06)',
           gridColor: '#ddd',
           taskTextColor: '#1A1A18',
           taskTextDarkColor: '#1A1A18',
