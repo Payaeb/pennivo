@@ -27,6 +27,13 @@ interface PennivoAPI {
   clearRecentFiles: () => Promise<string[]>;
   openFilePath: (filePath: string) => Promise<{ filePath: string; content: string } | null>;
 
+  // Export
+  exportHtml: (html: string, title: string) => Promise<string | null>;
+  exportPdf: (html: string, title: string) => Promise<string | null>;
+
+  // Window title
+  setTitle: (title: string) => void;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;
@@ -34,6 +41,9 @@ interface PennivoAPI {
   onMenuSaveAs: (cb: () => void) => () => void;
   onMenuSaveAndClose: (cb: () => void) => () => void;
   onMenuToggleFocusMode: (cb: () => void) => () => void;
+  onMenuNewFile: (cb: () => void) => () => void;
+  onMenuExportHtml: (cb: () => void) => () => void;
+  onMenuExportPdf: (cb: () => void) => () => void;
 }
 
 declare interface Window {

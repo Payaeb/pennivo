@@ -235,6 +235,28 @@ function AppContent() {
     loadRecentFiles();
   }, [loading, getInstance, doSave, loadRecentFiles]);
 
+  // --- New file ---
+  const doNewFile = useCallback(async () => {
+    if (isDirtyRef.current) {
+      const response = await window.pennivo?.confirmDiscard();
+      if (response === 2) return;
+      if (response === 0) {
+        const saved = await doSave();
+        if (!saved) return;
+      }
+    }
+
+    const editor = getInstance();
+    if (!editor || loading) return;
+
+    editor.action(replaceAll(''));
+    setFilePath(null);
+    savedMarkdownRef.current = '';
+    markdownRef.current = '';
+    setIsDirty(false);
+    setSaveStatus('saved');
+  }, [loading, getInstance, doSave]);
+
   // --- Auto-save ---
   const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -290,6 +312,33 @@ function AppContent() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // --- Export helpers ---
+  const getEditorHtml = useCallback((): string => {
+    if (loading) return '';
+    const editor = getInstance();
+    if (!editor) return '';
+    let html = '';
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      html = view.dom.innerHTML;
+    });
+    return html;
+  }, [loading, getInstance]);
+
+  const doExportHtml = useCallback(async () => {
+    const html = getEditorHtml();
+    if (!html) return;
+    const result = await window.pennivo?.exportHtml(html, filename);
+    if (result) showToast('Exported as HTML');
+  }, [getEditorHtml, filename, showToast]);
+
+  const doExportPdf = useCallback(async () => {
+    const html = getEditorHtml();
+    if (!html) return;
+    const result = await window.pennivo?.exportPdf(html, filename);
+    if (result) showToast('Exported as PDF');
+  }, [getEditorHtml, filename, showToast]);
+
   // --- Link popover state ---
   const [linkPopover, setLinkPopover] = useState<{
     hasSelection: boolean;
@@ -342,6 +391,12 @@ function AppContent() {
       const editor = getInstance();
       if (!editor) return;
 
+      // Normalize URL — add https:// if no protocol
+      let href = url;
+      if (href && !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href)) {
+        href = 'https://' + href;
+      }
+
       editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         const { state } = view;
@@ -349,12 +404,12 @@ function AppContent() {
 
         if (empty) {
           // No selection — insert [text](url) as a text node with link mark
-          const linkMark = state.schema.marks['link'].create({ href: url });
+          const linkMark = state.schema.marks['link'].create({ href });
           const textNode = state.schema.text(text, [linkMark]);
           view.dispatch(state.tr.replaceSelectionWith(textNode, false));
         } else {
           // Has selection — wrap it with the link mark
-          const linkMark = state.schema.marks['link'].create({ href: url });
+          const linkMark = state.schema.marks['link'].create({ href });
           view.dispatch(state.tr.addMark(from, to, linkMark));
         }
         view.focus();
@@ -466,9 +521,12 @@ function AppContent() {
         }
       }),
       window.pennivo?.onMenuToggleFocusMode(() => toggleFocusMode()),
+      window.pennivo?.onMenuNewFile(() => doNewFile()),
+      window.pennivo?.onMenuExportHtml(() => doExportHtml()),
+      window.pennivo?.onMenuExportPdf(() => doExportPdf()),
     ];
     return () => cleanups.forEach(cleanup => cleanup?.());
-  }, [doOpen, doSave, doSaveAs, toggleFocusMode, doSmartPaste]);
+  }, [doOpen, doSave, doSaveAs, toggleFocusMode, doSmartPaste, doNewFile, doExportHtml, doExportPdf]);
 
   // Prevent Electron from navigating when files are dragged onto the window
   useEffect(() => {
@@ -483,6 +541,12 @@ function AppContent() {
       document.removeEventListener('drop', prevent);
     };
   }, []);
+
+  // Set window title (taskbar) when filename changes
+  useEffect(() => {
+    const title = filePath ? `${extractFilename(filePath)} \u2014 Pennivo` : 'untitled \u2014 Pennivo';
+    window.pennivo?.setTitle(title);
+  }, [filePath]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -710,6 +774,9 @@ function AppContent() {
         case 'focusMode':   toggleFocusMode(); break;
         case 'toggleTheme': toggleTheme(); break;
         case 'findReplace': setFindReplaceOpen(true); break;
+        case 'newFile':     doNewFile(); break;
+        case 'exportHtml':  doExportHtml(); break;
+        case 'exportPdf':   doExportPdf(); break;
         case 'clearRecentFiles':
           window.pennivo?.clearRecentFiles().then(() => loadRecentFiles());
           break;
@@ -718,7 +785,7 @@ function AppContent() {
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf],
   );
 
   const toolbarFormats = focusMode

@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('pennivo', {
   clearRecentFiles: () => ipcRenderer.invoke('recent-files:clear') as Promise<string[]>,
   openFilePath:    (filePath: string) => ipcRenderer.invoke('file:open-path', filePath) as Promise<{ filePath: string; content: string } | null>,
 
+  // Export
+  exportHtml: (html: string, title: string) => ipcRenderer.invoke('export:html', { html, title }) as Promise<string | null>,
+  exportPdf: (html: string, title: string) => ipcRenderer.invoke('export:pdf', { html, title }) as Promise<string | null>,
+
+  // Window title
+  setTitle: (title: string) => ipcRenderer.send('window:set-title', title),
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },
@@ -36,4 +43,7 @@ contextBridge.exposeInMainWorld('pennivo', {
   onMenuSaveAs:       (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:save-as', handler); return () => { ipcRenderer.removeListener('menu:save-as', handler); }; },
   onMenuSaveAndClose:     (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:save-and-close', handler); return () => { ipcRenderer.removeListener('menu:save-and-close', handler); }; },
   onMenuToggleFocusMode:  (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:toggle-focus-mode', handler); return () => { ipcRenderer.removeListener('menu:toggle-focus-mode', handler); }; },
+  onMenuNewFile:      (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:new-file', handler); return () => { ipcRenderer.removeListener('menu:new-file', handler); }; },
+  onMenuExportHtml:   (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:export-html', handler); return () => { ipcRenderer.removeListener('menu:export-html', handler); }; },
+  onMenuExportPdf:    (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:export-pdf', handler); return () => { ipcRenderer.removeListener('menu:export-pdf', handler); }; },
 });

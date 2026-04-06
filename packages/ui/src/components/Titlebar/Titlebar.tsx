@@ -21,7 +21,8 @@ export function Titlebar({ filename, isDirty, onMenuAction, recentFiles, onOpenR
       <div className="titlebar-left">
         {onMenuAction && <TitlebarMenu onAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />}
         <AppIcon />
-        <span className="titlebar-filename">{filename}</span>
+        <span className="titlebar-filename">{filename === 'untitled.md' ? 'untitled' : filename}</span>
+        <span className="titlebar-appname">&mdash; Pennivo</span>
         {isDirty && <span className="titlebar-dirty" title="Unsaved changes" />}
       </div>
 

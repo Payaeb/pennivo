@@ -35,6 +35,15 @@
   text-overflow: ellipsis;
 }
 
+.titlebar-appname {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .titlebar-dirty {
   width: 6px;
   height: 6px;

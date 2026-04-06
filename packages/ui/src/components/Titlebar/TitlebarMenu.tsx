@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import './TitlebarMenu.css';
 
 export type MenuAction =
-  | 'open' | 'save' | 'saveAs' | 'quit'
+  | 'newFile' | 'open' | 'save' | 'saveAs' | 'quit'
   | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
   | 'focusMode' | 'toggleTheme'
   | 'zoomIn' | 'zoomOut' | 'resetZoom'
-  | 'findReplace' | 'clearRecentFiles';
+  | 'findReplace' | 'clearRecentFiles'
+  | 'exportHtml' | 'exportPdf';
 
 export interface RecentFileEntry {
   filePath: string;
@@ -36,9 +37,13 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: 'File',
     items: [
+      { label: 'New File',      action: 'newFile', shortcut: 'Ctrl+N' },
       { label: 'Open\u2026',   action: 'open',   shortcut: 'Ctrl+O' },
       { label: 'Save',         action: 'save',   shortcut: 'Ctrl+S' },
       { label: 'Save As\u2026', action: 'saveAs', shortcut: 'Ctrl+Shift+S' },
+      { separator: true, label: '' },
+      { label: 'Export as HTML', action: 'exportHtml', shortcut: 'Ctrl+Shift+E' },
+      { label: 'Export as PDF',  action: 'exportPdf',  shortcut: 'Ctrl+Shift+P' },
       { separator: true, label: '' },
       { label: 'Quit',         action: 'quit',   shortcut: 'Alt+F4' },
     ],
