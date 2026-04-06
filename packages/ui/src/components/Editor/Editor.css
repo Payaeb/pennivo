@@ -519,6 +519,10 @@
 .mermaid-preview-widget text,
 .mermaid-preview-widget text tspan,
 .mermaid-preview-widget .taskText,
+.mermaid-preview-widget .taskText0,
+.mermaid-preview-widget .taskText1,
+.mermaid-preview-widget .taskText2,
+.mermaid-preview-widget .taskText3,
 .mermaid-preview-widget .taskTextOutsideRight,
 .mermaid-preview-widget .taskTextOutsideLeft,
 .mermaid-preview-widget .titleText,
@@ -530,7 +534,8 @@
 .mermaid-preview-widget .nodeLabel,
 .mermaid-preview-widget .edgeLabel,
 .mermaid-preview-widget .label,
-.mermaid-preview-widget .tick text {
+.mermaid-preview-widget .tick text,
+.mermaid-preview-widget [class*="taskText"] {
   fill: var(--text-primary) !important;
   color: var(--text-primary) !important;
 }
