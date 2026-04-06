@@ -125,56 +125,56 @@ export function OutlinePanel({
   }, [visible, sourceMode, headings]);
 
   // Observe scroll position to highlight active heading (Source mode)
+  // CM6 virtualizes its DOM — only visible lines exist as elements.
+  // Use scroll fraction mapped to heading line positions instead.
+  const headingLineNumbers = useMemo(() => {
+    const lines = markdown.split('\n');
+    const positions: number[] = [];
+    let inCodeBlock = false;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^```/.test(lines[i].trimStart())) { inCodeBlock = !inCodeBlock; continue; }
+      if (inCodeBlock) continue;
+      if (/^#{1,6}\s+/.test(lines[i])) positions.push(i);
+    }
+    return positions;
+  }, [markdown]);
+
   useEffect(() => {
     if (!visible || !sourceMode) return;
 
     const cmScroller = document.querySelector('.source-editor-wrapper .cm-scroller') as HTMLElement | null;
     if (!cmScroller) return;
 
-    const headingRegex = /^#{1,6}\s/;
+    const totalLines = markdown.split('\n').length;
+    if (totalLines <= 1 || headingLineNumbers.length === 0) return;
 
     const updateActive = () => {
-      const cmContent = cmScroller.querySelector('.cm-content') as HTMLElement | null;
-      if (!cmContent) return;
+      const maxScroll = cmScroller.scrollHeight - cmScroller.clientHeight;
+      if (maxScroll <= 0) { setActiveIndex(headingLineNumbers.length > 0 ? 0 : -1); return; }
 
-      const scrollerRect = cmScroller.getBoundingClientRect();
-      const threshold = scrollerRect.top + 80;
+      const scrollFraction = cmScroller.scrollTop / maxScroll;
+      // Map scroll fraction to a line number
+      const currentLine = scrollFraction * (totalLines - 1);
 
-      // CM6 uses generated class names, so we can't rely on .cm-header.
-      // Instead, check each line's text content against the heading regex.
-      const lines = cmContent.querySelectorAll('.cm-line');
-      let headingIdx = 0;
       let active = -1;
-      let inCodeBlock = false;
-
-      lines.forEach((line) => {
-        const text = line.textContent || '';
-        if (text.startsWith('```')) {
-          inCodeBlock = !inCodeBlock;
-          return;
+      for (let i = 0; i < headingLineNumbers.length; i++) {
+        if (headingLineNumbers[i] <= currentLine + 2) {
+          active = i;
+        } else {
+          break;
         }
-        if (inCodeBlock) return;
-
-        if (headingRegex.test(text)) {
-          const rect = line.getBoundingClientRect();
-          if (rect.top <= threshold) {
-            active = headingIdx;
-          }
-          headingIdx++;
-        }
-      });
-
+      }
       setActiveIndex(active);
     };
 
     cmScroller.addEventListener('scroll', updateActive, { passive: true });
-    const timer = setTimeout(updateActive, 150);
+    const timer = setTimeout(updateActive, 100);
 
     return () => {
       cmScroller.removeEventListener('scroll', updateActive);
       clearTimeout(timer);
     };
-  }, [visible, sourceMode, headings]);
+  }, [visible, sourceMode, headings, headingLineNumbers, markdown]);
 
   // Resize logic
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
