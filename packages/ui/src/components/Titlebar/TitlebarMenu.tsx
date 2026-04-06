@@ -8,7 +8,8 @@ export type MenuAction =
   | 'zoomIn' | 'zoomOut' | 'resetZoom'
   | 'findReplace' | 'clearRecentFiles'
   | 'exportHtml' | 'exportPdf'
-  | 'spellcheckSettings';
+  | 'spellcheckSettings'
+  | 'cycleTheme' | 'themeDefault' | 'themeSepia' | 'themeNord' | 'themeRosepine';
 
 export interface RecentFileEntry {
   filePath: string;

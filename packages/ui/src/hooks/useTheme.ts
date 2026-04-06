@@ -1,12 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-export type Theme = 'light' | 'dark';
+/** Base light/dark mode */
+export type ThemeMode = 'light' | 'dark';
 
-const STORAGE_KEY = 'pennivo-theme';
+/** Color scheme names */
+export type ColorScheme = 'default' | 'sepia' | 'nord' | 'rosepine';
 
-function getInitialTheme(): Theme {
+export interface ThemeConfig {
+  mode: ThemeMode;
+  colorScheme: ColorScheme;
+}
+
+const MODE_KEY = 'pennivo-theme';
+const SCHEME_KEY = 'pennivo-color-scheme';
+
+/** All available color schemes with display labels */
+export const COLOR_SCHEMES: { id: ColorScheme; label: string }[] = [
+  { id: 'default', label: 'Default' },
+  { id: 'sepia', label: 'Sepia' },
+  { id: 'nord', label: 'Nord' },
+  { id: 'rosepine', label: 'Rose Pine' },
+];
+
+function getInitialMode(): ThemeMode {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(MODE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
   } catch {
     // localStorage unavailable
@@ -14,20 +32,58 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function getInitialScheme(): ColorScheme {
+  try {
+    const stored = localStorage.getItem(SCHEME_KEY);
+    if (stored && COLOR_SCHEMES.some(s => s.id === stored)) return stored as ColorScheme;
+  } catch {
+    // localStorage unavailable
+  }
+  return 'default';
+}
+
+function applyTheme(mode: ThemeMode, scheme: ColorScheme) {
+  document.documentElement.setAttribute('data-theme', mode);
+  document.documentElement.setAttribute('data-color-scheme', scheme);
+}
+
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+  const [mode, setModeState] = useState<ThemeMode>(getInitialMode);
+  const [colorScheme, setSchemeState] = useState<ColorScheme>(getInitialScheme);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    applyTheme(mode, colorScheme);
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.setItem(MODE_KEY, mode);
+      localStorage.setItem(SCHEME_KEY, colorScheme);
     } catch {
       // ignore
     }
-  }, [theme]);
+  }, [mode, colorScheme]);
 
-  const setTheme = (t: Theme) => setThemeState(t);
-  const toggleTheme = () => setThemeState(t => (t === 'light' ? 'dark' : 'light'));
+  const setMode = useCallback((m: ThemeMode) => setModeState(m), []);
+  const toggleTheme = useCallback(() => setModeState(m => (m === 'light' ? 'dark' : 'light')), []);
+  const setColorScheme = useCallback((s: ColorScheme) => setSchemeState(s), []);
 
-  return { theme, setTheme, toggleTheme };
+  const cycleColorScheme = useCallback(() => {
+    setSchemeState(current => {
+      const idx = COLOR_SCHEMES.findIndex(s => s.id === current);
+      return COLOR_SCHEMES[(idx + 1) % COLOR_SCHEMES.length].id;
+    });
+  }, []);
+
+  // Keep backward compatibility: theme = mode for simple checks
+  return {
+    theme: mode,
+    mode,
+    colorScheme,
+    setTheme: setMode,
+    setMode,
+    toggleTheme,
+    setColorScheme,
+    cycleColorScheme,
+  };
 }
+
+// Re-export for backward compatibility
+export type Theme = ThemeMode;

@@ -89,7 +89,7 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
 }
 
 function AppContent() {
-  const { toggleTheme } = useTheme();
+  const { toggleTheme, colorScheme, cycleColorScheme, setColorScheme } = useTheme();
   const [loading, getInstance] = useInstance();
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
@@ -1052,6 +1052,12 @@ function AppContent() {
     { id: 'zoomIn',        label: 'Zoom In',                                 category: 'View' },
     { id: 'zoomOut',       label: 'Zoom Out',                                category: 'View' },
     { id: 'resetZoom',     label: 'Reset Zoom',                              category: 'View' },
+    // Themes
+    { id: 'cycleTheme',    label: 'Cycle Color Scheme',       category: 'Theme', keywords: 'theme color style' },
+    { id: 'themeDefault',  label: 'Theme: Default',           category: 'Theme', keywords: 'color scheme original green' },
+    { id: 'themeSepia',    label: 'Theme: Sepia',             category: 'Theme', keywords: 'color scheme warm parchment brown' },
+    { id: 'themeNord',     label: 'Theme: Nord',              category: 'Theme', keywords: 'color scheme arctic ice blue' },
+    { id: 'themeRosepine', label: 'Theme: Rose Pine',         category: 'Theme', keywords: 'color scheme rose pink purple' },
     // Spellcheck
     { id: 'spellcheckSettings', label: 'Spellcheck Languages', category: 'Settings', keywords: 'spell check language dictionary' },
   ], []);
@@ -1112,6 +1118,11 @@ function AppContent() {
         case 'zoomIn':      window.pennivo?.zoomIn(); break;
         case 'zoomOut':     window.pennivo?.zoomOut(); break;
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
+        case 'cycleTheme':    cycleColorScheme(); showToast(`Theme: ${colorScheme === 'default' ? 'Sepia' : colorScheme === 'sepia' ? 'Nord' : colorScheme === 'nord' ? 'Rose Pine' : 'Default'}`); break;
+        case 'themeDefault':  setColorScheme('default'); showToast('Theme: Default'); break;
+        case 'themeSepia':    setColorScheme('sepia'); showToast('Theme: Sepia'); break;
+        case 'themeNord':     setColorScheme('nord'); showToast('Theme: Nord'); break;
+        case 'themeRosepine': setColorScheme('rosepine'); showToast('Theme: Rose Pine'); break;
         case 'spellcheckSettings': {
           // Cycle through common language presets
           (async () => {
@@ -1133,7 +1144,7 @@ function AppContent() {
         }
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction, cycleColorScheme, setColorScheme, colorScheme, showToast],
   );
 
   // --- Command palette handler ---
