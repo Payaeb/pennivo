@@ -188,36 +188,23 @@ export const mermaidPlugin = $prose(() => {
 
   function buildDecorations(doc: Node): DecorationSet {
     const decorations: Decoration[] = [];
-    const usedPositions = new Set<number>();
+
+    // Clear all cached elements — fresh render every time
+    previewElements.clear();
+    renderedContent.clear();
 
     doc.descendants((node, pos) => {
       if (node.type.name !== 'code_block') return;
       if (node.attrs['language'] !== 'mermaid') return;
 
-      usedPositions.add(pos);
       const code = node.textContent;
-
-      const existingContent = renderedContent.get(pos);
-      if (existingContent !== code) {
-        previewElements.delete(pos);
-        renderedContent.delete(pos);
-      }
 
       decorations.push(
         Decoration.widget(pos, () => {
-          const existing = previewElements.get(pos);
-          if (existing) return existing;
           return createPreviewWidget(pos, code);
-        }, { side: -1, key: `mermaid-${pos}` })
+        }, { side: -1 })
       );
     });
-
-    for (const p of previewElements.keys()) {
-      if (!usedPositions.has(p)) {
-        previewElements.delete(p);
-        renderedContent.delete(p);
-      }
-    }
 
     return DecorationSet.create(doc, decorations);
   }
@@ -232,10 +219,15 @@ export const mermaidPlugin = $prose(() => {
         return buildDecorations(state.doc);
       },
       apply(tr, oldDeco) {
-        if (tr.docChanged || tr.getMeta(mermaidKey)) {
+        // Only rebuild decorations on explicit meta trigger (from debounce)
+        if (tr.getMeta(mermaidKey)) {
           return buildDecorations(tr.doc);
         }
-        return oldDeco.map(tr.mapping, tr.doc);
+        // For normal doc changes, just remap positions
+        if (tr.docChanged) {
+          return oldDeco.map(tr.mapping, tr.doc);
+        }
+        return oldDeco;
       },
     },
 
@@ -251,10 +243,11 @@ export const mermaidPlugin = $prose(() => {
           if (view.state.doc.eq(prevState.doc)) return;
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
-            // Clear cache when theme might have changed
             svgCache.clear();
+            previewElements.clear();
+            renderedContent.clear();
             view.dispatch(view.state.tr.setMeta(mermaidKey, true));
-          }, 800);
+          }, 500);
         },
         destroy() {
           if (debounceTimer) clearTimeout(debounceTimer);
