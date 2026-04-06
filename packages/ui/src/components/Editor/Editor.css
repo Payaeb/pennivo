@@ -508,21 +508,32 @@
   border-color: var(--accent);
 }
 
-/* Force mermaid SVG text to follow theme text color */
-.mermaid-preview-widget text {
-  fill: var(--text-primary) !important;
-}
-
+/* Force mermaid SVG text to follow theme text color.
+   Mermaid often sets inline style="fill:..." on text/tspan elements
+   which overrides class-based CSS. We need !important everywhere. */
+.mermaid-preview-widget text,
+.mermaid-preview-widget text tspan,
 .mermaid-preview-widget .taskText,
 .mermaid-preview-widget .taskTextOutsideRight,
 .mermaid-preview-widget .taskTextOutsideLeft,
 .mermaid-preview-widget .titleText,
 .mermaid-preview-widget .sectionTitle,
+.mermaid-preview-widget .sectionTitle0,
+.mermaid-preview-widget .sectionTitle1,
+.mermaid-preview-widget .sectionTitle2,
+.mermaid-preview-widget .sectionTitle3,
 .mermaid-preview-widget .nodeLabel,
 .mermaid-preview-widget .edgeLabel,
-.mermaid-preview-widget .label {
+.mermaid-preview-widget .label,
+.mermaid-preview-widget .tick text {
   fill: var(--text-primary) !important;
   color: var(--text-primary) !important;
+}
+
+/* Muted text for axis tick labels */
+.mermaid-preview-widget .tick text,
+.mermaid-preview-widget .tick text tspan {
+  fill: var(--text-muted) !important;
 }
 
 /* Mermaid lines and arrows follow theme */

@@ -183,8 +183,13 @@ export function ganttDataToMermaid(data: GanttData): string {
       // Task ID
       if (task.id) parts.push(task.id);
 
-      // Status
-      if (task.status) parts.push(task.status);
+      // Auto-add milestone status for zero-duration tasks
+      const isMilestone = task.duration === '0d' || task.status === 'milestone';
+      if (isMilestone) {
+        parts.push('milestone');
+      } else if (task.status) {
+        parts.push(task.status);
+      }
 
       // Dependencies
       if (task.afterDeps && task.afterDeps.length > 0) {
@@ -194,8 +199,9 @@ export function ganttDataToMermaid(data: GanttData): string {
       // Start date
       if (task.startDate) parts.push(task.startDate);
 
-      // Duration
+      // Duration — milestones use 0d
       if (task.duration) parts.push(task.duration);
+      else if (isMilestone) parts.push('0d');
 
       const taskTitle = task.title || 'Untitled task';
       lines.push(`    ${taskTitle} :${parts.join(', ')}`);

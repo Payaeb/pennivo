@@ -349,17 +349,21 @@ export function GanttEditorPanel({
                     <select
                       className="gantt-select gantt-select--status"
                       value={task.status || ''}
-                      onChange={e =>
+                      onChange={e => {
+                        const status = (e.target.value || undefined) as GanttTask['status'];
                         updateTask(sIdx, tIdx, t => ({
                           ...t,
-                          status: (e.target.value || undefined) as GanttTask['status'],
-                        }))
-                      }
+                          status,
+                          // Auto-set 0d duration for milestones
+                          duration: status === 'milestone' ? '0d' : (t.duration === '0d' ? '5d' : t.duration),
+                        }));
+                      }}
                     >
                       <option value="">Normal</option>
                       <option value="active">Active</option>
                       <option value="done">Done</option>
                       <option value="crit">Critical</option>
+                      <option value="milestone">Milestone</option>
                     </select>
 
                     <button
