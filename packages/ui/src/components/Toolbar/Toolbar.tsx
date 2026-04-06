@@ -6,7 +6,7 @@ export type ToolbarAction =
   | 'h1' | 'h2'
   | 'bulletList' | 'orderedList' | 'taskList' | 'blockquote'
   | 'table'
-  | 'link' | 'image' | 'mermaid' | 'code'
+  | 'link' | 'image' | 'mermaid' | 'gantt' | 'code'
   | 'focusMode' | 'toggleTheme' | 'sourceMode';
 
 interface TooltipInfo {

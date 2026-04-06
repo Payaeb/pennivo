@@ -33,6 +33,8 @@ import { Sidebar } from './components/Sidebar/Sidebar';
 import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
 import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
 import { OutlinePanel, type HeadingEntry } from './components/OutlinePanel/OutlinePanel';
+import { GanttEditorPanel } from './components/GanttEditor/GanttEditorPanel';
+import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -440,6 +442,65 @@ function AppContent() {
     anchorRect: { top: number; left: number };
   } | null>(null);
 
+  // --- Gantt editor state ---
+  const [ganttEditor, setGanttEditor] = useState<{
+    pos: number;
+    data: GanttData;
+    anchorRect: { top: number; left: number; width: number };
+  } | null>(null);
+
+  // Listen for gantt-edit-request events from the mermaid plugin
+  useEffect(() => {
+    const handleGanttEditRequest = (e: Event) => {
+      const { pos, code, rect } = (e as CustomEvent).detail;
+      const parsed = parseMermaidGantt(code);
+      if (parsed) {
+        setGanttEditor({ pos, data: parsed, anchorRect: rect });
+      }
+    };
+    document.addEventListener('gantt-edit-request', handleGanttEditRequest);
+    return () => document.removeEventListener('gantt-edit-request', handleGanttEditRequest);
+  }, []);
+
+  // Handle gantt data updates → write back to ProseMirror code block
+  const handleGanttUpdate = useCallback((data: GanttData) => {
+    if (!ganttEditor) return;
+    const code = ganttDataToMermaid(data);
+
+    if (!loading) {
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+          // Find the code_block at the stored position
+          const node = state.doc.nodeAt(ganttEditor.pos);
+          if (node && node.type.name === 'code_block') {
+            const tr = state.tr.replaceWith(
+              ganttEditor.pos + 1,
+              ganttEditor.pos + 1 + node.content.size,
+              state.schema.text(code),
+            );
+            view.dispatch(tr);
+          }
+        });
+      }
+    }
+
+    setGanttEditor(prev => prev ? { ...prev, data } : null);
+  }, [ganttEditor, loading, getInstance]);
+
+  const handleGanttClose = useCallback(() => {
+    setGanttEditor(null);
+    // Re-focus editor
+    if (!loading) {
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => { ctx.get(editorViewCtx).focus(); });
+      }
+    }
+  }, [loading, getInstance]);
+
   // Escape exits focus mode — but not if a popover, menu, or find bar is open
   useEffect(() => {
     if (!focusMode) return;
@@ -447,6 +508,7 @@ function AppContent() {
       if (e.key !== 'Escape') return;
       // Let the link popover, titlebar menu, find bar, or command palette handle Escape first
       if (linkPopover) return;
+      if (ganttEditor) return;
       if (findReplaceOpen) return;
       if (commandPaletteOpen) return;
       if (document.querySelector('.titlebar-menu-dropdown')) return;
@@ -782,6 +844,40 @@ function AppContent() {
         });
         return;
       }
+      if (action === 'gantt') {
+        if (loading) return;
+        const editor = getInstance();
+        if (!editor) return;
+        const defaultData = createDefaultGanttData();
+        const code = ganttDataToMermaid(defaultData);
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+          const codeBlock = state.schema.nodes['code_block'].create(
+            { language: 'mermaid' },
+            state.schema.text(code),
+          );
+          const tr = state.tr.replaceSelectionWith(codeBlock);
+          view.dispatch(tr);
+          view.focus();
+
+          // Open the gantt editor after the mermaid plugin renders the preview
+          const insertPos = tr.mapping.map(state.selection.from);
+          queueMicrotask(() => {
+            // Find the preview widget's bounding rect
+            const previewEl = document.querySelector('.mermaid-preview-widget:last-of-type') as HTMLElement;
+            const rect = previewEl
+              ? previewEl.getBoundingClientRect()
+              : { bottom: 200, left: 100, width: 400 };
+            setGanttEditor({
+              pos: insertPos,
+              data: defaultData,
+              anchorRect: { top: rect.bottom ?? 200, left: rect.left ?? 100, width: rect.width ?? 400 },
+            });
+          });
+        });
+        return;
+      }
       if (action === 'image') {
         (async () => {
           let currentPath = filePathRef.current;
@@ -1051,7 +1147,8 @@ function AppContent() {
     { id: 'table',         label: 'Table',                                    category: 'Format' },
     { id: 'link',          label: 'Insert Link',   shortcut: 'Ctrl+K',       category: 'Format', keywords: 'url href' },
     { id: 'image',         label: 'Insert Image',                             category: 'Format' },
-    { id: 'mermaid',       label: 'Insert Mermaid Diagram',                   category: 'Format', keywords: 'diagram chart flowchart gantt sequence' },
+    { id: 'mermaid',       label: 'Insert Mermaid Diagram',                   category: 'Format', keywords: 'diagram chart flowchart sequence' },
+    { id: 'gantt',         label: 'Insert Gantt Chart',                       category: 'Format', keywords: 'gantt chart timeline project schedule task' },
     // File
     { id: 'newFile',       label: 'New File',       shortcut: 'Ctrl+N',      category: 'File' },
     { id: 'open',          label: 'Open File',      shortcut: 'Ctrl+O',      category: 'File' },
@@ -1171,7 +1268,7 @@ function AppContent() {
     const toolbarActions: Set<string> = new Set([
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
       'bulletList', 'orderedList', 'taskList', 'blockquote',
-      'table', 'link', 'image', 'mermaid', 'code',
+      'table', 'link', 'image', 'mermaid', 'gantt', 'code',
       'focusMode', 'toggleTheme', 'sourceMode',
     ]);
 
@@ -1277,6 +1374,14 @@ function AppContent() {
           anchorRect={linkPopover.anchorRect}
           onConfirm={handleLinkConfirm}
           onCancel={handleLinkCancel}
+        />
+      )}
+      {ganttEditor && (
+        <GanttEditorPanel
+          data={ganttEditor.data}
+          anchorRect={ganttEditor.anchorRect}
+          onUpdate={handleGanttUpdate}
+          onClose={handleGanttClose}
         />
       )}
     </AppShell>

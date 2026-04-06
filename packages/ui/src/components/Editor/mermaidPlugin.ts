@@ -143,6 +143,8 @@ export const mermaidPlugin = $prose(() => {
     wrapper.className = 'mermaid-preview-widget';
     wrapper.contentEditable = 'false';
 
+    const isGantt = code.trim().startsWith('gantt');
+
     if (!code.trim()) {
       wrapper.innerHTML = '<span class="mermaid-preview-hint">Enter mermaid syntax below...</span>';
     } else {
@@ -157,6 +159,24 @@ export const mermaidPlugin = $prose(() => {
           errorEl.title = error || '';
           wrapper.innerHTML = '';
           wrapper.appendChild(errorEl);
+        }
+
+        // Add "Edit Chart" button for gantt diagrams
+        if (isGantt) {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'mermaid-gantt-edit-btn';
+          editBtn.textContent = 'Edit Chart';
+          editBtn.contentEditable = 'false';
+          editBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = wrapper.getBoundingClientRect();
+            document.dispatchEvent(new CustomEvent('gantt-edit-request', {
+              detail: { pos, code, rect: { top: rect.bottom, left: rect.left, width: rect.width } },
+            }));
+          });
+          wrapper.style.position = 'relative';
+          wrapper.appendChild(editBtn);
         }
       });
     }
