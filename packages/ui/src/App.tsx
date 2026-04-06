@@ -766,6 +766,22 @@ function AppContent() {
         return;
       }
       if (action === 'link') { openLinkPopover(); return; }
+      if (action === 'mermaid') {
+        if (loading) return;
+        const editor = getInstance();
+        if (!editor) return;
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+          const codeBlock = state.schema.nodes['code_block'].create(
+            { language: 'mermaid' },
+            state.schema.text('graph TD\n    A[Start] --> B[End]'),
+          );
+          view.dispatch(state.tr.replaceSelectionWith(codeBlock));
+          view.focus();
+        });
+        return;
+      }
       if (action === 'image') {
         (async () => {
           let currentPath = filePathRef.current;
@@ -1035,6 +1051,7 @@ function AppContent() {
     { id: 'table',         label: 'Table',                                    category: 'Format' },
     { id: 'link',          label: 'Insert Link',   shortcut: 'Ctrl+K',       category: 'Format', keywords: 'url href' },
     { id: 'image',         label: 'Insert Image',                             category: 'Format' },
+    { id: 'mermaid',       label: 'Insert Mermaid Diagram',                   category: 'Format', keywords: 'diagram chart flowchart gantt sequence' },
     // File
     { id: 'newFile',       label: 'New File',       shortcut: 'Ctrl+N',      category: 'File' },
     { id: 'open',          label: 'Open File',      shortcut: 'Ctrl+O',      category: 'File' },
@@ -1154,7 +1171,7 @@ function AppContent() {
     const toolbarActions: Set<string> = new Set([
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
       'bulletList', 'orderedList', 'taskList', 'blockquote',
-      'table', 'link', 'image', 'code',
+      'table', 'link', 'image', 'mermaid', 'code',
       'focusMode', 'toggleTheme', 'sourceMode',
     ]);
 

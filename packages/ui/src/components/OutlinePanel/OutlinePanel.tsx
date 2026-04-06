@@ -89,12 +89,9 @@ export function OutlinePanel({
     }
   }, [activeIndex]);
 
-  // Observe scroll position to highlight active heading
+  // Observe scroll position to highlight active heading (WYSIWYG mode)
   useEffect(() => {
-    if (!visible || sourceMode) {
-      setActiveIndex(-1);
-      return;
-    }
+    if (!visible || sourceMode) return;
 
     const editorArea = document.querySelector('.app-editor-area');
     if (!editorArea) return;
@@ -124,6 +121,52 @@ export function OutlinePanel({
 
     return () => {
       editorArea.removeEventListener('scroll', updateActive);
+    };
+  }, [visible, sourceMode, headings]);
+
+  // Observe scroll position to highlight active heading (Source mode)
+  useEffect(() => {
+    if (!visible || !sourceMode) return;
+
+    // CodeMirror's scroller element
+    const cmScroller = document.querySelector('.source-editor-wrapper .cm-scroller') as HTMLElement | null;
+    if (!cmScroller) return;
+
+    const updateActive = () => {
+      // Find heading lines in CodeMirror by looking for .cm-header elements
+      // or by matching lines against our extracted headings using line positions
+      const cmContent = cmScroller.querySelector('.cm-content') as HTMLElement | null;
+      if (!cmContent) return;
+
+      const scrollerRect = cmScroller.getBoundingClientRect();
+      const threshold = scrollerRect.top + 80;
+
+      // Get all cm-line elements and check which ones are headings
+      const lines = cmContent.querySelectorAll('.cm-line');
+      let headingIdx = 0;
+      let active = -1;
+
+      lines.forEach((line) => {
+        // A heading line in CodeMirror markdown has .cm-header descendants
+        if (line.querySelector('.cm-header')) {
+          const rect = line.getBoundingClientRect();
+          if (rect.top <= threshold) {
+            active = headingIdx;
+          }
+          headingIdx++;
+        }
+      });
+
+      setActiveIndex(active);
+    };
+
+    cmScroller.addEventListener('scroll', updateActive, { passive: true });
+    // Initial check after a short delay (CM may still be rendering)
+    const timer = setTimeout(updateActive, 100);
+
+    return () => {
+      cmScroller.removeEventListener('scroll', updateActive);
+      clearTimeout(timer);
     };
   }, [visible, sourceMode, headings]);
 

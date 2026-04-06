@@ -477,3 +477,16 @@
   color: var(--text-faint);
   align-self: center;
 }
+
+/* Force mermaid SVG text to match theme */
+[data-theme="dark"] .mermaid-preview-widget text {
+  fill: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .mermaid-preview-widget .taskText,
+[data-theme="dark"] .mermaid-preview-widget .taskTextOutsideRight,
+[data-theme="dark"] .mermaid-preview-widget .taskTextOutsideLeft,
+[data-theme="dark"] .mermaid-preview-widget .titleText,
+[data-theme="dark"] .mermaid-preview-widget .sectionTitle {
+  fill: var(--text-primary) !important;
+}

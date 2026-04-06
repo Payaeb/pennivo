@@ -17,7 +17,6 @@ function initMermaid() {
     fontFamily: '"Segoe UI", system-ui, sans-serif',
     themeVariables: isDarkMode()
       ? {
-          // Dark mode: light text on transparent/dark backgrounds
           primaryColor: 'transparent',
           primaryBorderColor: '#7a7872',
           primaryTextColor: '#E8E6E1',
@@ -35,9 +34,33 @@ function initMermaid() {
           titleColor: '#E8E6E1',
           edgeLabelBackground: '#1C1C1C',
           nodeTextColor: '#E8E6E1',
+          // Gantt-specific
+          sectionBkgColor: 'rgba(255,255,255,0.04)',
+          altSectionBkgColor: 'rgba(255,255,255,0.08)',
+          gridColor: '#3a3a3a',
+          taskTextColor: '#E8E6E1',
+          taskTextDarkColor: '#E8E6E1',
+          taskTextOutsideColor: '#E8E6E1',
+          taskBorderColor: '#7a7872',
+          taskBkgColor: 'rgba(94, 158, 116, 0.3)',
+          activeTaskBorderColor: '#5E9E74',
+          activeTaskBkgColor: 'rgba(94, 158, 116, 0.5)',
+          doneTaskBorderColor: '#5A5852',
+          doneTaskBkgColor: 'rgba(90, 88, 82, 0.3)',
+          critBorderColor: '#D49872',
+          critBkgColor: 'rgba(212, 152, 114, 0.3)',
+          todayLineColor: '#5E9E74',
+          // Sequence diagram
+          actorTextColor: '#E8E6E1',
+          actorBorder: '#7a7872',
+          actorBkg: 'transparent',
+          signalColor: '#E8E6E1',
+          labelTextColor: '#E8E6E1',
+          noteBkgColor: 'rgba(255,255,255,0.06)',
+          noteTextColor: '#E8E6E1',
+          noteBorderColor: '#5A5852',
         }
       : {
-          // Light mode: dark text on transparent/light backgrounds
           primaryColor: 'transparent',
           primaryBorderColor: '#8A8880',
           primaryTextColor: '#1A1A18',
@@ -55,6 +78,31 @@ function initMermaid() {
           titleColor: '#1A1A18',
           edgeLabelBackground: '#FAFAF8',
           nodeTextColor: '#1A1A18',
+          // Gantt-specific
+          sectionBkgColor: 'rgba(0,0,0,0.02)',
+          altSectionBkgColor: 'rgba(0,0,0,0.05)',
+          gridColor: '#ddd',
+          taskTextColor: '#1A1A18',
+          taskTextDarkColor: '#1A1A18',
+          taskTextOutsideColor: '#1A1A18',
+          taskBorderColor: '#8A8880',
+          taskBkgColor: 'rgba(74, 124, 89, 0.2)',
+          activeTaskBorderColor: '#4A7C59',
+          activeTaskBkgColor: 'rgba(74, 124, 89, 0.35)',
+          doneTaskBorderColor: '#AEACA6',
+          doneTaskBkgColor: 'rgba(174, 172, 166, 0.2)',
+          critBorderColor: '#B06040',
+          critBkgColor: 'rgba(176, 96, 64, 0.2)',
+          todayLineColor: '#4A7C59',
+          // Sequence diagram
+          actorTextColor: '#1A1A18',
+          actorBorder: '#8A8880',
+          actorBkg: 'transparent',
+          signalColor: '#1A1A18',
+          labelTextColor: '#1A1A18',
+          noteBkgColor: 'rgba(0,0,0,0.03)',
+          noteTextColor: '#1A1A18',
+          noteBorderColor: '#AEACA6',
         },
   });
 }
