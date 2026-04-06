@@ -59,6 +59,11 @@
   background: var(--accent-hover);
 }
 
+.tool-btn--disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 .tool-btn svg {
   width: 15px;
   height: 15px;

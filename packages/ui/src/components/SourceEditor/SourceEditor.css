@@ -1,0 +1,91 @@
+/* ─── Source Editor (CodeMirror) ─── */
+
+.source-editor-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.source-editor-wrapper .cm-editor {
+  outline: none;
+  height: 100%;
+}
+
+.source-editor-wrapper .cm-editor.cm-focused {
+  outline: none;
+}
+
+.source-editor-wrapper .cm-scroller {
+  padding-bottom: 60vh; /* breathing room at bottom, like a real editor */
+}
+
+/* Match ProseMirror's selection style */
+.source-editor-wrapper .cm-editor ::selection {
+  background: var(--selection-bg);
+}
+
+/* Placeholder when empty */
+.source-editor-wrapper .cm-editor .cm-content[contenteditable="true"]:empty::before {
+  content: 'Start writing…';
+  color: var(--text-faint);
+  pointer-events: none;
+  font-family: var(--font-mono);
+}
+
+/* Search panel refinements */
+.source-editor-wrapper .cm-panels {
+  border-radius: 0;
+}
+
+.source-editor-wrapper .cm-panel.cm-search {
+  padding: 6px 10px;
+  gap: 4px;
+}
+
+.source-editor-wrapper .cm-panel.cm-search input[type="text"] {
+  background: var(--bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  outline: none;
+}
+
+.source-editor-wrapper .cm-panel.cm-search input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+.source-editor-wrapper .cm-panel.cm-search button {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.source-editor-wrapper .cm-panel.cm-search button:hover {
+  background: var(--accent-soft);
+}
+
+.source-editor-wrapper .cm-panel.cm-search label {
+  color: var(--text-muted);
+}
+
+/* Scrollbar (matches app-editor-area) */
+.source-editor-wrapper .cm-scroller::-webkit-scrollbar {
+  width: 6px;
+}
+
+.source-editor-wrapper .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.source-editor-wrapper .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 3px;
+}
+
+.source-editor-wrapper .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}

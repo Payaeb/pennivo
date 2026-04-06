@@ -528,13 +528,13 @@ function registerIpcHandlers() {
   });
 
   // Save As dialog + write
-  ipcMain.handle('file:save-as', async (_e, args: { content: string }) => {
+  ipcMain.handle('file:save-as', async (_e, args: { content: string; defaultPath?: string }) => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
       filters: [
         { name: 'Markdown', extensions: ['md'] },
         { name: 'All Files', extensions: ['*'] },
       ],
-      defaultPath: 'untitled.md',
+      defaultPath: args.defaultPath || 'untitled.md',
     });
 
     if (canceled || !filePath) return null;

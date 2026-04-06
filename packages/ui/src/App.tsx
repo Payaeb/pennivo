@@ -24,6 +24,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
+import { SourceEditor } from './components/SourceEditor/SourceEditor';
 import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import { FindReplace } from './components/FindReplace/FindReplace';
@@ -93,6 +94,10 @@ function AppContent() {
   const [activeFormats, setActiveFormats] = useState<Set<ToolbarAction>>(new Set());
   const [focusMode, setFocusMode] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
+  const [sourceContent, setSourceContent] = useState('');
+  const sourceModeRef = useRef(false);
+  const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -208,7 +213,16 @@ function AppContent() {
     const content = markdownRef.current;
     setSaveStatus('saving');
     try {
-      const newPath = await window.pennivo?.saveFileAs(content);
+      // Build a default path: if a file is open, suggest "name (copy).md"
+      let defaultSavePath: string | undefined;
+      const currentPath = filePathRef.current;
+      if (currentPath) {
+        const lastSep = Math.max(currentPath.lastIndexOf('/'), currentPath.lastIndexOf('\\'));
+        const dir = currentPath.slice(0, lastSep + 1);
+        const base = currentPath.slice(lastSep + 1).replace(/\.md$/i, '');
+        defaultSavePath = `${dir}${base} (copy).md`;
+      }
+      const newPath = await window.pennivo?.saveFileAs(content, defaultSavePath);
       if (newPath) {
         setFilePath(newPath);
         savedMarkdownRef.current = content;
@@ -224,6 +238,20 @@ function AppContent() {
       return false;
     }
   }, [loadRecentFiles]);
+
+  // --- Load content into the active editor ---
+  // Both editors stay mounted; update the visible one directly.
+  const loadContent = useCallback((content: string) => {
+    markdownRef.current = content;
+    if (sourceModeRef.current) {
+      setSourceContent(content);
+    } else {
+      const editor = getInstance();
+      if (editor && !loading) {
+        editor.action(replaceAll(content));
+      }
+    }
+  }, [loading, getInstance]);
 
   // --- Open file ---
   const doOpen = useCallback(async () => {
@@ -241,17 +269,13 @@ function AppContent() {
     const result = await window.pennivo?.openFile();
     if (!result) return;
 
-    const editor = getInstance();
-    if (!editor || loading) return;
-
-    editor.action(replaceAll(result.content));
+    loadContent(result.content);
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
-    markdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [loading, getInstance, doSave, loadRecentFiles]);
+  }, [doSave, loadRecentFiles, loadContent]);
 
   // --- Open recent file by path ---
   const openRecentFile = useCallback(async (recentPath: string) => {
@@ -268,17 +292,13 @@ function AppContent() {
     const result = await window.pennivo?.openFilePath(recentPath);
     if (!result) return;
 
-    const editor = getInstance();
-    if (!editor || loading) return;
-
-    editor.action(replaceAll(result.content));
+    loadContent(result.content);
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
-    markdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [loading, getInstance, doSave, loadRecentFiles]);
+  }, [doSave, loadRecentFiles, loadContent]);
 
   // --- Sidebar file click ---
   const handleSidebarFileClick = useCallback(async (clickedPath: string) => {
@@ -294,17 +314,13 @@ function AppContent() {
     const result = await window.pennivo?.openFilePath(clickedPath);
     if (!result) return;
 
-    const editor = getInstance();
-    if (!editor || loading) return;
-
-    editor.action(replaceAll(result.content));
+    loadContent(result.content);
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
-    markdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [loading, getInstance, doSave, loadRecentFiles]);
+  }, [doSave, loadRecentFiles, loadContent]);
 
   // --- New file ---
   const doNewFile = useCallback(async () => {
@@ -317,16 +333,12 @@ function AppContent() {
       }
     }
 
-    const editor = getInstance();
-    if (!editor || loading) return;
-
-    editor.action(replaceAll(''));
+    loadContent('');
     setFilePath(null);
     savedMarkdownRef.current = '';
-    markdownRef.current = '';
     setIsDirty(false);
     setSaveStatus('saved');
-  }, [loading, getInstance, doSave]);
+  }, [doSave, loadContent]);
 
   // --- Auto-save ---
   const scheduleAutoSave = useCallback(() => {
@@ -500,10 +512,11 @@ function AppContent() {
     });
   }, [loading, getInstance]);
 
-  // Ctrl+K shortcut for link insert
+  // Ctrl+K shortcut for link insert (WYSIWYG only)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        if (sourceModeRef.current) return;
         e.preventDefault();
         openLinkPopover();
       }
@@ -637,6 +650,25 @@ function AppContent() {
     (action: ToolbarAction) => {
       if (action === 'toggleTheme') { toggleTheme(); return; }
       if (action === 'focusMode') { toggleFocusMode(); return; }
+      if (action === 'sourceMode') {
+        setSourceMode((prev) => {
+          const next = !prev;
+          sourceModeRef.current = next;
+          if (next) {
+            // Switching WYSIWYG → source: push current markdown into CodeMirror
+            setSourceContent(markdownRef.current);
+          } else {
+            // Switching source → WYSIWYG: push current markdown into Milkdown
+            // Milkdown stays mounted so getInstance() is valid
+            const ed = getInstance();
+            if (ed && !loading) {
+              ed.action(replaceAll(markdownRef.current));
+            }
+          }
+          return next;
+        });
+        return;
+      }
       if (action === 'link') { openLinkPopover(); return; }
       if (action === 'image') {
         (async () => {
@@ -785,6 +817,10 @@ function AppContent() {
   );
 
   // --- Get ProseMirror view (for Find & Replace) ---
+  const getCmView = useCallback((): import('@codemirror/view').EditorView | null => {
+    return cmViewRef.current;
+  }, []);
+
   const getEditorView = useCallback((): import('@milkdown/prose/view').EditorView | null => {
     if (loading) return null;
     const editor = getInstance();
@@ -796,7 +832,7 @@ function AppContent() {
     return view;
   }, [loading, getInstance]);
 
-  // Ctrl+F opens find & replace
+  // Ctrl+F opens find & replace (works in both modes)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -822,6 +858,12 @@ function AppContent() {
 
   // --- Hamburger menu actions ---
   const focusEditor = useCallback(() => {
+    if (sourceModeRef.current) {
+      // Focus the CodeMirror editor
+      const cmEl = document.querySelector('.source-editor-wrapper .cm-content') as HTMLElement | null;
+      cmEl?.focus();
+      return;
+    }
     if (loading) return;
     const editor = getInstance();
     if (!editor) return;
@@ -855,6 +897,7 @@ function AppContent() {
           break;
         }
         case 'focusMode':     toggleFocusMode(); break;
+        case 'sourceMode':    handleAction('sourceMode'); break;
         case 'toggleTheme':   toggleTheme(); break;
         case 'toggleSidebar': setSidebarVisible((v) => !v); break;
         case 'setFolder':     handleChooseFolder(); break;
@@ -870,12 +913,15 @@ function AppContent() {
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction],
   );
 
-  const toolbarFormats = focusMode
-    ? new Set([...activeFormats, 'focusMode' as ToolbarAction])
-    : activeFormats;
+  const toolbarFormats = (() => {
+    const formats = new Set(activeFormats);
+    if (focusMode) formats.add('focusMode');
+    if (sourceMode) formats.add('sourceMode');
+    return formats;
+  })();
 
   return (
     <AppShell
@@ -885,10 +931,11 @@ function AppContent() {
       charCount={charCount}
       saveStatus={saveStatus}
       focusMode={focusMode}
+      sourceMode={sourceMode}
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
-      toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} />}
+      toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} sourceMode={sourceMode} />}
       sidebar={
         <Sidebar
           visible={sidebarVisible}
@@ -903,17 +950,32 @@ function AppContent() {
         <FindReplace
           visible={findReplaceOpen}
           getView={getEditorView}
+          getCmView={getCmView}
+          sourceMode={sourceMode}
           onClose={() => setFindReplaceOpen(false)}
         />
       }
     >
-      <Editor
-        onWordCountChange={setWordCount}
-        onCharCountChange={setCharCount}
-        onMarkdownChange={handleMarkdownChange}
-        onViewUpdate={handleViewUpdate}
-        onImagePaste={handleImagePaste}
-      />
+      <div className={sourceMode ? 'editor-pane editor-pane--hidden' : 'editor-pane'}>
+        <Editor
+          onWordCountChange={setWordCount}
+          onCharCountChange={setCharCount}
+          onMarkdownChange={handleMarkdownChange}
+          onViewUpdate={handleViewUpdate}
+          onImagePaste={handleImagePaste}
+        />
+      </div>
+      <div className={sourceMode ? 'editor-pane editor-pane--source' : 'editor-pane editor-pane--hidden'}>
+        <SourceEditor
+          content={sourceContent}
+          active={sourceMode}
+          onMarkdownChange={handleMarkdownChange}
+          onWordCountChange={setWordCount}
+          onCharCountChange={setCharCount}
+          onViewReady={(view) => { cmViewRef.current = view; }}
+          onViewDestroy={() => { cmViewRef.current = null; }}
+        />
+      </div>
       {toast && <div className="toast">{toast}</div>}
       {linkPopover && (
         <LinkPopover

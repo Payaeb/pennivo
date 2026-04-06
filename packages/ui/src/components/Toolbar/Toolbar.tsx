@@ -7,7 +7,7 @@ export type ToolbarAction =
   | 'bulletList' | 'orderedList' | 'taskList' | 'blockquote'
   | 'table'
   | 'link' | 'image' | 'code'
-  | 'focusMode' | 'toggleTheme';
+  | 'focusMode' | 'toggleTheme' | 'sourceMode';
 
 interface TooltipInfo {
   label: string;
@@ -31,14 +31,16 @@ const TOOLTIP_DATA: Record<string, TooltipInfo> = {
   code:          { label: 'Code',                                      syntax: '`inline` / ```block```' },
   toggleTheme:   { label: 'Toggle Theme' },
   focusMode:     { label: 'Focus Mode',    shortcut: 'Ctrl+Shift+F' },
+  sourceMode:    { label: 'Source Mode' },
 };
 
 interface ToolbarProps {
   activeFormats?: Set<ToolbarAction>;
   onAction?: (action: ToolbarAction) => void;
+  sourceMode?: boolean;
 }
 
-export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
+export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = false }: ToolbarProps) {
   const [tooltip, setTooltip] = useState<{ action: string; rect: DOMRect } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -54,15 +56,16 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
     setTooltip(null);
   }, []);
 
-  const btn = (action: ToolbarAction, label: string, children: React.ReactNode) => (
+  const btn = (action: ToolbarAction, label: string, children: React.ReactNode, disabled = false) => (
     <button
       key={action}
-      className={`tool-btn${activeFormats.has(action) ? ' tool-btn--active' : ''}`}
+      className={`tool-btn${activeFormats.has(action) ? ' tool-btn--active' : ''}${disabled ? ' tool-btn--disabled' : ''}`}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => { onAction?.(action); hideTooltip(); }}
+      onClick={() => { if (!disabled) { onAction?.(action); hideTooltip(); } }}
       tabIndex={-1}
       aria-label={label}
       aria-pressed={activeFormats.has(action)}
+      aria-disabled={disabled}
       onMouseEnter={(e) => showTooltip(action, e.currentTarget)}
       onMouseLeave={hideTooltip}
     >
@@ -72,41 +75,45 @@ export function Toolbar({ activeFormats = new Set(), onAction }: ToolbarProps) {
 
   const tip = TOOLTIP_DATA[tooltip?.action ?? ''];
 
+  const d = sourceMode; // shorthand for disabled
+
   return (
     <div className="toolbar" role="toolbar" aria-label="Formatting">
       <div className="toolbar-group">
-        {btn('bold',          'Bold',          <b>B</b>)}
-        {btn('italic',        'Italic',        <em>I</em>)}
-        {btn('strikethrough', 'Strikethrough', <s>S</s>)}
+        {btn('bold',          'Bold',          <b>B</b>, d)}
+        {btn('italic',        'Italic',        <em>I</em>, d)}
+        {btn('strikethrough', 'Strikethrough', <s>S</s>, d)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('h1', 'Heading 1', <span className="tool-label-sm">H1</span>)}
-        {btn('h2', 'Heading 2', <span className="tool-label-sm">H2</span>)}
+        {btn('h1', 'Heading 1', <span className="tool-label-sm">H1</span>, d)}
+        {btn('h2', 'Heading 2', <span className="tool-label-sm">H2</span>, d)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('bulletList',   'Bullet list',   <BulletListIcon />)}
-        {btn('orderedList',  'Ordered list',  <span className="tool-label-sm">1.</span>)}
-        {btn('taskList',     'Task list',     <TaskListIcon />)}
-        {btn('blockquote',   'Blockquote',    <BlockquoteIcon />)}
+        {btn('bulletList',   'Bullet list',   <BulletListIcon />, d)}
+        {btn('orderedList',  'Ordered list',  <span className="tool-label-sm">1.</span>, d)}
+        {btn('taskList',     'Task list',     <TaskListIcon />, d)}
+        {btn('blockquote',   'Blockquote',    <BlockquoteIcon />, d)}
       </div>
 
       <div className="toolbar-divider" />
 
       <div className="toolbar-group">
-        {btn('link',  'Link',       <LinkIcon />)}
-        {btn('image', 'Image',      <ImageIcon />)}
-        {btn('code',  'Code',       <CodeIcon />)}
-        {btn('table', 'Table',      <TableIcon />)}
+        {btn('link',  'Link',       <LinkIcon />, d)}
+        {btn('image', 'Image',      <ImageIcon />, d)}
+        {btn('code',  'Code',       <CodeIcon />, d)}
+        {btn('table', 'Table',      <TableIcon />, d)}
       </div>
 
       <div className="toolbar-spacer" />
 
+      {btn('sourceMode', 'Source mode', <SourceIcon />)}
+      <div className="toolbar-divider" />
       {btn('toggleTheme', 'Toggle theme', <ThemeIcon />)}
       {btn('focusMode',   'Focus mode',   <FocusIcon />)}
 
@@ -223,6 +230,16 @@ function FocusIcon() {
       <polyline points="10,3 13,3 13,6" />
       <polyline points="13,10 13,13 10,13" />
       <polyline points="6,13 3,13 3,10" />
+    </svg>
+  );
+}
+
+function SourceIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="5,3 2,8 5,13" />
+      <polyline points="11,3 14,8 11,13" />
+      <line x1="9.5" y1="2" x2="6.5" y2="14" />
     </svg>
   );
 }

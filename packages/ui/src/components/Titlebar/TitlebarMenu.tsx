@@ -4,7 +4,7 @@ import './TitlebarMenu.css';
 export type MenuAction =
   | 'newFile' | 'open' | 'save' | 'saveAs' | 'quit'
   | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
-  | 'focusMode' | 'toggleTheme' | 'toggleSidebar' | 'setFolder'
+  | 'focusMode' | 'sourceMode' | 'toggleTheme' | 'toggleSidebar' | 'setFolder'
   | 'zoomIn' | 'zoomOut' | 'resetZoom'
   | 'findReplace' | 'clearRecentFiles'
   | 'exportHtml' | 'exportPdf';

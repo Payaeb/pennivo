@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { EditorView } from '@milkdown/prose/view';
 import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
+import type { EditorView as CmEditorView } from '@codemirror/view';
+import { updateCmFind, cmFindField } from './cmFindReplace';
 import './FindReplace.css';
+
+// ── ProseMirror find plugin (unchanged) ──
 
 export const findReplacePluginKey = new PluginKey<FindReplaceState>('findReplace');
 
@@ -28,15 +32,12 @@ function buildMatches(
 ): Array<{ from: number; to: number }> {
   if (!query) return [];
 
-  // Walk the document to build text with a position map.
-  // Each character in our flat text string maps to a document position.
   let fullText = '';
-  const posMap: number[] = []; // posMap[textIndex] = docPos
+  const posMap: number[] = [];
   let prevBlockEnd = false;
 
   doc.descendants((node, pos) => {
     if (node.isBlock && fullText.length > 0 && !prevBlockEnd) {
-      // Insert newline between blocks (no doc position)
       fullText += '\n';
       posMap.push(-1);
       prevBlockEnd = true;
@@ -57,7 +58,6 @@ function buildMatches(
     try {
       re = new RegExp(query, 'gi');
     } catch {
-      // Invalid regex — escape special chars and search literally
       const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       re = new RegExp(escaped, 'gi');
     }
@@ -94,7 +94,6 @@ export function createFindReplacePlugin() {
         const meta = tr.getMeta(findReplacePluginKey) as Partial<FindReplaceState> | undefined;
         if (meta) {
           const next = { ...prev, ...meta };
-          // Rebuild matches if query or regex toggled or doc changed
           if (meta.query !== undefined || meta.useRegex !== undefined || tr.docChanged) {
             next.matches = buildMatches(tr.doc, next.query, next.useRegex);
             if (next.currentIndex >= next.matches.length) next.currentIndex = next.matches.length > 0 ? 0 : -1;
@@ -132,13 +131,17 @@ export function createFindReplacePlugin() {
   });
 }
 
+// ── FindReplace UI component ──
+
 interface FindReplaceProps {
   visible: boolean;
   getView: () => EditorView | null;
+  getCmView?: () => CmEditorView | null;
+  sourceMode?: boolean;
   onClose: () => void;
 }
 
-export function FindReplace({ visible, getView, onClose }: FindReplaceProps) {
+export function FindReplace({ visible, getView, getCmView, sourceMode = false, onClose }: FindReplaceProps) {
   const [query, setQuery] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [useRegex, setUseRegex] = useState(false);
@@ -146,8 +149,9 @@ export function FindReplace({ visible, getView, onClose }: FindReplaceProps) {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Update plugin state when query or regex changes
-  const updateSearch = useCallback((newQuery: string, newUseRegex: boolean) => {
+  // ── ProseMirror backend ──
+
+  const pmUpdateSearch = useCallback((newQuery: string, newUseRegex: boolean) => {
     const view = getView();
     if (!view) return;
     const tr = view.state.tr.setMeta(findReplacePluginKey, {
@@ -156,41 +160,230 @@ export function FindReplace({ visible, getView, onClose }: FindReplaceProps) {
     });
     view.dispatch(tr);
 
-    // Read back the computed state
     const state = findReplacePluginKey.getState(view.state);
     if (state) {
       setMatchCount(state.matches.length);
       setCurrentIndex(state.currentIndex);
       if (state.matches.length > 0 && state.currentIndex >= 0) {
-        scrollToMatch(view, state.matches[state.currentIndex]);
+        scrollToPmMatch(view, state.matches[state.currentIndex]);
       }
     }
   }, [getView]);
 
+  const pmGoToMatch = useCallback((direction: 'next' | 'prev') => {
+    const view = getView();
+    if (!view) return;
+    const state = findReplacePluginKey.getState(view.state);
+    if (!state || state.matches.length === 0) return;
+
+    const newIndex = direction === 'next'
+      ? (state.currentIndex + 1) % state.matches.length
+      : (state.currentIndex - 1 + state.matches.length) % state.matches.length;
+
+    view.dispatch(view.state.tr.setMeta(findReplacePluginKey, { currentIndex: newIndex }));
+    setCurrentIndex(newIndex);
+    scrollToPmMatch(view, state.matches[newIndex]);
+  }, [getView]);
+
+  const pmReplace = useCallback(() => {
+    const view = getView();
+    if (!view) return;
+    const state = findReplacePluginKey.getState(view.state);
+    if (!state || state.currentIndex < 0 || state.matches.length === 0) return;
+
+    const match = state.matches[state.currentIndex];
+    const tr = replaceText
+      ? view.state.tr.replaceWith(match.from, match.to, view.state.schema.text(replaceText))
+      : view.state.tr.delete(match.from, match.to);
+    view.dispatch(tr);
+
+    const newState = findReplacePluginKey.getState(view.state);
+    if (newState) {
+      setMatchCount(newState.matches.length);
+      setCurrentIndex(newState.currentIndex);
+      if (newState.matches.length > 0 && newState.currentIndex >= 0) {
+        scrollToPmMatch(view, newState.matches[newState.currentIndex]);
+      }
+    }
+  }, [getView, replaceText]);
+
+  const pmReplaceAll = useCallback(() => {
+    const view = getView();
+    if (!view) return;
+    const state = findReplacePluginKey.getState(view.state);
+    if (!state || state.matches.length === 0) return;
+
+    let tr = view.state.tr;
+    const reversedMatches = [...state.matches].reverse();
+    for (const match of reversedMatches) {
+      tr = replaceText
+        ? tr.replaceWith(match.from, match.to, view.state.schema.text(replaceText))
+        : tr.delete(match.from, match.to);
+    }
+    view.dispatch(tr);
+
+    const newState = findReplacePluginKey.getState(view.state);
+    if (newState) {
+      setMatchCount(newState.matches.length);
+      setCurrentIndex(newState.currentIndex);
+    }
+  }, [getView, replaceText]);
+
+  const pmClear = useCallback(() => {
+    const view = getView();
+    if (view) {
+      view.dispatch(view.state.tr.setMeta(findReplacePluginKey, { query: '', useRegex: false }));
+    }
+  }, [getView]);
+
+  // ── CodeMirror backend ──
+
+  const cmUpdateSearch = useCallback((newQuery: string, newUseRegex: boolean) => {
+    const view = getCmView?.();
+    if (!view) return;
+    view.dispatch({ effects: updateCmFind.of({ query: newQuery, useRegex: newUseRegex }) });
+
+    const state = view.state.field(cmFindField);
+    setMatchCount(state.matches.length);
+    setCurrentIndex(state.currentIndex);
+    if (state.matches.length > 0 && state.currentIndex >= 0) {
+      scrollToCmMatch(view, state.matches[state.currentIndex]);
+    }
+  }, [getCmView]);
+
+  const cmGoToMatch = useCallback((direction: 'next' | 'prev') => {
+    const view = getCmView?.();
+    if (!view) return;
+    const state = view.state.field(cmFindField);
+    if (state.matches.length === 0) return;
+
+    const newIndex = direction === 'next'
+      ? (state.currentIndex + 1) % state.matches.length
+      : (state.currentIndex - 1 + state.matches.length) % state.matches.length;
+
+    view.dispatch({ effects: updateCmFind.of({ currentIndex: newIndex }) });
+    setCurrentIndex(newIndex);
+    scrollToCmMatch(view, state.matches[newIndex]);
+  }, [getCmView]);
+
+  const cmReplace = useCallback(() => {
+    const view = getCmView?.();
+    if (!view) return;
+    const state = view.state.field(cmFindField);
+    if (state.currentIndex < 0 || state.matches.length === 0) return;
+
+    const match = state.matches[state.currentIndex];
+    view.dispatch({ changes: { from: match.from, to: match.to, insert: replaceText } });
+
+    const newState = view.state.field(cmFindField);
+    setMatchCount(newState.matches.length);
+    setCurrentIndex(newState.currentIndex);
+    if (newState.matches.length > 0 && newState.currentIndex >= 0) {
+      scrollToCmMatch(view, newState.matches[newState.currentIndex]);
+    }
+  }, [getCmView, replaceText]);
+
+  const cmReplaceAll = useCallback(() => {
+    const view = getCmView?.();
+    if (!view) return;
+    const state = view.state.field(cmFindField);
+    if (state.matches.length === 0) return;
+
+    // Replace in reverse to preserve positions
+    const changes = [...state.matches].reverse().map(m => ({
+      from: m.from,
+      to: m.to,
+      insert: replaceText,
+    }));
+    view.dispatch({ changes });
+
+    const newState = view.state.field(cmFindField);
+    setMatchCount(newState.matches.length);
+    setCurrentIndex(newState.currentIndex);
+  }, [getCmView, replaceText]);
+
+  const cmClear = useCallback(() => {
+    const view = getCmView?.();
+    if (view) {
+      view.dispatch({ effects: updateCmFind.of({ query: '', useRegex: false }) });
+    }
+  }, [getCmView]);
+
+  // ── Unified dispatch based on mode ──
+
+  const updateSearch = useCallback((newQuery: string, newUseRegex: boolean) => {
+    if (sourceMode) cmUpdateSearch(newQuery, newUseRegex);
+    else pmUpdateSearch(newQuery, newUseRegex);
+  }, [sourceMode, cmUpdateSearch, pmUpdateSearch]);
+
+  const goToMatch = useCallback((direction: 'next' | 'prev') => {
+    if (sourceMode) cmGoToMatch(direction);
+    else pmGoToMatch(direction);
+  }, [sourceMode, cmGoToMatch, pmGoToMatch]);
+
+  const doReplace = useCallback(() => {
+    if (sourceMode) cmReplace();
+    else pmReplace();
+  }, [sourceMode, cmReplace, pmReplace]);
+
+  const doReplaceAll = useCallback(() => {
+    if (sourceMode) cmReplaceAll();
+    else pmReplaceAll();
+  }, [sourceMode, cmReplaceAll, pmReplaceAll]);
+
+  // Re-run search when sourceMode changes while panel is open, preserving match index
+  useEffect(() => {
+    if (!visible || !query) return;
+    const indexToRestore = currentIndex;
+
+    if (sourceMode) {
+      // Switched TO source mode: clear ProseMirror highlights, init CodeMirror with same index
+      pmClear();
+      const view = getCmView?.();
+      if (view) {
+        view.dispatch({ effects: updateCmFind.of({ query, useRegex, currentIndex: indexToRestore }) });
+        const state = view.state.field(cmFindField);
+        setMatchCount(state.matches.length);
+        setCurrentIndex(state.currentIndex);
+        if (state.matches.length > 0 && state.currentIndex >= 0) {
+          scrollToCmMatch(view, state.matches[state.currentIndex]);
+        }
+      }
+    } else {
+      // Switched TO WYSIWYG mode: clear CodeMirror highlights, init ProseMirror with same index
+      cmClear();
+      const view = getView();
+      if (view) {
+        view.dispatch(view.state.tr.setMeta(findReplacePluginKey, { query, useRegex, currentIndex: indexToRestore }));
+        const state = findReplacePluginKey.getState(view.state);
+        if (state) {
+          setMatchCount(state.matches.length);
+          setCurrentIndex(state.currentIndex);
+          if (state.matches.length > 0 && state.currentIndex >= 0) {
+            scrollToPmMatch(view, state.matches[state.currentIndex]);
+          }
+        }
+      }
+    }
+  }, [sourceMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Focus search input when panel becomes visible
   useEffect(() => {
     if (visible) {
-      // Small delay to ensure DOM is ready
       requestAnimationFrame(() => {
         searchRef.current?.focus();
         searchRef.current?.select();
       });
     } else {
       // Clear search decorations when closing
-      const view = getView();
-      if (view) {
-        const tr = view.state.tr.setMeta(findReplacePluginKey, {
-          query: '',
-          useRegex: false,
-        });
-        view.dispatch(tr);
-      }
+      pmClear();
+      cmClear();
       setQuery('');
       setReplaceText('');
       setMatchCount(0);
       setCurrentIndex(-1);
     }
-  }, [visible, getView]);
+  }, [visible, pmClear, cmClear]);
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
@@ -203,82 +396,16 @@ export function FindReplace({ visible, getView, onClose }: FindReplaceProps) {
     updateSearch(query, next);
   };
 
-  const goToMatch = useCallback((direction: 'next' | 'prev') => {
-    const view = getView();
-    if (!view) return;
-    const state = findReplacePluginKey.getState(view.state);
-    if (!state || state.matches.length === 0) return;
-
-    let newIndex: number;
-    if (direction === 'next') {
-      newIndex = (state.currentIndex + 1) % state.matches.length;
-    } else {
-      newIndex = (state.currentIndex - 1 + state.matches.length) % state.matches.length;
-    }
-
-    const tr = view.state.tr.setMeta(findReplacePluginKey, { currentIndex: newIndex });
-    view.dispatch(tr);
-    setCurrentIndex(newIndex);
-    scrollToMatch(view, state.matches[newIndex]);
-  }, [getView]);
-
-  const doReplace = useCallback(() => {
-    const view = getView();
-    if (!view) return;
-    const state = findReplacePluginKey.getState(view.state);
-    if (!state || state.currentIndex < 0 || state.matches.length === 0) return;
-
-    const match = state.matches[state.currentIndex];
-    let tr;
-    if (replaceText) {
-      tr = view.state.tr.replaceWith(match.from, match.to, view.state.schema.text(replaceText));
-    } else {
-      tr = view.state.tr.delete(match.from, match.to);
-    }
-    view.dispatch(tr);
-
-    // Re-read state after replacement
-    const newState = findReplacePluginKey.getState(view.state);
-    if (newState) {
-      setMatchCount(newState.matches.length);
-      setCurrentIndex(newState.currentIndex);
-      if (newState.matches.length > 0 && newState.currentIndex >= 0) {
-        scrollToMatch(view, newState.matches[newState.currentIndex]);
-      }
-    }
-  }, [getView, replaceText]);
-
-  const doReplaceAll = useCallback(() => {
-    const view = getView();
-    if (!view) return;
-    const state = findReplacePluginKey.getState(view.state);
-    if (!state || state.matches.length === 0) return;
-
-    // Replace all matches in reverse order to preserve positions
-    let tr = view.state.tr;
-    const reversedMatches = [...state.matches].reverse();
-    for (const match of reversedMatches) {
-      if (replaceText) {
-        tr = tr.replaceWith(match.from, match.to, view.state.schema.text(replaceText));
-      } else {
-        tr = tr.delete(match.from, match.to);
-      }
-    }
-    view.dispatch(tr);
-
-    const newState = findReplacePluginKey.getState(view.state);
-    if (newState) {
-      setMatchCount(newState.matches.length);
-      setCurrentIndex(newState.currentIndex);
-    }
-  }, [getView, replaceText]);
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
-      // Re-focus the editor
-      getView()?.focus();
+      // Re-focus the active editor
+      if (sourceMode) {
+        getCmView?.()?.focus();
+      } else {
+        getView()?.focus();
+      }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       goToMatch('next');
@@ -349,7 +476,7 @@ export function FindReplace({ visible, getView, onClose }: FindReplaceProps) {
   );
 }
 
-function scrollToMatch(view: EditorView, match: { from: number; to: number }) {
+function scrollToPmMatch(view: EditorView, match: { from: number; to: number }) {
   const coords = view.coordsAtPos(match.from);
   const editorArea = view.dom.closest('.app-editor-area');
   if (!editorArea) return;
@@ -358,10 +485,16 @@ function scrollToMatch(view: EditorView, match: { from: number; to: number }) {
   const relativeTop = coords.top - areaRect.top;
   const visibleHeight = areaRect.height;
 
-  // Only scroll if the match is outside the visible area (with padding)
   if (relativeTop < 60 || relativeTop > visibleHeight - 60) {
     editorArea.scrollTop += relativeTop - visibleHeight / 3;
   }
+}
+
+function scrollToCmMatch(view: CmEditorView, match: { from: number; to: number }) {
+  view.dispatch({
+    selection: { anchor: match.from, head: match.to },
+    scrollIntoView: true,
+  });
 }
 
 function ChevronUpIcon() {

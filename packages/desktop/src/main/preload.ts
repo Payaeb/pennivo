@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('pennivo', {
   pickImage:      (filePath: string) => ipcRenderer.invoke('file:pick-image', { filePath }) as Promise<{ relativePath: string; absolutePath: string } | null>,
   openFile:       () => ipcRenderer.invoke('file:open') as Promise<{ filePath: string; content: string } | null>,
   saveFile:       (filePath: string, content: string) => ipcRenderer.invoke('file:save', { filePath, content }) as Promise<boolean>,
-  saveFileAs:     (content: string) => ipcRenderer.invoke('file:save-as', { content }) as Promise<string | null>,
+  saveFileAs:     (content: string, defaultPath?: string) => ipcRenderer.invoke('file:save-as', { content, defaultPath }) as Promise<string | null>,
   confirmDiscard: () => ipcRenderer.invoke('file:confirm-discard') as Promise<number>,
   setDirty:       (dirty: boolean) => ipcRenderer.send('file:set-dirty', dirty),
   closeAfterSave: () => ipcRenderer.send('file:close-after-save'),

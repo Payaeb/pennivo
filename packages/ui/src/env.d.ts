@@ -23,7 +23,7 @@ interface PennivoAPI {
   pickImage: (filePath: string) => Promise<{ relativePath: string; absolutePath: string } | null>;
   openFile: () => Promise<{ filePath: string; content: string } | null>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
-  saveFileAs: (content: string) => Promise<string | null>;
+  saveFileAs: (content: string, defaultPath?: string) => Promise<string | null>;
   confirmDiscard: () => Promise<number>;
   setDirty: (dirty: boolean) => void;
   closeAfterSave: () => void;

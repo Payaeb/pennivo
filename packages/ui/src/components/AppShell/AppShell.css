@@ -50,6 +50,29 @@
   max-width: var(--editor-max-width);
 }
 
+/* ─── Editor pane toggle ─── */
+
+.editor-pane--hidden {
+  display: none;
+}
+
+.editor-pane--source {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Source mode layout ─── */
+
+.app-shell--source .app-editor-area {
+  overflow: hidden;
+  padding: 0;
+}
+
+.app-shell--source .app-editor-column {
+  height: 100%;
+  padding: var(--editor-padding-v) var(--editor-padding-h);
+}
+
 /* ─── Focus mode ─── */
 
 .app-shell--focus .sidebar {
