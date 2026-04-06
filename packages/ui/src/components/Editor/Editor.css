@@ -397,11 +397,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   position: absolute;
-  left: -24px;
-  top: 5px;
+  left: -26px;
+  top: 4px;
   cursor: pointer;
   color: var(--text-faint);
   border-radius: 3px;
@@ -419,6 +419,7 @@
 .collapse-toggle svg {
   width: 12px;
   height: 12px;
+  pointer-events: none;
 }
 
 .collapse-toggle--collapsed {
@@ -430,87 +431,49 @@
   position: relative;
 }
 
+/* Hide all nested lists inside a collapsed item */
 .list-item--collapsed > ul,
-.list-item--collapsed > ol {
-  display: none;
+.list-item--collapsed > ol,
+.list-item--collapsed > .bullet_list,
+.list-item--collapsed > .ordered_list {
+  display: none !important;
 }
 
-/* ── Mermaid diagrams ── */
-.mermaid-wrapper {
-  position: relative;
+/* Also catch Milkdown's rendered structure where lists may not be direct children */
+.list-item--collapsed ul,
+.list-item--collapsed ol {
+  display: none !important;
+}
+
+/* ── Mermaid diagram preview (decoration widget) ── */
+.mermaid-preview-widget {
+  display: flex;
+  justify-content: center;
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-md);
-  margin: 20px 0;
-  overflow: hidden;
-  cursor: pointer;
+  padding: 16px;
+  margin: 12px 0 4px;
+  background: var(--bg);
+  min-height: 40px;
+  user-select: none;
   transition: border-color var(--transition-fast);
 }
 
-.mermaid-wrapper:hover {
+.mermaid-preview-widget:hover {
   border-color: var(--accent);
 }
 
-.mermaid-preview {
-  display: flex;
-  justify-content: center;
-  padding: 20px;
-  background: var(--bg);
-  min-height: 60px;
-}
-
-.mermaid-preview svg {
+.mermaid-preview-widget svg {
   max-width: 100%;
   height: auto;
 }
 
-.mermaid-preview--error {
-  color: var(--text-faint);
+.mermaid-preview-hint,
+.mermaid-preview-loading,
+.mermaid-preview-error {
   font-family: var(--font-ui);
   font-size: 13px;
   font-style: italic;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mermaid-label {
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--text-faint);
-  pointer-events: none;
-  user-select: none;
-}
-
-.mermaid-code {
-  display: none;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--border);
-  padding: 12px 16px;
-}
-
-.mermaid-code--visible {
-  display: block;
-}
-
-.mermaid-code pre {
-  margin: 0;
-  border: none;
-  background: none;
-  padding: 0;
-}
-
-.mermaid-code code {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  padding: 0;
-  white-space: pre-wrap;
+  align-self: center;
 }

@@ -80,12 +80,15 @@ export function OutlinePanel({
 
     const updateActive = () => {
       // Find all heading elements in the ProseMirror editor
-      const editorEl = document.querySelector('.editor-wrapper .milkdown');
+      // Try multiple selectors since Milkdown wraps as .milkdown > .editor > .ProseMirror
+      const editorEl = document.querySelector('.ProseMirror') || document.querySelector('.editor-wrapper');
       if (!editorEl) return;
 
       const headingEls = editorEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      if (headingEls.length === 0) return;
+
       const areaRect = editorArea.getBoundingClientRect();
-      const threshold = areaRect.top + 60;
+      const threshold = areaRect.top + 80;
 
       let active = -1;
       headingEls.forEach((el, i) => {
