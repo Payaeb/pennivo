@@ -444,28 +444,50 @@ function AppContent() {
 
   // --- Gantt editor state ---
   const [ganttEditor, setGanttEditor] = useState<{
-    pos: number;
     data: GanttData;
+    /** The last mermaid code we wrote, used to find the right code block */
+    lastCode: string;
     anchorRect: { top: number; left: number; width: number };
   } | null>(null);
 
   // Listen for gantt-edit-request events from the mermaid plugin
   useEffect(() => {
     const handleGanttEditRequest = (e: Event) => {
-      const { pos, code, rect } = (e as CustomEvent).detail;
+      const { code, rect } = (e as CustomEvent).detail;
       const parsed = parseMermaidGantt(code);
       if (parsed) {
-        setGanttEditor({ pos, data: parsed, anchorRect: rect });
+        setGanttEditor({ data: parsed, lastCode: code, anchorRect: rect });
       }
     };
     document.addEventListener('gantt-edit-request', handleGanttEditRequest);
     return () => document.removeEventListener('gantt-edit-request', handleGanttEditRequest);
   }, []);
 
+  // Find the gantt code block in the document by matching its content
+  const findGanttBlock = useCallback((
+    doc: import('@milkdown/prose/model').Node,
+    lastCode: string,
+  ): { pos: number; node: import('@milkdown/prose/model').Node } | null => {
+    let result: { pos: number; node: import('@milkdown/prose/model').Node } | null = null;
+
+    doc.descendants((node, pos) => {
+      if (result) return false;
+      if (node.type.name === 'code_block' && node.attrs['language'] === 'mermaid') {
+        const text = node.textContent;
+        // Match by exact content or by both starting with 'gantt'
+        if (text === lastCode || (text.trim().startsWith('gantt') && lastCode.trim().startsWith('gantt'))) {
+          result = { pos, node };
+          return false;
+        }
+      }
+    });
+    return result;
+  }, []);
+
   // Handle gantt data updates → write back to ProseMirror code block
   const handleGanttUpdate = useCallback((data: GanttData) => {
     if (!ganttEditor) return;
-    const code = ganttDataToMermaid(data);
+    const newCode = ganttDataToMermaid(data);
 
     if (!loading) {
       const editor = getInstance();
@@ -473,13 +495,14 @@ function AppContent() {
         editor.action((ctx) => {
           const view = ctx.get(editorViewCtx);
           const { state } = view;
-          // Find the code_block at the stored position
-          const node = state.doc.nodeAt(ganttEditor.pos);
-          if (node && node.type.name === 'code_block') {
+
+          const found = findGanttBlock(state.doc, ganttEditor.lastCode);
+          if (found) {
+            const { pos, node } = found;
             const tr = state.tr.replaceWith(
-              ganttEditor.pos + 1,
-              ganttEditor.pos + 1 + node.content.size,
-              state.schema.text(code),
+              pos + 1,
+              pos + 1 + node.content.size,
+              state.schema.text(newCode),
             );
             view.dispatch(tr);
           }
@@ -487,8 +510,8 @@ function AppContent() {
       }
     }
 
-    setGanttEditor(prev => prev ? { ...prev, data } : null);
-  }, [ganttEditor, loading, getInstance]);
+    setGanttEditor(prev => prev ? { ...prev, data, lastCode: newCode } : null);
+  }, [ganttEditor, loading, getInstance, findGanttBlock]);
 
   const handleGanttClose = useCallback(() => {
     setGanttEditor(null);
@@ -862,16 +885,14 @@ function AppContent() {
           view.focus();
 
           // Open the gantt editor after the mermaid plugin renders the preview
-          const insertPos = tr.mapping.map(state.selection.from);
           queueMicrotask(() => {
-            // Find the preview widget's bounding rect
             const previewEl = document.querySelector('.mermaid-preview-widget:last-of-type') as HTMLElement;
             const rect = previewEl
               ? previewEl.getBoundingClientRect()
               : { bottom: 200, left: 100, width: 400 };
             setGanttEditor({
-              pos: insertPos,
               data: defaultData,
+              lastCode: code,
               anchorRect: { top: rect.bottom ?? 200, left: rect.left ?? 100, width: rect.width ?? 400 },
             });
           });
