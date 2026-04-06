@@ -463,30 +463,13 @@ function AppContent() {
     return () => document.removeEventListener('gantt-edit-request', handleGanttEditRequest);
   }, []);
 
-  // Find the gantt code block in the document by matching its content
-  const findGanttBlock = useCallback((
-    doc: import('@milkdown/prose/model').Node,
-    lastCode: string,
-  ): { pos: number; node: import('@milkdown/prose/model').Node } | null => {
-    let result: { pos: number; node: import('@milkdown/prose/model').Node } | null = null;
-
-    doc.descendants((node, pos) => {
-      if (result) return false;
-      if (node.type.name === 'code_block' && node.attrs['language'] === 'mermaid') {
-        const text = node.textContent;
-        // Match by exact content or by both starting with 'gantt'
-        if (text === lastCode || (text.trim().startsWith('gantt') && lastCode.trim().startsWith('gantt'))) {
-          result = { pos, node };
-          return false;
-        }
-      }
-    });
-    return result;
-  }, []);
-
   // Handle gantt data updates → write back to ProseMirror code block
+  const ganttEditorRef = useRef(ganttEditor);
+  ganttEditorRef.current = ganttEditor;
+
   const handleGanttUpdate = useCallback((data: GanttData) => {
-    if (!ganttEditor) return;
+    const ge = ganttEditorRef.current;
+    if (!ge) return;
     const newCode = ganttDataToMermaid(data);
 
     if (!loading) {
@@ -496,14 +479,29 @@ function AppContent() {
           const view = ctx.get(editorViewCtx);
           const { state } = view;
 
-          const found = findGanttBlock(state.doc, ganttEditor.lastCode);
-          if (found) {
-            const { pos, node } = found;
-            const tr = state.tr.replaceWith(
-              pos + 1,
-              pos + 1 + node.content.size,
+          // Find the gantt code block by scanning for mermaid blocks with gantt content
+          let foundPos = -1;
+          let foundNode: import('@milkdown/prose/model').Node | null = null;
+
+          state.doc.descendants((node, pos) => {
+            if (foundNode) return false;
+            if (node.type.name === 'code_block' && node.attrs['language'] === 'mermaid') {
+              const text = node.textContent;
+              if (text === ge.lastCode || text.trim().startsWith('gantt')) {
+                foundPos = pos;
+                foundNode = node;
+                return false;
+              }
+            }
+          });
+
+          if (foundNode && foundPos >= 0) {
+            // Replace the entire code block with a new one containing the updated code
+            const newBlock = state.schema.nodes['code_block'].create(
+              { language: 'mermaid' },
               state.schema.text(newCode),
             );
+            const tr = state.tr.replaceWith(foundPos, foundPos + (foundNode as import('@milkdown/prose/model').Node).nodeSize, newBlock);
             view.dispatch(tr);
           }
         });
@@ -511,7 +509,7 @@ function AppContent() {
     }
 
     setGanttEditor(prev => prev ? { ...prev, data, lastCode: newCode } : null);
-  }, [ganttEditor, loading, getInstance, findGanttBlock]);
+  }, [loading, getInstance]);
 
   const handleGanttClose = useCallback(() => {
     setGanttEditor(null);
