@@ -7,7 +7,8 @@ export type MenuAction =
   | 'focusMode' | 'sourceMode' | 'toggleTheme' | 'toggleSidebar' | 'toggleOutline' | 'setFolder'
   | 'zoomIn' | 'zoomOut' | 'resetZoom'
   | 'findReplace' | 'clearRecentFiles'
-  | 'exportHtml' | 'exportPdf';
+  | 'exportHtml' | 'exportPdf'
+  | 'spellcheckSettings';
 
 export interface RecentFileEntry {
   filePath: string;

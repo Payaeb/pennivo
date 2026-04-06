@@ -51,6 +51,12 @@ contextBridge.exposeInMainWorld('pennivo', {
   readDirectory:     (folderPath: string) => ipcRenderer.invoke('sidebar:read-directory', folderPath) as Promise<FileTreeEntry[]>,
   onSidebarFolderChanged: (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('sidebar:folder-changed', handler); return () => { ipcRenderer.removeListener('sidebar:folder-changed', handler); }; },
 
+  // Spellcheck
+  getSpellCheckLanguages:      () => ipcRenderer.invoke('spellcheck:get-languages') as Promise<string[]>,
+  getAvailableSpellLanguages:  () => ipcRenderer.invoke('spellcheck:get-available-languages') as Promise<string[]>,
+  setSpellCheckLanguages:      (languages: string[]) => ipcRenderer.invoke('spellcheck:set-languages', languages) as Promise<void>,
+  addWordToDictionary:         (word: string) => ipcRenderer.invoke('spellcheck:add-word', word) as Promise<void>,
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },

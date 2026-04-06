@@ -336,7 +336,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
   });
 
   return (
-    <div className="editor-wrapper">
+    <div className="editor-wrapper" spellCheck>
       <Milkdown />
     </div>
   );

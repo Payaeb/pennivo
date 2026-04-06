@@ -1052,6 +1052,8 @@ function AppContent() {
     { id: 'zoomIn',        label: 'Zoom In',                                 category: 'View' },
     { id: 'zoomOut',       label: 'Zoom Out',                                category: 'View' },
     { id: 'resetZoom',     label: 'Reset Zoom',                              category: 'View' },
+    // Spellcheck
+    { id: 'spellcheckSettings', label: 'Spellcheck Languages', category: 'Settings', keywords: 'spell check language dictionary' },
   ], []);
 
   // --- Hamburger menu actions ---
@@ -1110,6 +1112,25 @@ function AppContent() {
         case 'zoomIn':      window.pennivo?.zoomIn(); break;
         case 'zoomOut':     window.pennivo?.zoomOut(); break;
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
+        case 'spellcheckSettings': {
+          // Cycle through common language presets
+          (async () => {
+            const current = await window.pennivo?.getSpellCheckLanguages() ?? [];
+            const presets = [
+              ['en-US'],
+              ['en-US', 'en-GB'],
+              ['en-US', 'fr'],
+              ['en-US', 'es'],
+              ['en-US', 'de'],
+            ];
+            const currentKey = current.join(',');
+            const currentIdx = presets.findIndex(p => p.join(',') === currentKey);
+            const next = presets[(currentIdx + 1) % presets.length];
+            await window.pennivo?.setSpellCheckLanguages(next);
+            showToast(`Spellcheck: ${next.join(', ')}`);
+          })();
+          break;
+        }
       }
     },
     [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction],

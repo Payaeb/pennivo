@@ -325,6 +325,7 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      spellcheck: true,
     },
   });
 
@@ -336,6 +337,39 @@ function createWindow() {
   mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     const levels = ['verbose', 'info', 'warning', 'error'];
     console.log(`[renderer:${levels[level] ?? level}] ${message} (${sourceId}:${line})`);
+  });
+
+  // Set default spellchecker languages
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+
+  // Right-click context menu with spell check suggestions
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!params.misspelledWord) return;
+
+    const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+    // Add spelling suggestions
+    for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+      menuItems.push({
+        label: suggestion,
+        click: () => mainWindow?.webContents.replaceMisspelling(suggestion),
+      });
+    }
+
+    if (menuItems.length > 0) {
+      menuItems.push({ type: 'separator' });
+    }
+
+    // Add to dictionary
+    menuItems.push({
+      label: `Add "${params.misspelledWord}" to dictionary`,
+      click: () => {
+        mainWindow?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord);
+      },
+    });
+
+    const contextMenu = Menu.buildFromTemplate(menuItems);
+    contextMenu.popup();
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -697,6 +731,23 @@ function registerIpcHandlers() {
 
   ipcMain.handle('sidebar:read-directory', async (_e, folderPath: string) => {
     return readDirectoryTree(folderPath);
+  });
+
+  // --- Spellcheck ---
+  ipcMain.handle('spellcheck:get-languages', () => {
+    return mainWindow?.webContents.session.getSpellCheckerLanguages() ?? [];
+  });
+
+  ipcMain.handle('spellcheck:get-available-languages', () => {
+    return mainWindow?.webContents.session.availableSpellCheckerLanguages ?? [];
+  });
+
+  ipcMain.handle('spellcheck:set-languages', (_e, languages: string[]) => {
+    mainWindow?.webContents.session.setSpellCheckerLanguages(languages);
+  });
+
+  ipcMain.handle('spellcheck:add-word', (_e, word: string) => {
+    mainWindow?.webContents.session.addWordToSpellCheckerDictionary(word);
   });
 
   ipcMain.handle('export:pdf', async (_e, args: { html: string; title: string }) => {

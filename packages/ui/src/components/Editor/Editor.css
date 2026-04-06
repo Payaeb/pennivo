@@ -384,6 +384,14 @@
   pointer-events: none;
 }
 
+/* ── Spellcheck underline ── */
+.ProseMirror [spellcheck="true"] ::spelling-error,
+.editor-wrapper ::spelling-error {
+  text-decoration: underline wavy;
+  text-decoration-color: #d4564a;
+  text-underline-offset: 3px;
+}
+
 /* ── Collapsible lists ── */
 .collapse-toggle {
   display: inline-flex;
