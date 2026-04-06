@@ -67,6 +67,27 @@ export function OutlinePanel({
 
   // Track which heading is "active" based on scroll position
   const [activeIndex, setActiveIndex] = useState(-1);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the outline list to keep the active item visible
+  useEffect(() => {
+    if (activeIndex < 0 || !listRef.current) return;
+    const activeEl = listRef.current.querySelector('.outline-item--active') as HTMLElement | null;
+    if (!activeEl) return;
+
+    const list = listRef.current;
+    const itemTop = activeEl.offsetTop;
+    const itemBottom = itemTop + activeEl.offsetHeight;
+    const listScrollTop = list.scrollTop;
+    const listHeight = list.clientHeight;
+
+    // Scroll into view if outside visible area with some padding
+    if (itemTop < listScrollTop + 8) {
+      list.scrollTo({ top: Math.max(0, itemTop - 8), behavior: 'smooth' });
+    } else if (itemBottom > listScrollTop + listHeight - 8) {
+      list.scrollTo({ top: itemBottom - listHeight + 8, behavior: 'smooth' });
+    }
+  }, [activeIndex]);
 
   // Observe scroll position to highlight active heading
   useEffect(() => {
@@ -79,8 +100,6 @@ export function OutlinePanel({
     if (!editorArea) return;
 
     const updateActive = () => {
-      // Find all heading elements in the ProseMirror editor
-      // Try multiple selectors since Milkdown wraps as .milkdown > .editor > .ProseMirror
       const editorEl = document.querySelector('.ProseMirror') || document.querySelector('.editor-wrapper');
       if (!editorEl) return;
 
@@ -143,7 +162,7 @@ export function OutlinePanel({
         <span className="outline-title">Outline</span>
       </div>
       {headings.length > 0 ? (
-        <div className="outline-list">
+        <div className="outline-list" ref={listRef}>
           {headings.map((h, i) => (
             <button
               key={`${h.index}-${h.text}`}

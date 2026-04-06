@@ -4,64 +4,90 @@ import { Decoration, DecorationSet } from '@milkdown/prose/view';
 import type { Node } from '@milkdown/prose/model';
 import mermaid from 'mermaid';
 
-let mermaidInitialized = false;
-
-function ensureMermaidInit() {
-  if (mermaidInitialized) return;
-  mermaidInitialized = true;
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    securityLevel: 'loose',
-    fontFamily: 'var(--font-ui)',
-  });
+function isDarkMode(): boolean {
+  return document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
-function getMermaidTheme(): 'dark' | 'default' {
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+function initMermaid() {
+  mermaid.initialize({
+    startOnLoad: false,
+    // Use 'neutral' for unfilled/outline-style boxes
+    theme: 'neutral',
+    securityLevel: 'loose',
+    fontFamily: '"Segoe UI", system-ui, sans-serif',
+    themeVariables: isDarkMode()
+      ? {
+          // Dark mode: light text on transparent/dark backgrounds
+          primaryColor: 'transparent',
+          primaryBorderColor: '#7a7872',
+          primaryTextColor: '#E8E6E1',
+          secondaryColor: 'transparent',
+          secondaryBorderColor: '#5A5852',
+          secondaryTextColor: '#E8E6E1',
+          tertiaryColor: 'transparent',
+          tertiaryBorderColor: '#5A5852',
+          tertiaryTextColor: '#E8E6E1',
+          lineColor: '#7a7872',
+          textColor: '#E8E6E1',
+          mainBkg: 'transparent',
+          nodeBorder: '#7a7872',
+          clusterBkg: 'rgba(255,255,255,0.05)',
+          titleColor: '#E8E6E1',
+          edgeLabelBackground: '#1C1C1C',
+          nodeTextColor: '#E8E6E1',
+        }
+      : {
+          // Light mode: dark text on transparent/light backgrounds
+          primaryColor: 'transparent',
+          primaryBorderColor: '#8A8880',
+          primaryTextColor: '#1A1A18',
+          secondaryColor: 'transparent',
+          secondaryBorderColor: '#AEACA6',
+          secondaryTextColor: '#1A1A18',
+          tertiaryColor: 'transparent',
+          tertiaryBorderColor: '#AEACA6',
+          tertiaryTextColor: '#1A1A18',
+          lineColor: '#8A8880',
+          textColor: '#1A1A18',
+          mainBkg: 'transparent',
+          nodeBorder: '#8A8880',
+          clusterBkg: 'rgba(0,0,0,0.03)',
+          titleColor: '#1A1A18',
+          edgeLabelBackground: '#FAFAF8',
+          nodeTextColor: '#1A1A18',
+        },
+  });
 }
 
 const mermaidKey = new PluginKey('mermaid-preview');
 
-/** Cache rendered SVGs to avoid re-rendering identical content */
 const svgCache = new Map<string, string>();
 let renderCounter = 0;
 
-async function renderMermaidSvg(code: string): Promise<string> {
-  if (!code.trim()) return '';
+async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: string }> {
+  if (!code.trim()) return { svg: '' };
 
-  const cacheKey = `${getMermaidTheme()}:${code}`;
+  const dark = isDarkMode();
+  const cacheKey = `${dark}:${code}`;
   const cached = svgCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) return { svg: cached };
 
-  ensureMermaidInit();
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: getMermaidTheme(),
-    securityLevel: 'loose',
-    fontFamily: 'var(--font-ui)',
-  });
+  initMermaid();
 
   const id = `mermaid-${++renderCounter}`;
   try {
     const { svg } = await mermaid.render(id, code);
     svgCache.set(cacheKey, svg);
-    return svg;
-  } catch {
+    return { svg };
+  } catch (err) {
     document.getElementById('d' + id)?.remove();
-    return '';
+    const msg = err instanceof Error ? err.message : 'Could not render diagram';
+    return { svg: '', error: msg };
   }
 }
 
-/**
- * Decoration-based mermaid plugin.
- * Adds a preview widget ABOVE each mermaid code block.
- * The code block itself stays fully editable.
- */
 export const mermaidPlugin = $prose(() => {
-  /** Map from code block position to the preview DOM element */
   const previewElements = new Map<number, HTMLElement>();
-  /** Track which code content we last rendered for each pos */
   const renderedContent = new Map<number, string>();
 
   function createPreviewWidget(pos: number, code: string): HTMLElement {
@@ -73,12 +99,16 @@ export const mermaidPlugin = $prose(() => {
       wrapper.innerHTML = '<span class="mermaid-preview-hint">Enter mermaid syntax below...</span>';
     } else {
       wrapper.innerHTML = '<span class="mermaid-preview-loading">Rendering...</span>';
-      // Async render
-      renderMermaidSvg(code).then(svg => {
+      renderMermaidSvg(code).then(({ svg, error }) => {
         if (svg) {
           wrapper.innerHTML = svg;
         } else {
-          wrapper.innerHTML = '<span class="mermaid-preview-error">Could not render diagram</span>';
+          const errorEl = document.createElement('span');
+          errorEl.className = 'mermaid-preview-error';
+          errorEl.textContent = error || 'Could not render diagram';
+          errorEl.title = error || '';
+          wrapper.innerHTML = '';
+          wrapper.appendChild(errorEl);
         }
       });
     }
@@ -99,7 +129,6 @@ export const mermaidPlugin = $prose(() => {
       usedPositions.add(pos);
       const code = node.textContent;
 
-      // Check if we need to re-render (content changed)
       const existingContent = renderedContent.get(pos);
       if (existingContent !== code) {
         previewElements.delete(pos);
@@ -115,7 +144,6 @@ export const mermaidPlugin = $prose(() => {
       );
     });
 
-    // Clean up stale entries
     for (const p of previewElements.keys()) {
       if (!usedPositions.has(p)) {
         previewElements.delete(p);
@@ -152,10 +180,11 @@ export const mermaidPlugin = $prose(() => {
     view() {
       return {
         update(view, prevState) {
-          // Debounced re-render when content changes
           if (view.state.doc.eq(prevState.doc)) return;
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
+            // Clear cache when theme might have changed
+            svgCache.clear();
             view.dispatch(view.state.tr.setMeta(mermaidKey, true));
           }, 800);
         },
