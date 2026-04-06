@@ -124,7 +124,11 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
 
   const id = `mermaid-${++renderCounter}`;
   try {
-    const { svg } = await mermaid.render(id, code);
+    let { svg } = await mermaid.render(id, code);
+    // Strip inline fill styles from text/tspan so CSS can control colors
+    svg = svg.replace(/<(text|tspan)([^>]*)\s+style="[^"]*fill:\s*[^";]+;?[^"]*"/g, (match) => {
+      return match.replace(/fill:\s*[^";]+;?\s*/g, '');
+    });
     svgCache.set(cacheKey, svg);
     return { svg };
   } catch (err) {
@@ -161,8 +165,10 @@ export const mermaidPlugin = $prose(() => {
           wrapper.appendChild(errorEl);
         }
 
-        // Add "Edit Chart" button for gantt diagrams
+        // For gantt diagrams, add "Edit Chart" button and dispatch auto-open event
         if (isGantt) {
+          wrapper.style.position = 'relative';
+
           const editBtn = document.createElement('button');
           editBtn.className = 'mermaid-gantt-edit-btn';
           editBtn.textContent = 'Edit Chart';
@@ -175,7 +181,6 @@ export const mermaidPlugin = $prose(() => {
               detail: { pos, code, rect: { top: rect.bottom, left: rect.left, width: rect.width } },
             }));
           });
-          wrapper.style.position = 'relative';
           wrapper.appendChild(editBtn);
         }
       });
@@ -198,12 +203,22 @@ export const mermaidPlugin = $prose(() => {
       if (node.attrs['language'] !== 'mermaid') return;
 
       const code = node.textContent;
+      const isGantt = code.trim().startsWith('gantt');
 
       decorations.push(
         Decoration.widget(pos, () => {
           return createPreviewWidget(pos, code);
         }, { side: -1 })
       );
+
+      // Hide the raw code block for gantt charts — the table editor replaces it
+      if (isGantt) {
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, {
+            class: 'mermaid-gantt-hidden-code',
+          })
+        );
+      }
     });
 
     return DecorationSet.create(doc, decorations);

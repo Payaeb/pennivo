@@ -478,6 +478,11 @@
   align-self: center;
 }
 
+/* Hide gantt code block — replaced by visual editor table */
+.mermaid-gantt-hidden-code {
+  display: none !important;
+}
+
 /* Gantt edit button (hover reveal) */
 .mermaid-gantt-edit-btn {
   position: absolute;

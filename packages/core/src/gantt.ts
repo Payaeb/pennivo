@@ -178,12 +178,12 @@ export function ganttDataToMermaid(data: GanttData): string {
     lines.push(`    section ${section.title}`);
 
     for (const task of section.tasks) {
+      // Mermaid gantt task format:
+      //   TaskName :[status], [id], [after deps | startDate], [duration]
+      // Status keywords (done, active, crit, milestone) MUST come before ID
       const parts: string[] = [];
 
-      // Task ID
-      if (task.id) parts.push(task.id);
-
-      // Auto-add milestone status for zero-duration tasks
+      // 1. Status keywords first
       const isMilestone = task.duration === '0d' || task.status === 'milestone';
       if (isMilestone) {
         parts.push('milestone');
@@ -191,15 +191,17 @@ export function ganttDataToMermaid(data: GanttData): string {
         parts.push(task.status);
       }
 
-      // Dependencies
+      // 2. Task ID
+      if (task.id) parts.push(task.id);
+
+      // 3. Dependencies or start date
       if (task.afterDeps && task.afterDeps.length > 0) {
         parts.push(`after ${task.afterDeps.join(' ')}`);
+      } else if (task.startDate) {
+        parts.push(task.startDate);
       }
 
-      // Start date
-      if (task.startDate) parts.push(task.startDate);
-
-      // Duration — milestones use 0d
+      // 4. Duration
       if (task.duration) parts.push(task.duration);
       else if (isMilestone) parts.push('0d');
 
