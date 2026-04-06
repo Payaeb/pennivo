@@ -1,3 +1,10 @@
+interface FileTreeEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: FileTreeEntry[];
+}
+
 interface PennivoAPI {
   platform: string;
   minimize: () => void;
@@ -33,6 +40,13 @@ interface PennivoAPI {
 
   // Window title
   setTitle: (title: string) => void;
+
+  // Sidebar
+  getSidebarFolder: () => Promise<string | null>;
+  setSidebarFolder: (folderPath: string | null) => Promise<void>;
+  chooseSidebarFolder: () => Promise<string | null>;
+  readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
+  onSidebarFolderChanged: (cb: () => void) => () => void;
 
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;

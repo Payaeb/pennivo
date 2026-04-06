@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { watch, type FSWatcher } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -9,6 +10,7 @@ const __dirname = path.dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 let isDirty = false;
 let forceClose = false;
+let folderWatcher: FSWatcher | null = null;
 
 // --- Recent files persistence ---
 const RECENT_FILES_MAX = 10;
@@ -44,6 +46,99 @@ async function addRecentFile(filePath: string): Promise<string[]> {
 
 async function clearRecentFiles(): Promise<void> {
   await writeRecentFiles([]);
+}
+
+// --- Sidebar folder persistence ---
+const SIDEBAR_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
+
+function getSidebarFolderPath(): string {
+  return path.join(app.getPath('userData'), 'sidebar-folder.json');
+}
+
+async function readSidebarFolder(): Promise<string | null> {
+  try {
+    const data = await fs.readFile(getSidebarFolderPath(), 'utf-8');
+    const parsed = JSON.parse(data);
+    if (typeof parsed === 'string') return parsed;
+  } catch {
+    // File doesn't exist
+  }
+  return null;
+}
+
+async function writeSidebarFolder(folderPath: string | null): Promise<void> {
+  await fs.writeFile(getSidebarFolderPath(), JSON.stringify(folderPath), 'utf-8');
+}
+
+interface FileTreeEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: FileTreeEntry[];
+}
+
+async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
+  const entries: FileTreeEntry[] = [];
+  let items;
+  try {
+    items = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return entries;
+  }
+
+  // Sort: folders first, then files, both alphabetical
+  items.sort((a, b) => {
+    if (a.isDirectory() && !b.isDirectory()) return -1;
+    if (!a.isDirectory() && b.isDirectory()) return 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+
+  for (const item of items) {
+    // Skip hidden files/folders
+    if (item.name.startsWith('.')) continue;
+    // Skip node_modules, etc.
+    if (item.name === 'node_modules') continue;
+
+    const fullPath = path.join(dirPath, item.name).replace(/\\/g, '/');
+
+    if (item.isDirectory()) {
+      const children = await readDirectoryTree(path.join(dirPath, item.name));
+      // Only include folders that contain matching files (directly or nested)
+      if (children.length > 0) {
+        entries.push({ name: item.name, path: fullPath, type: 'folder', children });
+      }
+    } else {
+      const ext = path.extname(item.name).toLowerCase();
+      if (SIDEBAR_EXTENSIONS.has(ext)) {
+        entries.push({ name: item.name, path: fullPath, type: 'file' });
+      }
+    }
+  }
+
+  return entries;
+}
+
+function startFolderWatcher(folderPath: string) {
+  stopFolderWatcher();
+  try {
+    folderWatcher = watch(folderPath, { recursive: true }, (_eventType, filename) => {
+      if (!filename) return;
+      const ext = path.extname(filename).toLowerCase();
+      // Only notify for relevant file changes
+      if (SIDEBAR_EXTENSIONS.has(ext) || ext === '') {
+        mainWindow?.webContents.send('sidebar:folder-changed');
+      }
+    });
+  } catch {
+    // Watching may fail on some filesystems
+  }
+}
+
+function stopFolderWatcher() {
+  if (folderWatcher) {
+    folderWatcher.close();
+    folderWatcher = null;
+  }
 }
 
 function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
@@ -574,6 +669,36 @@ function registerIpcHandlers() {
     return filePath;
   });
 
+  // --- Sidebar ---
+  ipcMain.handle('sidebar:get-folder', async () => {
+    return readSidebarFolder();
+  });
+
+  ipcMain.handle('sidebar:set-folder', async (_e, folderPath: string | null) => {
+    await writeSidebarFolder(folderPath);
+    if (folderPath) {
+      startFolderWatcher(folderPath);
+    } else {
+      stopFolderWatcher();
+    }
+  });
+
+  ipcMain.handle('sidebar:choose-folder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openDirectory'],
+      title: 'Choose Folder',
+    });
+    if (canceled || filePaths.length === 0) return null;
+    const folderPath = filePaths[0];
+    await writeSidebarFolder(folderPath);
+    startFolderWatcher(folderPath);
+    return folderPath;
+  });
+
+  ipcMain.handle('sidebar:read-directory', async (_e, folderPath: string) => {
+    return readDirectoryTree(folderPath);
+  });
+
   ipcMain.handle('export:pdf', async (_e, args: { html: string; title: string }) => {
     const styledHtml = wrapHtmlWithStyles(args.html, args.title);
     const defaultName = args.title.replace(/\.md$/i, '') + '.pdf';
@@ -634,9 +759,15 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   createMenu();
   createWindow();
+
+  // Restore folder watcher for sidebar if one was persisted
+  readSidebarFolder().then((folder) => {
+    if (folder) startFolderWatcher(folder);
+  });
 });
 
 app.on('window-all-closed', () => {
+  stopFolderWatcher();
   if (process.platform !== 'darwin') app.quit();
 });
 

@@ -1,0 +1,205 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  user-select: none;
+  position: relative;
+  flex-shrink: 0;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+/* ─── Header ─── */
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-set-folder-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sidebar-set-folder-btn:hover {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+}
+
+.sidebar-set-folder-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ─── Tree ─── */
+
+.sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 8px;
+}
+
+.sidebar-tree::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-tree::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
+
+/* ─── Tree items ─── */
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 3px 12px;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tree-item:hover {
+  background: var(--accent-soft);
+}
+
+.tree-item--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.tree-item--active:hover {
+  background: var(--accent-hover);
+}
+
+.tree-item-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.tree-item-chevron--open {
+  transform: rotate(90deg);
+}
+
+.tree-item-chevron--placeholder {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.tree-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Empty state ─── */
+
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 12px;
+  flex: 1;
+}
+
+.sidebar-empty-text {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-faint);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.sidebar-open-folder-btn {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-open-folder-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* ─── Resize handle ─── */
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle--active::after {
+  background: var(--accent);
+}

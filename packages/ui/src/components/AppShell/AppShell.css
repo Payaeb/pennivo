@@ -11,10 +11,18 @@
   flex-shrink: 0;
 }
 
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
 .app-editor-area {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  min-width: 0;
   padding: var(--editor-padding-v) var(--editor-padding-h);
   display: flex;
   justify-content: center;
@@ -43,6 +51,10 @@
 }
 
 /* ─── Focus mode ─── */
+
+.app-shell--focus .sidebar {
+  display: none;
+}
 
 .app-shell--focus .statusbar {
   max-height: 0;

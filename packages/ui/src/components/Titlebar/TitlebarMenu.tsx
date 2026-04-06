@@ -4,7 +4,7 @@ import './TitlebarMenu.css';
 export type MenuAction =
   | 'newFile' | 'open' | 'save' | 'saveAs' | 'quit'
   | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
-  | 'focusMode' | 'toggleTheme'
+  | 'focusMode' | 'toggleTheme' | 'toggleSidebar' | 'setFolder'
   | 'zoomIn' | 'zoomOut' | 'resetZoom'
   | 'findReplace' | 'clearRecentFiles'
   | 'exportHtml' | 'exportPdf';
@@ -66,6 +66,9 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: 'View',
     items: [
+      { label: 'Toggle Sidebar', action: 'toggleSidebar', shortcut: 'Ctrl+B' },
+      { label: 'Set Folder\u2026', action: 'setFolder' },
+      { separator: true, label: '' },
       { label: 'Focus Mode',   action: 'focusMode',   shortcut: 'Ctrl+Shift+F' },
       { label: 'Toggle Theme', action: 'toggleTheme' },
       { separator: true, label: '' },

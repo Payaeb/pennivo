@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+interface FileTreeEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: FileTreeEntry[];
+}
+
 contextBridge.exposeInMainWorld('pennivo', {
   platform: process.platform,
   minimize: () => ipcRenderer.send('window:minimize'),
@@ -35,6 +42,13 @@ contextBridge.exposeInMainWorld('pennivo', {
 
   // Window title
   setTitle: (title: string) => ipcRenderer.send('window:set-title', title),
+
+  // Sidebar
+  getSidebarFolder:  () => ipcRenderer.invoke('sidebar:get-folder') as Promise<string | null>,
+  setSidebarFolder:  (folderPath: string | null) => ipcRenderer.invoke('sidebar:set-folder', folderPath) as Promise<void>,
+  chooseSidebarFolder: () => ipcRenderer.invoke('sidebar:choose-folder') as Promise<string | null>,
+  readDirectory:     (folderPath: string) => ipcRenderer.invoke('sidebar:read-directory', folderPath) as Promise<FileTreeEntry[]>,
+  onSidebarFolderChanged: (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('sidebar:folder-changed', handler); return () => { ipcRenderer.removeListener('sidebar:folder-changed', handler); }; },
 
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },

@@ -9,7 +9,8 @@ interface StatusbarProps {
 }
 
 export function Statusbar({ wordCount, charCount, saveStatus }: StatusbarProps) {
-  const readingMinutes = Math.max(1, Math.ceil(wordCount / 200));
+  const rawMinutes = wordCount / 238;
+  const readingLabel = rawMinutes < 1 ? '< 1 min read' : `${Math.ceil(rawMinutes)} min read`;
 
   return (
     <div className="statusbar">
@@ -19,7 +20,7 @@ export function Statusbar({ wordCount, charCount, saveStatus }: StatusbarProps) 
       <span className="status-sep">·</span>
       <span className="status-item">{charCount.toLocaleString()} characters</span>
       <span className="status-sep">·</span>
-      <span className="status-item">{readingMinutes} min read</span>
+      <span className="status-item">{readingLabel}</span>
     </div>
   );
 }

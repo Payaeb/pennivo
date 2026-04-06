@@ -15,6 +15,7 @@ interface AppShellProps {
   onOpenRecentFile?: (filePath: string) => void;
   toolbar: ReactNode;
   findReplace?: ReactNode;
+  sidebar?: ReactNode;
   children: ReactNode;
 }
 
@@ -30,6 +31,7 @@ export function AppShell({
   onOpenRecentFile,
   toolbar,
   findReplace,
+  sidebar,
   children,
 }: AppShellProps) {
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -90,9 +92,12 @@ export function AppShell({
       <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />
       <div className="app-toolbar-row">{toolbar}</div>
       {findReplace}
-      <main className="app-editor-area">
-        <div className="app-editor-column">{children}</div>
-      </main>
+      <div className="app-body">
+        {sidebar}
+        <main className="app-editor-area">
+          <div className="app-editor-column">{children}</div>
+        </main>
+      </div>
       <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
     </div>
   );

@@ -28,6 +28,7 @@ import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import { FindReplace } from './components/FindReplace/FindReplace';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
+import { Sidebar } from './components/Sidebar/Sidebar';
 import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
 import { useTheme } from './hooks/useTheme';
 
@@ -105,6 +106,11 @@ function AppContent() {
   const savedMarkdownRef = useRef(DEFAULT_CONTENT);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // --- Sidebar state ---
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
+  const [sidebarTree, setSidebarTree] = useState<FileTreeEntry[]>([]);
+
   // --- Recent files ---
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
 
@@ -123,6 +129,45 @@ function AppContent() {
 
   // Load recent files on mount
   useEffect(() => { loadRecentFiles(); }, [loadRecentFiles]);
+
+  // --- Sidebar helpers ---
+  const refreshSidebarTree = useCallback(async (folder: string | null) => {
+    if (!folder) { setSidebarTree([]); return; }
+    const tree = await window.pennivo?.readDirectory(folder);
+    if (tree) setSidebarTree(tree);
+  }, []);
+
+  const handleChooseFolder = useCallback(async () => {
+    const folder = await window.pennivo?.chooseSidebarFolder();
+    if (folder) {
+      setSidebarFolder(folder);
+      setSidebarVisible(true);
+      refreshSidebarTree(folder);
+    }
+  }, [refreshSidebarTree]);
+
+  // Load persisted sidebar folder on mount
+  useEffect(() => {
+    window.pennivo?.getSidebarFolder().then((folder) => {
+      if (folder) {
+        setSidebarFolder(folder);
+        refreshSidebarTree(folder);
+      }
+    });
+  }, [refreshSidebarTree]);
+
+  // Listen for folder changes (file watcher)
+  useEffect(() => {
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = window.pennivo?.onSidebarFolderChanged(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => refreshSidebarTree(sidebarFolder), 300);
+    });
+    return () => {
+      clearTimeout(debounce);
+      cleanup?.();
+    };
+  }, [sidebarFolder, refreshSidebarTree]);
 
   const setFilePath = (p: string | null) => {
     filePathRef.current = p;
@@ -221,6 +266,32 @@ function AppContent() {
     }
 
     const result = await window.pennivo?.openFilePath(recentPath);
+    if (!result) return;
+
+    const editor = getInstance();
+    if (!editor || loading) return;
+
+    editor.action(replaceAll(result.content));
+    setFilePath(result.filePath);
+    savedMarkdownRef.current = result.content;
+    markdownRef.current = result.content;
+    setIsDirty(false);
+    setSaveStatus('saved');
+    loadRecentFiles();
+  }, [loading, getInstance, doSave, loadRecentFiles]);
+
+  // --- Sidebar file click ---
+  const handleSidebarFileClick = useCallback(async (clickedPath: string) => {
+    if (isDirtyRef.current) {
+      const response = await window.pennivo?.confirmDiscard();
+      if (response === 2) return;
+      if (response === 0) {
+        const saved = await doSave();
+        if (!saved) return;
+      }
+    }
+
+    const result = await window.pennivo?.openFilePath(clickedPath);
     if (!result) return;
 
     const editor = getInstance();
@@ -737,6 +808,18 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Ctrl+B toggles sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setSidebarVisible((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // --- Hamburger menu actions ---
   const focusEditor = useCallback(() => {
     if (loading) return;
@@ -771,9 +854,11 @@ function AppContent() {
           });
           break;
         }
-        case 'focusMode':   toggleFocusMode(); break;
-        case 'toggleTheme': toggleTheme(); break;
-        case 'findReplace': setFindReplaceOpen(true); break;
+        case 'focusMode':     toggleFocusMode(); break;
+        case 'toggleTheme':   toggleTheme(); break;
+        case 'toggleSidebar': setSidebarVisible((v) => !v); break;
+        case 'setFolder':     handleChooseFolder(); break;
+        case 'findReplace':   setFindReplaceOpen(true); break;
         case 'newFile':     doNewFile(); break;
         case 'exportHtml':  doExportHtml(); break;
         case 'exportPdf':   doExportPdf(); break;
@@ -785,7 +870,7 @@ function AppContent() {
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder],
   );
 
   const toolbarFormats = focusMode
@@ -804,6 +889,16 @@ function AppContent() {
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
       toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} />}
+      sidebar={
+        <Sidebar
+          visible={sidebarVisible}
+          folderPath={sidebarFolder}
+          tree={sidebarTree}
+          currentFilePath={filePath}
+          onFileClick={handleSidebarFileClick}
+          onChooseFolder={handleChooseFolder}
+        />
+      }
       findReplace={
         <FindReplace
           visible={findReplaceOpen}
