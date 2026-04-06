@@ -128,27 +128,34 @@ export function OutlinePanel({
   useEffect(() => {
     if (!visible || !sourceMode) return;
 
-    // CodeMirror's scroller element
     const cmScroller = document.querySelector('.source-editor-wrapper .cm-scroller') as HTMLElement | null;
     if (!cmScroller) return;
 
+    const headingRegex = /^#{1,6}\s/;
+
     const updateActive = () => {
-      // Find heading lines in CodeMirror by looking for .cm-header elements
-      // or by matching lines against our extracted headings using line positions
       const cmContent = cmScroller.querySelector('.cm-content') as HTMLElement | null;
       if (!cmContent) return;
 
       const scrollerRect = cmScroller.getBoundingClientRect();
       const threshold = scrollerRect.top + 80;
 
-      // Get all cm-line elements and check which ones are headings
+      // CM6 uses generated class names, so we can't rely on .cm-header.
+      // Instead, check each line's text content against the heading regex.
       const lines = cmContent.querySelectorAll('.cm-line');
       let headingIdx = 0;
       let active = -1;
+      let inCodeBlock = false;
 
       lines.forEach((line) => {
-        // A heading line in CodeMirror markdown has .cm-header descendants
-        if (line.querySelector('.cm-header')) {
+        const text = line.textContent || '';
+        if (text.startsWith('```')) {
+          inCodeBlock = !inCodeBlock;
+          return;
+        }
+        if (inCodeBlock) return;
+
+        if (headingRegex.test(text)) {
           const rect = line.getBoundingClientRect();
           if (rect.top <= threshold) {
             active = headingIdx;
@@ -161,8 +168,7 @@ export function OutlinePanel({
     };
 
     cmScroller.addEventListener('scroll', updateActive, { passive: true });
-    // Initial check after a short delay (CM may still be rendering)
-    const timer = setTimeout(updateActive, 100);
+    const timer = setTimeout(updateActive, 150);
 
     return () => {
       cmScroller.removeEventListener('scroll', updateActive);

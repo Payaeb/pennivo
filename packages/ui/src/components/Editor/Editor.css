@@ -478,15 +478,31 @@
   align-self: center;
 }
 
-/* Force mermaid SVG text to match theme */
-[data-theme="dark"] .mermaid-preview-widget text {
+/* Force mermaid SVG text to follow theme text color */
+.mermaid-preview-widget text {
   fill: var(--text-primary) !important;
 }
 
-[data-theme="dark"] .mermaid-preview-widget .taskText,
-[data-theme="dark"] .mermaid-preview-widget .taskTextOutsideRight,
-[data-theme="dark"] .mermaid-preview-widget .taskTextOutsideLeft,
-[data-theme="dark"] .mermaid-preview-widget .titleText,
-[data-theme="dark"] .mermaid-preview-widget .sectionTitle {
+.mermaid-preview-widget .taskText,
+.mermaid-preview-widget .taskTextOutsideRight,
+.mermaid-preview-widget .taskTextOutsideLeft,
+.mermaid-preview-widget .titleText,
+.mermaid-preview-widget .sectionTitle,
+.mermaid-preview-widget .nodeLabel,
+.mermaid-preview-widget .edgeLabel,
+.mermaid-preview-widget .label {
   fill: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Mermaid lines and arrows follow theme */
+.mermaid-preview-widget .flowchart-link,
+.mermaid-preview-widget .marker,
+.mermaid-preview-widget line,
+.mermaid-preview-widget .grid path {
+  stroke: var(--text-faint) !important;
+}
+
+.mermaid-preview-widget marker path {
+  fill: var(--text-faint) !important;
 }
