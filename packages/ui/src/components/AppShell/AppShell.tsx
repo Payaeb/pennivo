@@ -17,6 +17,7 @@ interface AppShellProps {
   toolbar: ReactNode;
   findReplace?: ReactNode;
   sidebar?: ReactNode;
+  outline?: ReactNode;
   children: ReactNode;
 }
 
@@ -34,6 +35,7 @@ export function AppShell({
   toolbar,
   findReplace,
   sidebar,
+  outline,
   children,
 }: AppShellProps) {
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -100,6 +102,7 @@ export function AppShell({
         <main className="app-editor-area">
           <div className="app-editor-column">{children}</div>
         </main>
+        {outline}
       </div>
       <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
     </div>

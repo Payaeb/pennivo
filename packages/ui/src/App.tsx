@@ -32,6 +32,7 @@ import type { SaveStatus } from './components/Statusbar/Statusbar';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
 import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
+import { OutlinePanel, type HeadingEntry } from './components/OutlinePanel/OutlinePanel';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -100,6 +101,8 @@ function AppContent() {
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [outlineVisible, setOutlineVisible] = useState(false);
+  const [outlineMarkdown, setOutlineMarkdown] = useState(DEFAULT_CONTENT);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -245,6 +248,7 @@ function AppContent() {
   // Both editors stay mounted; update the visible one directly.
   const loadContent = useCallback((content: string) => {
     markdownRef.current = content;
+    setOutlineMarkdown(content);
     if (sourceModeRef.current) {
       setSourceContent(content);
     } else {
@@ -362,6 +366,7 @@ function AppContent() {
   }, []);
 
   // --- Markdown change handler ---
+  const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleMarkdownChange = useCallback((markdown: string) => {
     markdownRef.current = markdown;
     const dirty = markdown !== savedMarkdownRef.current;
@@ -376,6 +381,10 @@ function AppContent() {
     } else {
       setSaveStatus('saved');
     }
+
+    // Debounced update for outline panel
+    if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
+    outlineTimerRef.current = setTimeout(() => setOutlineMarkdown(markdown), 300);
   }, [scheduleAutoSave]);
 
   // --- Focus mode toggle ---
@@ -919,6 +928,49 @@ function AppContent() {
     return view;
   }, [loading, getInstance]);
 
+  // --- Outline heading click ---
+  const handleOutlineHeadingClick = useCallback((heading: HeadingEntry) => {
+    if (sourceModeRef.current) {
+      // Source mode: find the heading line in the CodeMirror doc and scroll to it
+      const view = cmViewRef.current;
+      if (!view) return;
+      const doc = view.state.doc.toString();
+      const lines = doc.split('\n');
+      let headingCount = 0;
+      let inCodeBlock = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^```/.test(line.trimStart())) {
+          inCodeBlock = !inCodeBlock;
+          continue;
+        }
+        if (inCodeBlock) continue;
+        if (/^#{1,6}\s+/.test(line)) {
+          if (headingCount === heading.index) {
+            // Scroll CodeMirror to this line
+            const lineInfo = view.state.doc.line(i + 1);
+            view.dispatch({
+              selection: { anchor: lineInfo.from },
+              scrollIntoView: true,
+            });
+            view.focus();
+            return;
+          }
+          headingCount++;
+        }
+      }
+    } else {
+      // WYSIWYG mode: find the heading DOM element and scroll to it
+      const editorEl = document.querySelector('.editor-wrapper .milkdown');
+      if (!editorEl) return;
+      const headingEls = editorEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      const el = headingEls[heading.index] as HTMLElement | undefined;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, []);
+
   // Ctrl+F opens find & replace (works in both modes)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -955,6 +1007,18 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Ctrl+Shift+O toggles outline panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'O') {
+        e.preventDefault();
+        setOutlineVisible(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // --- Command palette commands ---
   const paletteCommands = useMemo<CommandItem[]>(() => [
     // Format
@@ -984,6 +1048,7 @@ function AppContent() {
     { id: 'toggleTheme',   label: 'Toggle Theme',                            category: 'View', keywords: 'dark light mode' },
     { id: 'toggleSidebar', label: 'Toggle Sidebar',    shortcut: 'Ctrl+B',   category: 'View', keywords: 'file tree panel' },
     { id: 'findReplace',   label: 'Find & Replace',    shortcut: 'Ctrl+F',   category: 'View', keywords: 'search' },
+    { id: 'toggleOutline', label: 'Toggle Outline',    shortcut: 'Ctrl+Shift+O', category: 'View', keywords: 'toc table of contents headings' },
     { id: 'zoomIn',        label: 'Zoom In',                                 category: 'View' },
     { id: 'zoomOut',       label: 'Zoom Out',                                category: 'View' },
     { id: 'resetZoom',     label: 'Reset Zoom',                              category: 'View' },
@@ -1033,6 +1098,7 @@ function AppContent() {
         case 'sourceMode':    handleAction('sourceMode'); break;
         case 'toggleTheme':   toggleTheme(); break;
         case 'toggleSidebar': setSidebarVisible((v) => !v); break;
+        case 'toggleOutline': setOutlineVisible((v) => !v); break;
         case 'setFolder':     handleChooseFolder(); break;
         case 'findReplace':   setFindReplaceOpen(true); break;
         case 'newFile':     doNewFile(); break;
@@ -1095,6 +1161,14 @@ function AppContent() {
           currentFilePath={filePath}
           onFileClick={handleSidebarFileClick}
           onChooseFolder={handleChooseFolder}
+        />
+      }
+      outline={
+        <OutlinePanel
+          visible={outlineVisible}
+          markdown={outlineMarkdown}
+          sourceMode={sourceMode}
+          onHeadingClick={handleOutlineHeadingClick}
         />
       }
       findReplace={

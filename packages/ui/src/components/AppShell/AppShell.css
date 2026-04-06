@@ -75,7 +75,8 @@
 
 /* ─── Focus mode ─── */
 
-.app-shell--focus .sidebar {
+.app-shell--focus .sidebar,
+.app-shell--focus .outline-panel {
   display: none;
 }
 

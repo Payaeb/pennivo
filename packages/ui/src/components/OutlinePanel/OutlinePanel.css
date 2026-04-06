@@ -1,0 +1,160 @@
+.outline-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  user-select: none;
+  position: relative;
+  flex-shrink: 0;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+/* --- Header --- */
+
+.outline-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 8px;
+  flex-shrink: 0;
+}
+
+.outline-title {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- List --- */
+
+.outline-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 8px;
+}
+
+.outline-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.outline-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.outline-list::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
+
+/* --- Items --- */
+
+.outline-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 4px 12px;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.outline-item:hover {
+  background: var(--accent-soft);
+}
+
+.outline-item--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.outline-item--active:hover {
+  background: var(--accent-hover);
+}
+
+.outline-item-indicator {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.01em;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.outline-item--active .outline-item-indicator {
+  color: var(--accent);
+}
+
+.outline-item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Empty state --- */
+
+.outline-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 6px;
+  flex: 1;
+}
+
+.outline-empty-text {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.outline-empty-hint {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* --- Resize handle (left edge) --- */
+
+.outline-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.outline-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.outline-resize-handle:hover::after,
+.outline-resize-handle--active::after {
+  background: var(--accent);
+}

@@ -29,6 +29,7 @@ const passthroughKeymap = keymap.of([
   { key: 'Mod-k', run: () => false },
   { key: 'Mod-f', run: () => false }, // Let Pennivo's FindReplace handle Ctrl+F
   { key: 'Mod-Shift-p', run: () => false }, // Let Pennivo's CommandPalette handle Ctrl+Shift+P
+  { key: 'Mod-Shift-o', run: () => false }, // Let Pennivo's Outline handle Ctrl+Shift+O
 ]);
 
 // Pennivo theme that reads from CSS custom properties
