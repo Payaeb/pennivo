@@ -12,6 +12,7 @@ import './SourceEditor.css';
 interface SourceEditorProps {
   content: string;
   active?: boolean;
+  typewriterMode?: boolean;
   onMarkdownChange?: (markdown: string) => void;
   onWordCountChange?: (count: number) => void;
   onCharCountChange?: (count: number) => void;
@@ -28,6 +29,7 @@ const passthroughKeymap = keymap.of([
   { key: 'Mod-Shift-f', run: () => false },
   { key: 'Mod-k', run: () => false },
   { key: 'Mod-f', run: () => false }, // Let Pennivo's FindReplace handle Ctrl+F
+  { key: 'Mod-Shift-p', run: () => false }, // Let Pennivo's CommandPalette handle Ctrl+Shift+P
 ]);
 
 // Pennivo theme that reads from CSS custom properties
@@ -73,6 +75,7 @@ const pennivoTheme = EditorView.theme({
 export function SourceEditor({
   content,
   active = false,
+  typewriterMode = false,
   onMarkdownChange,
   onWordCountChange,
   onCharCountChange,
@@ -85,6 +88,8 @@ export function SourceEditor({
   const onWordCountRef = useRef(onWordCountChange);
   const onCharCountRef = useRef(onCharCountChange);
   const suppressChangeRef = useRef(false);
+  const typewriterModeRef = useRef(typewriterMode);
+  typewriterModeRef.current = typewriterMode;
 
   onChangeRef.current = onMarkdownChange;
   onWordCountRef.current = onWordCountChange;
@@ -100,6 +105,19 @@ export function SourceEditor({
         onChangeRef.current?.(doc);
         onWordCountRef.current?.(countWords(doc));
         onCharCountRef.current?.(countCharacters(doc));
+      }
+
+      // Typewriter mode: scroll cursor to vertical center
+      if (typewriterModeRef.current && (update.selectionSet || update.docChanged)) {
+        const view = update.view;
+        const head = view.state.selection.main.head;
+        const coords = view.coordsAtPos(head);
+        if (coords) {
+          const scroller = view.scrollDOM;
+          const scrollerRect = scroller.getBoundingClientRect();
+          const cursorRelative = coords.top - scrollerRect.top + scroller.scrollTop;
+          scroller.scrollTop = cursorRelative - scrollerRect.height / 2;
+        }
       }
     });
 

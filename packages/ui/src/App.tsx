@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { MilkdownProvider, useInstance } from '@milkdown/react';
 import { editorViewCtx } from '@milkdown/core';
 import { callCommand, replaceAll } from '@milkdown/utils';
@@ -31,6 +31,7 @@ import { FindReplace } from './components/FindReplace/FindReplace';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
+import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -98,6 +99,9 @@ function AppContent() {
   const [sourceContent, setSourceContent] = useState('');
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [typewriterMode, setTypewriterMode] = useState(false);
+  const typewriterModeRef = useRef(false);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -434,16 +438,17 @@ function AppContent() {
     if (!focusMode) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // Let the link popover, titlebar menu, or find bar handle Escape first
+      // Let the link popover, titlebar menu, find bar, or command palette handle Escape first
       if (linkPopover) return;
       if (findReplaceOpen) return;
+      if (commandPaletteOpen) return;
       if (document.querySelector('.titlebar-menu-dropdown')) return;
       setFocusMode(false);
       window.pennivo?.setFullScreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode, linkPopover, findReplaceOpen]);
+  }, [focusMode, linkPopover, findReplaceOpen, commandPaletteOpen]);
 
   const openLinkPopover = useCallback(() => {
     if (loading) return;
@@ -612,19 +617,77 @@ function AppContent() {
     return () => cleanups.forEach(cleanup => cleanup?.());
   }, [doOpen, doSave, doSaveAs, toggleFocusMode, doSmartPaste, doNewFile, doExportHtml, doExportPdf]);
 
-  // Prevent Electron from navigating when files are dragged onto the window
+  // --- Drag-and-drop .md files to open ---
+  const [showDropZone, setShowDropZone] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  const DROPPABLE_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
+
   useEffect(() => {
-    const prevent = (e: DragEvent) => {
+    const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      dragCounterRef.current++;
+      if (dragCounterRef.current === 1 && e.dataTransfer?.types.includes('Files')) {
+        setShowDropZone(true);
+      }
     };
-    document.addEventListener('dragover', prevent);
-    document.addEventListener('drop', prevent);
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current--;
+      if (dragCounterRef.current === 0) {
+        setShowDropZone(false);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setShowDropZone(false);
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      // Check for .md / .markdown / .txt files — open the first match
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        if (DROPPABLE_EXTENSIONS.has(ext)) {
+          // In Electron, File objects have a .path property with the full path
+          const filePath = (file as File & { path?: string }).path;
+          if (filePath) {
+            openRecentFile(filePath);
+            return;
+          }
+        }
+      }
+
+      // If no text file, check for image files dropped outside the editor
+      // (Images dropped onto the editor are handled by ProseMirror's handleDrop)
+    };
+
+    document.addEventListener('dragenter', handleDragEnter);
+    document.addEventListener('dragleave', handleDragLeave);
+    document.addEventListener('dragover', handleDragOver);
+    document.addEventListener('drop', handleDrop);
     return () => {
-      document.removeEventListener('dragover', prevent);
-      document.removeEventListener('drop', prevent);
+      document.removeEventListener('dragenter', handleDragEnter);
+      document.removeEventListener('dragleave', handleDragLeave);
+      document.removeEventListener('dragover', handleDragOver);
+      document.removeEventListener('drop', handleDrop);
     };
-  }, []);
+  }, [openRecentFile]);
 
   // Set window title (taskbar) when filename changes
   useEffect(() => {
@@ -643,6 +706,17 @@ function AppContent() {
   // --- Editor view update (toolbar sync) ---
   const handleViewUpdate = useCallback((view: EditorView) => {
     setActiveFormats(getActiveFormats(view));
+
+    // Typewriter mode: scroll cursor to vertical center of the editor area
+    if (typewriterModeRef.current) {
+      const area = document.querySelector('.app-editor-area');
+      if (!area) return;
+      const coords = view.coordsAtPos(view.state.selection.head);
+      const areaRect = area.getBoundingClientRect();
+      const cursorRelative = coords.top - areaRect.top + area.scrollTop;
+      const targetScroll = cursorRelative - areaRect.height / 2;
+      area.scrollTop = targetScroll;
+    }
   }, []);
 
   // --- Toolbar actions ---
@@ -654,17 +728,49 @@ function AppContent() {
         setSourceMode((prev) => {
           const next = !prev;
           sourceModeRef.current = next;
+
+          // Capture scroll percentage from the outgoing editor
+          let scrollFraction = 0;
           if (next) {
-            // Switching WYSIWYG → source: push current markdown into CodeMirror
+            // WYSIWYG → source: get scroll from .app-editor-area
+            const area = document.querySelector('.app-editor-area');
+            if (area) {
+              const maxScroll = area.scrollHeight - area.clientHeight;
+              scrollFraction = maxScroll > 0 ? area.scrollTop / maxScroll : 0;
+            }
             setSourceContent(markdownRef.current);
           } else {
-            // Switching source → WYSIWYG: push current markdown into Milkdown
-            // Milkdown stays mounted so getInstance() is valid
+            // Source → WYSIWYG: get scroll from CodeMirror scroller
+            const cmScroller = cmViewRef.current?.scrollDOM;
+            if (cmScroller) {
+              const maxScroll = cmScroller.scrollHeight - cmScroller.clientHeight;
+              scrollFraction = maxScroll > 0 ? cmScroller.scrollTop / maxScroll : 0;
+            }
             const ed = getInstance();
             if (ed && !loading) {
               ed.action(replaceAll(markdownRef.current));
             }
           }
+
+          // Restore scroll in the incoming editor after DOM updates
+          requestAnimationFrame(() => {
+            if (next) {
+              // Apply to CodeMirror scroller
+              const cmScroller = cmViewRef.current?.scrollDOM;
+              if (cmScroller) {
+                const maxScroll = cmScroller.scrollHeight - cmScroller.clientHeight;
+                cmScroller.scrollTop = scrollFraction * maxScroll;
+              }
+            } else {
+              // Apply to .app-editor-area
+              const area = document.querySelector('.app-editor-area');
+              if (area) {
+                const maxScroll = area.scrollHeight - area.clientHeight;
+                area.scrollTop = scrollFraction * maxScroll;
+              }
+            }
+          });
+
           return next;
         });
         return;
@@ -856,6 +962,53 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Ctrl+Shift+P opens command palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // --- Command palette commands ---
+  const paletteCommands = useMemo<CommandItem[]>(() => [
+    // Format
+    { id: 'bold',          label: 'Bold',          shortcut: 'Ctrl+B',       category: 'Format', keywords: 'strong' },
+    { id: 'italic',        label: 'Italic',        shortcut: 'Ctrl+I',       category: 'Format', keywords: 'emphasis' },
+    { id: 'strikethrough', label: 'Strikethrough',                            category: 'Format' },
+    { id: 'h1',            label: 'Heading 1',                                category: 'Format', keywords: 'title header' },
+    { id: 'h2',            label: 'Heading 2',                                category: 'Format', keywords: 'subtitle header' },
+    { id: 'bulletList',    label: 'Bullet List',                              category: 'Format', keywords: 'unordered' },
+    { id: 'orderedList',   label: 'Ordered List',                             category: 'Format', keywords: 'numbered' },
+    { id: 'taskList',      label: 'Task List',                                category: 'Format', keywords: 'checkbox todo' },
+    { id: 'blockquote',    label: 'Blockquote',                               category: 'Format', keywords: 'quote' },
+    { id: 'code',          label: 'Code',                                     category: 'Format', keywords: 'inline block' },
+    { id: 'table',         label: 'Table',                                    category: 'Format' },
+    { id: 'link',          label: 'Insert Link',   shortcut: 'Ctrl+K',       category: 'Format', keywords: 'url href' },
+    { id: 'image',         label: 'Insert Image',                             category: 'Format' },
+    // File
+    { id: 'newFile',       label: 'New File',       shortcut: 'Ctrl+N',      category: 'File' },
+    { id: 'open',          label: 'Open File',      shortcut: 'Ctrl+O',      category: 'File' },
+    { id: 'save',          label: 'Save',            shortcut: 'Ctrl+S',     category: 'File' },
+    { id: 'saveAs',        label: 'Save As',         shortcut: 'Ctrl+Shift+S', category: 'File' },
+    { id: 'exportHtml',    label: 'Export as HTML',  shortcut: 'Ctrl+Shift+E', category: 'File' },
+    { id: 'exportPdf',     label: 'Export as PDF',                            category: 'File' },
+    // View
+    { id: 'sourceMode',    label: 'Toggle Source Mode',                       category: 'View', keywords: 'markdown code raw' },
+    { id: 'focusMode',     label: 'Toggle Focus Mode', shortcut: 'Ctrl+Shift+F', category: 'View', keywords: 'zen distraction free fullscreen' },
+    { id: 'toggleTheme',   label: 'Toggle Theme',                            category: 'View', keywords: 'dark light mode' },
+    { id: 'toggleSidebar', label: 'Toggle Sidebar',    shortcut: 'Ctrl+B',   category: 'View', keywords: 'file tree panel' },
+    { id: 'findReplace',   label: 'Find & Replace',    shortcut: 'Ctrl+F',   category: 'View', keywords: 'search' },
+    { id: 'zoomIn',        label: 'Zoom In',                                 category: 'View' },
+    { id: 'zoomOut',       label: 'Zoom Out',                                category: 'View' },
+    { id: 'resetZoom',     label: 'Reset Zoom',                              category: 'View' },
+    { id: 'typewriterMode', label: 'Toggle Typewriter Mode',                  category: 'View', keywords: 'center scroll focus writing' },
+  ], []);
+
   // --- Hamburger menu actions ---
   const focusEditor = useCallback(() => {
     if (sourceModeRef.current) {
@@ -916,6 +1069,38 @@ function AppContent() {
     [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles, doNewFile, doExportHtml, doExportPdf, handleChooseFolder, handleAction],
   );
 
+  // --- Typewriter mode toggle ---
+  const toggleTypewriterMode = useCallback(() => {
+    setTypewriterMode(prev => {
+      const next = !prev;
+      typewriterModeRef.current = next;
+      return next;
+    });
+  }, []);
+
+  // --- Command palette handler ---
+  const handleCommandSelect = useCallback((id: string) => {
+    setCommandPaletteOpen(false);
+
+    if (id === 'typewriterMode') {
+      toggleTypewriterMode();
+      return;
+    }
+
+    const toolbarActions: Set<string> = new Set([
+      'bold', 'italic', 'strikethrough', 'h1', 'h2',
+      'bulletList', 'orderedList', 'taskList', 'blockquote',
+      'table', 'link', 'image', 'code',
+      'focusMode', 'toggleTheme', 'sourceMode',
+    ]);
+
+    if (toolbarActions.has(id)) {
+      handleAction(id as ToolbarAction);
+    } else {
+      handleMenuAction(id as MenuAction);
+    }
+  }, [handleAction, handleMenuAction, toggleTypewriterMode]);
+
   const toolbarFormats = (() => {
     const formats = new Set(activeFormats);
     if (focusMode) formats.add('focusMode');
@@ -932,6 +1117,7 @@ function AppContent() {
       saveStatus={saveStatus}
       focusMode={focusMode}
       sourceMode={sourceMode}
+      typewriterMode={typewriterMode}
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
@@ -969,6 +1155,7 @@ function AppContent() {
         <SourceEditor
           content={sourceContent}
           active={sourceMode}
+          typewriterMode={typewriterMode}
           onMarkdownChange={handleMarkdownChange}
           onWordCountChange={setWordCount}
           onCharCountChange={setCharCount}
@@ -976,6 +1163,25 @@ function AppContent() {
           onViewDestroy={() => { cmViewRef.current = null; }}
         />
       </div>
+      {showDropZone && (
+        <div className="drop-zone-overlay">
+          <div className="drop-zone-content">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <polyline points="9 15 12 12 15 15" />
+            </svg>
+            <span>Drop to open</span>
+          </div>
+        </div>
+      )}
+      <CommandPalette
+        visible={commandPaletteOpen}
+        commands={paletteCommands}
+        onSelect={handleCommandSelect}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
       {toast && <div className="toast">{toast}</div>}
       {linkPopover && (
         <LinkPopover
