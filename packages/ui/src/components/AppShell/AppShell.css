@@ -92,3 +92,9 @@
   transform: translateY(0);
   pointer-events: auto;
 }
+
+/* Titlebar must sit above the find bar so the menu dropdown isn't clipped */
+.app-shell--focus .titlebar {
+  position: relative;
+  z-index: 100;
+}

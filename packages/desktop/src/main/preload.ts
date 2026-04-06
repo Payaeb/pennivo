@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('pennivo', {
   setDirty:       (dirty: boolean) => ipcRenderer.send('file:set-dirty', dirty),
   closeAfterSave: () => ipcRenderer.send('file:close-after-save'),
 
+  // Recent files
+  getRecentFiles:  () => ipcRenderer.invoke('recent-files:get') as Promise<string[]>,
+  addRecentFile:   (filePath: string) => ipcRenderer.invoke('recent-files:add', filePath) as Promise<string[]>,
+  clearRecentFiles: () => ipcRenderer.invoke('recent-files:clear') as Promise<string[]>,
+  openFilePath:    (filePath: string) => ipcRenderer.invoke('file:open-path', filePath) as Promise<{ filePath: string; content: string } | null>,
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },

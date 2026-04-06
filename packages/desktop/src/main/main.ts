@@ -10,6 +10,42 @@ let mainWindow: BrowserWindow | null = null;
 let isDirty = false;
 let forceClose = false;
 
+// --- Recent files persistence ---
+const RECENT_FILES_MAX = 10;
+
+function getRecentFilesPath(): string {
+  return path.join(app.getPath('userData'), 'recent-files.json');
+}
+
+async function readRecentFiles(): Promise<string[]> {
+  try {
+    const data = await fs.readFile(getRecentFilesPath(), 'utf-8');
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === 'string');
+  } catch {
+    // File doesn't exist or is corrupt
+  }
+  return [];
+}
+
+async function writeRecentFiles(files: string[]): Promise<void> {
+  await fs.writeFile(getRecentFilesPath(), JSON.stringify(files), 'utf-8');
+}
+
+async function addRecentFile(filePath: string): Promise<string[]> {
+  const existing = await readRecentFiles();
+  // Normalize path for comparison
+  const normalized = filePath.replace(/\\/g, '/');
+  const filtered = existing.filter(p => p.replace(/\\/g, '/') !== normalized);
+  const updated = [filePath, ...filtered].slice(0, RECENT_FILES_MAX);
+  await writeRecentFiles(updated);
+  return updated;
+}
+
+async function clearRecentFiles(): Promise<void> {
+  await writeRecentFiles([]);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -199,6 +235,7 @@ function registerIpcHandlers() {
 
     const filePath = filePaths[0];
     const content = await fs.readFile(filePath, 'utf-8');
+    await addRecentFile(filePath);
     return { filePath, content };
   });
 
@@ -221,6 +258,7 @@ function registerIpcHandlers() {
     if (canceled || !filePath) return null;
 
     await fs.writeFile(filePath, args.content, 'utf-8');
+    await addRecentFile(filePath);
     return filePath;
   });
 
@@ -287,6 +325,31 @@ function registerIpcHandlers() {
       relativePath: `./images/${filename}`,
       absolutePath: absolutePath.replace(/\\/g, '/'),
     };
+  });
+
+  // --- Recent files ---
+  ipcMain.handle('recent-files:get', async () => {
+    return readRecentFiles();
+  });
+
+  ipcMain.handle('recent-files:add', async (_e, filePath: string) => {
+    return addRecentFile(filePath);
+  });
+
+  ipcMain.handle('recent-files:clear', async () => {
+    await clearRecentFiles();
+    return [];
+  });
+
+  // Open a specific file by path (used by Recent Files)
+  ipcMain.handle('file:open-path', async (_e, filePath: string) => {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      await addRecentFile(filePath);
+      return { filePath, content };
+    } catch {
+      return null;
+    }
   });
 
   // Confirm-discard dialog (used before opening a file when dirty)

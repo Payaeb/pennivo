@@ -21,6 +21,12 @@ interface PennivoAPI {
   setDirty: (dirty: boolean) => void;
   closeAfterSave: () => void;
 
+  // Recent files
+  getRecentFiles: () => Promise<string[]>;
+  addRecentFile: (filePath: string) => Promise<string[]>;
+  clearRecentFiles: () => Promise<string[]>;
+  openFilePath: (filePath: string) => Promise<{ filePath: string; content: string } | null>;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;

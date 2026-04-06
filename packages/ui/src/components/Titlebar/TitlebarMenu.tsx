@@ -5,10 +5,19 @@ export type MenuAction =
   | 'open' | 'save' | 'saveAs' | 'quit'
   | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
   | 'focusMode' | 'toggleTheme'
-  | 'zoomIn' | 'zoomOut' | 'resetZoom';
+  | 'zoomIn' | 'zoomOut' | 'resetZoom'
+  | 'findReplace' | 'clearRecentFiles';
+
+export interface RecentFileEntry {
+  filePath: string;
+  filename: string;
+  truncatedPath: string;
+}
 
 interface TitlebarMenuProps {
   onAction: (action: MenuAction) => void;
+  recentFiles?: RecentFileEntry[];
+  onOpenRecentFile?: (filePath: string) => void;
 }
 
 interface MenuItem {
@@ -45,6 +54,8 @@ const MENU_SECTIONS: MenuSection[] = [
       { label: 'Paste',      action: 'paste',      shortcut: 'Ctrl+V' },
       { separator: true, label: '' },
       { label: 'Select All', action: 'selectAll',  shortcut: 'Ctrl+A' },
+      { separator: true, label: '' },
+      { label: 'Find & Replace', action: 'findReplace', shortcut: 'Ctrl+F' },
     ],
   },
   {
@@ -60,9 +71,13 @@ const MENU_SECTIONS: MenuSection[] = [
   },
 ];
 
-export function TitlebarMenu({ onAction }: TitlebarMenuProps) {
+export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: TitlebarMenuProps) {
   const [open, setOpen] = useState(false);
+  const [recentSubmenuOpen, setRecentSubmenuOpen] = useState(false);
+  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const recentTriggerRef = useRef<HTMLDivElement>(null);
+  const recentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Close on outside click
   useEffect(() => {
@@ -70,10 +85,17 @@ export function TitlebarMenu({ onAction }: TitlebarMenuProps) {
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setRecentSubmenuOpen(false);
       }
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        if (recentSubmenuOpen) {
+          setRecentSubmenuOpen(false);
+        } else {
+          setOpen(false);
+        }
+      }
     };
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleKey);
@@ -81,19 +103,48 @@ export function TitlebarMenu({ onAction }: TitlebarMenuProps) {
       document.removeEventListener('mousedown', handleClick);
       document.removeEventListener('keydown', handleKey);
     };
-  }, [open]);
+  }, [open, recentSubmenuOpen]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(recentTimerRef.current);
+  }, []);
 
   const handleItemClick = (action?: MenuAction) => {
     if (!action) return;
     setOpen(false);
+    setRecentSubmenuOpen(false);
     onAction(action);
   };
+
+  const handleRecentEnter = () => {
+    clearTimeout(recentTimerRef.current);
+    if (recentTriggerRef.current) {
+      const rect = recentTriggerRef.current.getBoundingClientRect();
+      setSubmenuPos({ top: rect.top, left: rect.right + 2 });
+    }
+    setRecentSubmenuOpen(true);
+  };
+
+  const handleRecentLeave = () => {
+    recentTimerRef.current = setTimeout(() => setRecentSubmenuOpen(false), 200);
+  };
+
+  const handleSubmenuEnter = () => {
+    clearTimeout(recentTimerRef.current);
+  };
+
+  const handleSubmenuLeave = () => {
+    recentTimerRef.current = setTimeout(() => setRecentSubmenuOpen(false), 200);
+  };
+
+  const hasRecentFiles = recentFiles && recentFiles.length > 0;
 
   return (
     <div className="titlebar-menu" ref={menuRef}>
       <button
         className={`titlebar-menu-btn${open ? ' titlebar-menu-btn--open' : ''}`}
-        onClick={() => setOpen(!open)}
+        onClick={() => { setOpen(!open); setRecentSubmenuOpen(false); }}
         title="Menu"
         tabIndex={-1}
         aria-label="Application menu"
@@ -104,25 +155,84 @@ export function TitlebarMenu({ onAction }: TitlebarMenuProps) {
 
       {open && (
         <div className="titlebar-menu-dropdown">
-          {MENU_SECTIONS.map((section) => (
+          {MENU_SECTIONS.map((section, sectionIdx) => (
             <div key={section.label} className="menu-section">
               <div className="menu-section-label">{section.label}</div>
-              {section.items.map((item, i) =>
-                item.separator ? (
-                  <div key={i} className="menu-separator" />
-                ) : (
-                  <button
-                    key={item.action}
-                    className="menu-item"
-                    onClick={() => handleItemClick(item.action)}
-                  >
-                    <span className="menu-item-label">{item.label}</span>
-                    {item.shortcut && (
-                      <span className="menu-item-shortcut">{item.shortcut}</span>
+              {section.items.map((item, i) => {
+                // Insert "Recent Files >" submenu trigger after "Save As" in File section
+                const showRecentAfter = sectionIdx === 0 && item.action === 'saveAs';
+
+                return (
+                  <div key={item.separator ? `sep-${i}` : item.action}>
+                    {item.separator ? (
+                      <div className="menu-separator" />
+                    ) : (
+                      <button
+                        className="menu-item"
+                        onClick={() => handleItemClick(item.action)}
+                      >
+                        <span className="menu-item-label">{item.label}</span>
+                        {item.shortcut && (
+                          <span className="menu-item-shortcut">{item.shortcut}</span>
+                        )}
+                      </button>
                     )}
-                  </button>
-                ),
-              )}
+                    {showRecentAfter && (
+                      <>
+                        <div className="menu-separator" />
+                        <div
+                          className="menu-submenu-trigger"
+                          ref={recentTriggerRef}
+                          onMouseEnter={handleRecentEnter}
+                          onMouseLeave={handleRecentLeave}
+                        >
+                          <button
+                            className={`menu-item${recentSubmenuOpen ? ' menu-item--active' : ''}${!hasRecentFiles ? ' menu-item--disabled' : ''}`}
+                            onClick={() => hasRecentFiles && setRecentSubmenuOpen(!recentSubmenuOpen)}
+                          >
+                            <span className="menu-item-label">Recent Files</span>
+                            <span className="menu-item-arrow">
+                              <ChevronRightIcon />
+                            </span>
+                          </button>
+                          {recentSubmenuOpen && hasRecentFiles && (
+                            <div
+                              className="menu-submenu"
+                              style={submenuPos ? { top: submenuPos.top, left: submenuPos.left } : undefined}
+                              onMouseEnter={handleSubmenuEnter}
+                              onMouseLeave={handleSubmenuLeave}
+                            >
+                              {recentFiles.map((entry) => (
+                                <button
+                                  key={entry.filePath}
+                                  className="menu-item"
+                                  onClick={() => {
+                                    setOpen(false);
+                                    setRecentSubmenuOpen(false);
+                                    onOpenRecentFile?.(entry.filePath);
+                                  }}
+                                >
+                                  <span className="menu-item-label">
+                                    <span className="menu-recent-filename">{entry.filename}</span>
+                                    <span className="menu-recent-path">{entry.truncatedPath}</span>
+                                  </span>
+                                </button>
+                              ))}
+                              <div className="menu-separator" />
+                              <button
+                                className="menu-item"
+                                onClick={() => handleItemClick('clearRecentFiles')}
+                              >
+                                <span className="menu-item-label menu-item-label--muted">Clear Recent</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -137,6 +247,14 @@ function HamburgerIcon() {
       <line x1="3" y1="4.5" x2="13" y2="4.5" />
       <line x1="3" y1="8" x2="13" y2="8" />
       <line x1="3" y1="11.5" x2="13" y2="11.5" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6,4 10,8 6,12" />
     </svg>
   );
 }

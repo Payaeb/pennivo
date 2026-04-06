@@ -1,5 +1,5 @@
 import { type ReactNode, useState, useCallback, useRef, useEffect } from 'react';
-import { Titlebar, type MenuAction } from '../Titlebar/Titlebar';
+import { Titlebar, type MenuAction, type RecentFileEntry } from '../Titlebar/Titlebar';
 import { Statusbar, type SaveStatus } from '../Statusbar/Statusbar';
 import './AppShell.css';
 
@@ -11,7 +11,10 @@ interface AppShellProps {
   saveStatus?: SaveStatus;
   focusMode?: boolean;
   onMenuAction?: (action: MenuAction) => void;
+  recentFiles?: RecentFileEntry[];
+  onOpenRecentFile?: (filePath: string) => void;
   toolbar: ReactNode;
+  findReplace?: ReactNode;
   children: ReactNode;
 }
 
@@ -23,7 +26,10 @@ export function AppShell({
   saveStatus = 'saved',
   focusMode = false,
   onMenuAction,
+  recentFiles,
+  onOpenRecentFile,
   toolbar,
+  findReplace,
   children,
 }: AppShellProps) {
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -48,6 +54,8 @@ export function AppShell({
         clearTimeout(hideTimerRef.current);
       } else if (e.clientY > 80) {
         clearTimeout(hideTimerRef.current);
+        // Don't auto-hide while a menu dropdown is open
+        if (document.querySelector('.titlebar-menu-dropdown')) return;
         hideTimerRef.current = setTimeout(() => setChromeState(false), 500);
       }
     },
@@ -79,8 +87,9 @@ export function AppShell({
 
   return (
     <div className={shellClass}>
-      <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} />
+      <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />
       <div className="app-toolbar-row">{toolbar}</div>
+      {findReplace}
       <main className="app-editor-area">
         <div className="app-editor-column">{children}</div>
       </main>

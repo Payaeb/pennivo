@@ -10,6 +10,7 @@ import { Plugin, Selection } from '@milkdown/prose/state';
 import { InputRule, inputRules } from '@milkdown/prose/inputrules';
 import type { EditorView } from '@milkdown/prose/view';
 import { syntaxHighlightPlugin } from './syntaxHighlight';
+import { createFindReplacePlugin } from '../FindReplace/FindReplace';
 import './Editor.css';
 
 export const DEFAULT_CONTENT = `# On Writing
@@ -328,6 +329,8 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       },
     }));
 
+    const findReplacePlugin = $prose(() => createFindReplacePlugin());
+
     return MilkdownEditorCore.make()
       .config((ctx) => {
         ctx.set(rootCtx, root);
@@ -344,6 +347,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(imagePaste)
       .use(codeBlockEscape)
       .use(syntaxHighlightPlugin)
+      .use(findReplacePlugin)
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
           onWordCountChange?.(countWords(markdown));

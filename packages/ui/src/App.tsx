@@ -26,8 +26,9 @@ import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
 import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
+import { FindReplace } from './components/FindReplace/FindReplace';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
-import type { MenuAction } from './components/Titlebar/TitlebarMenu';
+import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -90,6 +91,7 @@ function AppContent() {
   const [charCount, setCharCount] = useState(0);
   const [activeFormats, setActiveFormats] = useState<Set<ToolbarAction>>(new Set());
   const [focusMode, setFocusMode] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -102,6 +104,25 @@ function AppContent() {
   const markdownRef = useRef(DEFAULT_CONTENT);
   const savedMarkdownRef = useRef(DEFAULT_CONTENT);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // --- Recent files ---
+  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
+
+  const loadRecentFiles = useCallback(async () => {
+    const files = await window.pennivo?.getRecentFiles();
+    if (!files) return;
+    setRecentFiles(files.map((fp: string) => {
+      const parts = fp.replace(/\\/g, '/').split('/');
+      const filename = parts.pop() || fp;
+      const dir = parts.length > 2
+        ? '.../' + parts.slice(-2).join('/')
+        : parts.join('/');
+      return { filePath: fp, filename, truncatedPath: dir };
+    }));
+  }, []);
+
+  // Load recent files on mount
+  useEffect(() => { loadRecentFiles(); }, [loadRecentFiles]);
 
   const setFilePath = (p: string | null) => {
     filePathRef.current = p;
@@ -148,6 +169,7 @@ function AppContent() {
         savedMarkdownRef.current = content;
         setIsDirty(false);
         setSaveStatus('saved');
+        loadRecentFiles();
         return true;
       }
       setSaveStatus(isDirtyRef.current ? 'unsaved' : 'saved');
@@ -156,7 +178,7 @@ function AppContent() {
       setSaveStatus('unsaved');
       return false;
     }
-  }, []);
+  }, [loadRecentFiles]);
 
   // --- Open file ---
   const doOpen = useCallback(async () => {
@@ -183,7 +205,35 @@ function AppContent() {
     markdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
-  }, [loading, getInstance, doSave]);
+    loadRecentFiles();
+  }, [loading, getInstance, doSave, loadRecentFiles]);
+
+  // --- Open recent file by path ---
+  const openRecentFile = useCallback(async (recentPath: string) => {
+    // Guard unsaved changes
+    if (isDirtyRef.current) {
+      const response = await window.pennivo?.confirmDiscard();
+      if (response === 2) return;
+      if (response === 0) {
+        const saved = await doSave();
+        if (!saved) return;
+      }
+    }
+
+    const result = await window.pennivo?.openFilePath(recentPath);
+    if (!result) return;
+
+    const editor = getInstance();
+    if (!editor || loading) return;
+
+    editor.action(replaceAll(result.content));
+    setFilePath(result.filePath);
+    savedMarkdownRef.current = result.content;
+    markdownRef.current = result.content;
+    setIsDirty(false);
+    setSaveStatus('saved');
+    loadRecentFiles();
+  }, [loading, getInstance, doSave, loadRecentFiles]);
 
   // --- Auto-save ---
   const scheduleAutoSave = useCallback(() => {
@@ -247,20 +297,21 @@ function AppContent() {
     anchorRect: { top: number; left: number };
   } | null>(null);
 
-  // Escape exits focus mode — but not if a popover or menu is open
+  // Escape exits focus mode — but not if a popover, menu, or find bar is open
   useEffect(() => {
     if (!focusMode) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // Let the link popover or titlebar menu handle Escape first
+      // Let the link popover, titlebar menu, or find bar handle Escape first
       if (linkPopover) return;
+      if (findReplaceOpen) return;
       if (document.querySelector('.titlebar-menu-dropdown')) return;
       setFocusMode(false);
       window.pennivo?.setFullScreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode, linkPopover]);
+  }, [focusMode, linkPopover, findReplaceOpen]);
 
   const openLinkPopover = useCallback(() => {
     if (loading) return;
@@ -598,6 +649,30 @@ function AppContent() {
     [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs, openLinkPopover],
   );
 
+  // --- Get ProseMirror view (for Find & Replace) ---
+  const getEditorView = useCallback((): import('@milkdown/prose/view').EditorView | null => {
+    if (loading) return null;
+    const editor = getInstance();
+    if (!editor) return null;
+    let view: import('@milkdown/prose/view').EditorView | null = null;
+    editor.action((ctx) => {
+      view = ctx.get(editorViewCtx);
+    });
+    return view;
+  }, [loading, getInstance]);
+
+  // Ctrl+F opens find & replace
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setFindReplaceOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // --- Hamburger menu actions ---
   const focusEditor = useCallback(() => {
     if (loading) return;
@@ -634,12 +709,16 @@ function AppContent() {
         }
         case 'focusMode':   toggleFocusMode(); break;
         case 'toggleTheme': toggleTheme(); break;
+        case 'findReplace': setFindReplaceOpen(true); break;
+        case 'clearRecentFiles':
+          window.pennivo?.clearRecentFiles().then(() => loadRecentFiles());
+          break;
         case 'zoomIn':      window.pennivo?.zoomIn(); break;
         case 'zoomOut':     window.pennivo?.zoomOut(); break;
         case 'resetZoom':   window.pennivo?.resetZoom(); break;
       }
     },
-    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste],
+    [doOpen, doSave, doSaveAs, toggleFocusMode, toggleTheme, focusEditor, doSmartPaste, loadRecentFiles],
   );
 
   const toolbarFormats = focusMode
@@ -655,7 +734,16 @@ function AppContent() {
       saveStatus={saveStatus}
       focusMode={focusMode}
       onMenuAction={handleMenuAction}
+      recentFiles={recentFiles}
+      onOpenRecentFile={openRecentFile}
       toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} />}
+      findReplace={
+        <FindReplace
+          visible={findReplaceOpen}
+          getView={getEditorView}
+          onClose={() => setFindReplaceOpen(false)}
+        />
+      }
     >
       <Editor
         onWordCountChange={setWordCount}
