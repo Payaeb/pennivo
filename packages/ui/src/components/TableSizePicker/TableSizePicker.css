@@ -1,0 +1,55 @@
+/* ── Table Size Picker ── */
+
+.table-size-picker {
+  position: fixed;
+  z-index: 1001;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+  animation: table-picker-in 0.12s ease-out;
+}
+
+@keyframes table-picker-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.table-size-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.table-size-row {
+  display: flex;
+  gap: 3px;
+}
+
+.table-size-cell {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-mid);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.06s, border-color 0.06s;
+}
+
+.table-size-cell:hover {
+  border-color: var(--accent);
+}
+
+.table-size-cell--active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.table-size-label {
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 6px;
+  user-select: none;
+}

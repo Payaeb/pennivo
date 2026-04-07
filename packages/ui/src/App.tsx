@@ -19,6 +19,9 @@ import {
 import {
   toggleStrikethroughCommand,
   insertTableCommand,
+  setAlignCommand,
+  addRowBeforeCommand,
+  addRowAfterCommand,
 } from '@milkdown/preset-gfm';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -34,6 +37,9 @@ import type { MenuAction, RecentFileEntry } from './components/Titlebar/Titlebar
 import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
 import { OutlinePanel, type HeadingEntry } from './components/OutlinePanel/OutlinePanel';
 import { GanttEditorPanel } from './components/GanttEditor/GanttEditorPanel';
+import { TableToolbar } from './components/TableToolbar/TableToolbar';
+import { TableSizePicker } from './components/TableSizePicker/TableSizePicker';
+import { executeTableAction, type TableAction } from './components/Editor/tablePlugin';
 import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
 
@@ -441,6 +447,47 @@ function AppContent() {
     selectedText: string;
     anchorRect: { top: number; left: number };
   } | null>(null);
+
+  // --- Table toolbar state ---
+  const [tableToolbarVisible, setTableToolbarVisible] = useState(false);
+
+  const [tableSizePicker, setTableSizePicker] = useState<{
+    top: number; left: number; bottom: number;
+  } | null>(null);
+
+  // Listen for table-toolbar-update events from the table plugin
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { visible } = (e as CustomEvent).detail;
+      setTableToolbarVisible(visible);
+    };
+    document.addEventListener('table-toolbar-update', handler);
+    return () => document.removeEventListener('table-toolbar-update', handler);
+  }, []);
+
+  const handleTableAction = useCallback(
+    (action: TableAction) => {
+      if (loading) return;
+      const editor = getInstance();
+      if (!editor) return;
+
+      // Row operations use Milkdown commands (schema-safe)
+      switch (action) {
+        case 'addRowAbove':  editor.action(callCommand(addRowBeforeCommand.key)); return;
+        case 'addRowBelow':  editor.action(callCommand(addRowAfterCommand.key)); return;
+        case 'alignLeft':    editor.action(callCommand(setAlignCommand.key, 'left')); return;
+        case 'alignCenter':  editor.action(callCommand(setAlignCommand.key, 'center')); return;
+        case 'alignRight':   editor.action(callCommand(setAlignCommand.key, 'right')); return;
+      }
+
+      // Column + delete operations use custom ProseMirror impl
+      // (prosemirror-tables commands don't work with Milkdown's table_header_row)
+      editor.action((ctx) => {
+        executeTableAction(ctx.get(editorViewCtx), action);
+      });
+    },
+    [loading, getInstance],
+  );
 
   // --- Gantt editor state ---
   const [ganttEditor, setGanttEditor] = useState<{
@@ -1016,9 +1063,17 @@ function AppContent() {
           });
           break;
 
-        case 'table':
-          editor.action(callCommand(insertTableCommand.key, { row: 2, col: 3 }));
+        case 'table': {
+          const btn = document.querySelector('button[aria-label="Table"]');
+          if (btn) {
+            const r = btn.getBoundingClientRect();
+            setTableSizePicker({ top: r.top, left: r.left, bottom: r.bottom });
+          } else {
+            // Fallback (e.g. command palette) — insert 3×3 directly
+            editor.action(callCommand(insertTableCommand.key, { row: 3, col: 3 }));
+          }
           break;
+        }
 
         case 'code':
           editor.action((ctx) => {
@@ -1040,7 +1095,19 @@ function AppContent() {
           break;
       }
     },
-    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs, openLinkPopover],
+    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs, openLinkPopover, setTableSizePicker],
+  );
+
+  // --- Table size picker selection ---
+  const handleTableSizeSelect = useCallback(
+    (rows: number, cols: number) => {
+      setTableSizePicker(null);
+      if (loading) return;
+      const editor = getInstance();
+      if (!editor) return;
+      editor.action(callCommand(insertTableCommand.key, { row: rows, col: cols }));
+    },
+    [loading, getInstance],
   );
 
   // --- Get ProseMirror view (for Find & Replace) ---
@@ -1284,10 +1351,19 @@ function AppContent() {
   const handleCommandSelect = useCallback((id: string) => {
     setCommandPaletteOpen(false);
 
+    // Table from command palette → insert 3×3 directly (no size picker)
+    if (id === 'table') {
+      if (!loading) {
+        const editor = getInstance();
+        if (editor) editor.action(callCommand(insertTableCommand.key, { row: 3, col: 3 }));
+      }
+      return;
+    }
+
     const toolbarActions: Set<string> = new Set([
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
       'bulletList', 'orderedList', 'taskList', 'blockquote',
-      'table', 'link', 'image', 'mermaid', 'gantt', 'code',
+      'link', 'image', 'mermaid', 'gantt', 'code',
       'focusMode', 'toggleTheme', 'sourceMode',
     ]);
 
@@ -1296,7 +1372,7 @@ function AppContent() {
     } else {
       handleMenuAction(id as MenuAction);
     }
-  }, [handleAction, handleMenuAction]);
+  }, [handleAction, handleMenuAction, loading, getInstance]);
 
   const toolbarFormats = (() => {
     const formats = new Set(activeFormats);
@@ -1401,6 +1477,18 @@ function AppContent() {
           anchorRect={ganttEditor.anchorRect}
           onUpdate={handleGanttUpdate}
           onClose={handleGanttClose}
+        />
+      )}
+      {tableToolbarVisible && !sourceMode && (
+        <TableToolbar
+          onAction={handleTableAction}
+        />
+      )}
+      {tableSizePicker && (
+        <TableSizePicker
+          anchorRect={tableSizePicker}
+          onSelect={handleTableSizeSelect}
+          onClose={() => setTableSizePicker(null)}
         />
       )}
     </AppShell>
