@@ -64,20 +64,74 @@
   }
 }
 
-/* ─── Section ─── */
+/* ─── Section (accordion) ─── */
 
 .menu-section + .menu-section {
   border-top: 1px solid var(--border);
 }
 
-.menu-section-label {
-  font-size: 10px;
+.menu-section-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-faint);
-  padding: 8px 12px 4px;
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
   user-select: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.menu-section-header:hover {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.menu-section-header--expanded {
+  color: var(--text-primary);
+}
+
+.menu-section-chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.menu-section-chevron svg {
+  width: 11px;
+  height: 11px;
+}
+
+.menu-section-header--expanded .menu-section-chevron {
+  transform: rotate(90deg);
+}
+
+.menu-section-header-label {
+  flex: 1;
+}
+
+/* ─── Collapsible body ─── */
+
+.menu-section-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.15s ease;
+}
+
+.menu-section-body--open {
+  grid-template-rows: 1fr;
+}
+
+.menu-section-inner {
+  overflow: hidden;
 }
 
 /* ─── Items ─── */
@@ -181,6 +235,29 @@
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+/* ─── Scrollbar (submenu + dropdown) ─── */
+
+.menu-submenu::-webkit-scrollbar,
+.titlebar-menu-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.menu-submenu::-webkit-scrollbar-track,
+.titlebar-menu-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.menu-submenu::-webkit-scrollbar-thumb,
+.titlebar-menu-dropdown::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 2px;
+}
+
+.menu-submenu::-webkit-scrollbar-thumb:hover,
+.titlebar-menu-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
 }
 
 /* ─── Recent files ─── */

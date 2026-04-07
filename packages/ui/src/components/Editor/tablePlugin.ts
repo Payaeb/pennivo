@@ -136,6 +136,11 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
 
       // If cursor is in header row, target the last data row instead
       if (rowNode.type.name === 'table_header_row') {
+        const confirmMsg = dataRowCount <= 1 ? 'Delete this table?' : 'Delete last row?';
+        if (!window.confirm(confirmMsg)) {
+          view.focus();
+          return;
+        }
         if (dataRowCount <= 1) {
           const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
           const para = state.schema.nodes['paragraph'].create();
@@ -157,8 +162,12 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
         break;
       }
 
-      // If this is the last data row, delete the entire table
+      // If this is the last data row, confirm before deleting the entire table
       if (dataRowCount <= 1) {
+        if (!window.confirm('Delete this table?')) {
+          view.focus();
+          return;
+        }
         const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
         const para = state.schema.nodes['paragraph'].create();
         tr.insert(tablePos, para);
