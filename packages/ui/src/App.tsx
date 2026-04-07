@@ -28,7 +28,8 @@ import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
 import { SourceEditor } from './components/SourceEditor/SourceEditor';
-import { Toolbar, type ToolbarAction } from './components/Toolbar/Toolbar';
+import { Toolbar, type ToolbarAction, type ConfigurableAction, DEFAULT_TOOLBAR_CONFIG } from './components/Toolbar/Toolbar';
+import { ToolbarCustomizer } from './components/ToolbarCustomizer/ToolbarCustomizer';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import { FindReplace } from './components/FindReplace/FindReplace';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
@@ -37,10 +38,11 @@ import type { MenuAction, RecentFileEntry } from './components/Titlebar/Titlebar
 import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
 import { OutlinePanel, type HeadingEntry } from './components/OutlinePanel/OutlinePanel';
 import { GanttEditorPanel } from './components/GanttEditor/GanttEditorPanel';
+import { KanbanEditorPanel } from './components/KanbanEditor/KanbanEditorPanel';
 import { TableToolbar } from './components/TableToolbar/TableToolbar';
 import { TableSizePicker } from './components/TableSizePicker/TableSizePicker';
 import { executeTableAction, type TableAction } from './components/Editor/tablePlugin';
-import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData } from '@pennivo/core';
+import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData, parseKanbanMarkdown, kanbanDataToMarkdown, createDefaultKanbanData, type KanbanData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
 
 const AUTO_SAVE_DELAY = 3000;
@@ -129,6 +131,10 @@ function AppContent() {
   const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
   const [sidebarTree, setSidebarTree] = useState<FileTreeEntry[]>([]);
 
+  // --- Toolbar config ---
+  const [toolbarConfig, setToolbarConfig] = useState<ConfigurableAction[]>(DEFAULT_TOOLBAR_CONFIG);
+  const [toolbarCustomizerOpen, setToolbarCustomizerOpen] = useState(false);
+
   // --- Recent files ---
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
 
@@ -173,6 +179,18 @@ function AppContent() {
       }
     });
   }, [refreshSidebarTree]);
+
+  // Load persisted toolbar config on mount
+  useEffect(() => {
+    window.pennivo?.getToolbarConfig().then((saved) => {
+      if (saved) setToolbarConfig(saved as ConfigurableAction[]);
+    });
+  }, []);
+
+  const handleToolbarConfigUpdate = useCallback((config: ConfigurableAction[]) => {
+    setToolbarConfig(config);
+    window.pennivo?.setToolbarConfig(config);
+  }, []);
 
   // Listen for folder changes (file watcher)
   useEffect(() => {
@@ -569,6 +587,82 @@ function AppContent() {
     }
   }, [loading, getInstance]);
 
+  // --- Kanban editor state ---
+  const [kanbanEditor, setKanbanEditor] = useState<{
+    data: KanbanData;
+    lastCode: string;
+    anchorRect: { top: number; left: number; width: number };
+  } | null>(null);
+
+  // Listen for kanban-edit-request events from the mermaid plugin
+  useEffect(() => {
+    const handleKanbanEditRequest = (e: Event) => {
+      const { code, rect } = (e as CustomEvent).detail;
+      const parsed = parseKanbanMarkdown(code);
+      if (parsed) {
+        setKanbanEditor({ data: parsed, lastCode: code, anchorRect: rect });
+      }
+    };
+    document.addEventListener('kanban-edit-request', handleKanbanEditRequest);
+    return () => document.removeEventListener('kanban-edit-request', handleKanbanEditRequest);
+  }, []);
+
+  // Handle kanban data updates → write back to ProseMirror code block
+  const kanbanEditorRef = useRef(kanbanEditor);
+  kanbanEditorRef.current = kanbanEditor;
+
+  const handleKanbanUpdate = useCallback((data: KanbanData) => {
+    const ke = kanbanEditorRef.current;
+    if (!ke) return;
+    const newCode = kanbanDataToMarkdown(data);
+
+    if (!loading) {
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+
+          let foundPos = -1;
+          let foundNode: import('@milkdown/prose/model').Node | null = null;
+
+          state.doc.descendants((node, pos) => {
+            if (foundNode) return false;
+            if (node.type.name === 'code_block' && node.attrs['language'] === 'kanban') {
+              const text = node.textContent;
+              if (text === ke.lastCode || text.trim().startsWith('title:')) {
+                foundPos = pos;
+                foundNode = node;
+                return false;
+              }
+            }
+          });
+
+          if (foundNode && foundPos >= 0) {
+            const newBlock = state.schema.nodes['code_block'].create(
+              { language: 'kanban' },
+              state.schema.text(newCode),
+            );
+            const tr = state.tr.replaceWith(foundPos, foundPos + (foundNode as import('@milkdown/prose/model').Node).nodeSize, newBlock);
+            view.dispatch(tr);
+          }
+        });
+      }
+    }
+
+    setKanbanEditor(prev => prev ? { ...prev, data, lastCode: newCode } : null);
+  }, [loading, getInstance]);
+
+  const handleKanbanClose = useCallback(() => {
+    setKanbanEditor(null);
+    if (!loading) {
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => { ctx.get(editorViewCtx).focus(); });
+      }
+    }
+  }, [loading, getInstance]);
+
   // Escape exits focus mode — but not if a popover, menu, or find bar is open
   useEffect(() => {
     if (!focusMode) return;
@@ -577,15 +671,17 @@ function AppContent() {
       // Let the link popover, titlebar menu, find bar, or command palette handle Escape first
       if (linkPopover) return;
       if (ganttEditor) return;
+      if (kanbanEditor) return;
       if (findReplaceOpen) return;
       if (commandPaletteOpen) return;
+      if (toolbarCustomizerOpen) return;
       if (document.querySelector('.titlebar-menu-dropdown')) return;
       setFocusMode(false);
       window.pennivo?.setFullScreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode, linkPopover, findReplaceOpen, commandPaletteOpen]);
+  }, [focusMode, linkPopover, findReplaceOpen, commandPaletteOpen, kanbanEditor, toolbarCustomizerOpen]);
 
   const openLinkPopover = useCallback(() => {
     if (loading) return;
@@ -944,6 +1040,38 @@ function AppContent() {
         });
         return;
       }
+      if (action === 'kanban') {
+        if (loading) return;
+        const editor = getInstance();
+        if (!editor) return;
+        const defaultData = createDefaultKanbanData();
+        const code = kanbanDataToMarkdown(defaultData);
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+          const codeBlock = state.schema.nodes['code_block'].create(
+            { language: 'kanban' },
+            state.schema.text(code),
+          );
+          const tr = state.tr.replaceSelectionWith(codeBlock);
+          view.dispatch(tr);
+          view.focus();
+
+          // Open the kanban editor after the plugin renders the preview
+          queueMicrotask(() => {
+            const previewEl = document.querySelector('.kanban-preview-widget:last-of-type') as HTMLElement;
+            const rect = previewEl
+              ? previewEl.getBoundingClientRect()
+              : { bottom: 200, left: 100, width: 800 };
+            setKanbanEditor({
+              data: defaultData,
+              lastCode: code,
+              anchorRect: { top: rect.bottom ?? 200, left: rect.left ?? 100, width: rect.width ?? 800 },
+            });
+          });
+        });
+        return;
+      }
       if (action === 'image') {
         (async () => {
           let currentPath = filePathRef.current;
@@ -1235,6 +1363,7 @@ function AppContent() {
     { id: 'image',         label: 'Insert Image',                             category: 'Format' },
     { id: 'mermaid',       label: 'Insert Mermaid Diagram',                   category: 'Format', keywords: 'diagram chart flowchart sequence' },
     { id: 'gantt',         label: 'Insert Gantt Chart',                       category: 'Format', keywords: 'gantt chart timeline project schedule task' },
+    { id: 'kanban',        label: 'Insert Kanban Board',                      category: 'Format', keywords: 'kanban board column card task' },
     // File
     { id: 'newFile',       label: 'New File',       shortcut: 'Ctrl+N',      category: 'File' },
     { id: 'open',          label: 'Open File',      shortcut: 'Ctrl+O',      category: 'File' },
@@ -1258,7 +1387,8 @@ function AppContent() {
     { id: 'themeSepia',    label: 'Theme: Sepia',             category: 'Theme', keywords: 'color scheme warm parchment brown' },
     { id: 'themeNord',     label: 'Theme: Nord',              category: 'Theme', keywords: 'color scheme arctic ice blue' },
     { id: 'themeRosepine', label: 'Theme: Rose Pine',         category: 'Theme', keywords: 'color scheme rose pink purple' },
-    // Spellcheck
+    // Settings
+    { id: 'customizeToolbar', label: 'Customize Toolbar', category: 'Settings', keywords: 'toolbar buttons customize configure' },
     { id: 'spellcheckSettings', label: 'Spellcheck Languages', category: 'Settings', keywords: 'spell check language dictionary' },
   ], []);
 
@@ -1323,6 +1453,7 @@ function AppContent() {
         case 'themeSepia':    setColorScheme('sepia'); showToast('Theme: Sepia'); break;
         case 'themeNord':     setColorScheme('nord'); showToast('Theme: Nord'); break;
         case 'themeRosepine': setColorScheme('rosepine'); showToast('Theme: Rose Pine'); break;
+        case 'customizeToolbar': setToolbarCustomizerOpen(true); break;
         case 'spellcheckSettings': {
           // Cycle through common language presets
           (async () => {
@@ -1363,7 +1494,7 @@ function AppContent() {
     const toolbarActions: Set<string> = new Set([
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
       'bulletList', 'orderedList', 'taskList', 'blockquote',
-      'link', 'image', 'mermaid', 'gantt', 'code',
+      'link', 'image', 'mermaid', 'gantt', 'kanban', 'code',
       'focusMode', 'toggleTheme', 'sourceMode',
     ]);
 
@@ -1393,7 +1524,7 @@ function AppContent() {
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
-      toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} sourceMode={sourceMode} />}
+      toolbar={<Toolbar activeFormats={toolbarFormats} onAction={handleAction} sourceMode={sourceMode} visibleActions={toolbarConfig} onCustomize={() => setToolbarCustomizerOpen(true)} />}
       sidebar={
         <Sidebar
           visible={sidebarVisible}
@@ -1479,6 +1610,14 @@ function AppContent() {
           onClose={handleGanttClose}
         />
       )}
+      {kanbanEditor && (
+        <KanbanEditorPanel
+          data={kanbanEditor.data}
+          anchorRect={kanbanEditor.anchorRect}
+          onUpdate={handleKanbanUpdate}
+          onClose={handleKanbanClose}
+        />
+      )}
       {tableToolbarVisible && !sourceMode && (
         <TableToolbar
           onAction={handleTableAction}
@@ -1489,6 +1628,13 @@ function AppContent() {
           anchorRect={tableSizePicker}
           onSelect={handleTableSizeSelect}
           onClose={() => setTableSizePicker(null)}
+        />
+      )}
+      {toolbarCustomizerOpen && (
+        <ToolbarCustomizer
+          config={toolbarConfig}
+          onUpdate={handleToolbarConfigUpdate}
+          onClose={() => setToolbarCustomizerOpen(false)}
         />
       )}
     </AppShell>

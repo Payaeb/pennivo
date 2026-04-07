@@ -1,0 +1,295 @@
+/* --- Toolbar Customizer Panel --- */
+
+.toolbar-customizer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  animation: customizer-backdrop-in 0.15s ease-out;
+}
+
+@keyframes customizer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.toolbar-customizer {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: customizer-panel-in 0.18s ease-out;
+}
+
+@keyframes customizer-panel-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- Header --- */
+
+.toolbar-customizer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-customizer-title {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.toolbar-customizer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.toolbar-customizer-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
+
+/* --- Body: two columns --- */
+
+.toolbar-customizer-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --- Column --- */
+
+.toolbar-customizer-column {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  min-height: 0;
+}
+
+.toolbar-customizer-column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-customizer-column-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.toolbar-customizer-column-count {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: var(--bg-overlay);
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+
+/* --- List --- */
+
+.toolbar-customizer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+  min-height: 120px;
+  transition: background var(--transition-fast);
+}
+
+.toolbar-customizer-list--drop-target {
+  background: var(--accent-soft);
+}
+
+.toolbar-customizer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+/* --- Item --- */
+
+.toolbar-customizer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  transition: background var(--transition-fast);
+  user-select: none;
+}
+
+.toolbar-customizer-item:hover {
+  background: var(--bg-overlay);
+}
+
+.toolbar-customizer-item--dragging {
+  opacity: 0.35;
+}
+
+.toolbar-customizer-item--drop-before {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.toolbar-customizer-item-grip {
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.toolbar-customizer-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.toolbar-customizer-item-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.toolbar-customizer-item-label {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-customizer-item-category {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.toolbar-customizer-item-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.toolbar-customizer-item:hover .toolbar-customizer-item-btn {
+  opacity: 1;
+}
+
+.toolbar-customizer-item-add {
+  color: var(--accent);
+}
+
+.toolbar-customizer-item-add:hover {
+  background: var(--accent-soft);
+}
+
+.toolbar-customizer-item-remove {
+  color: var(--text-faint);
+}
+
+.toolbar-customizer-item-remove:hover {
+  color: #c44;
+  background: rgba(204, 68, 68, 0.1);
+}
+
+/* Group dividers in toolbar column */
+.toolbar-customizer-group-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 8px;
+}
+
+/* Drop zone at end of toolbar list */
+.toolbar-customizer-drop-end {
+  height: 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.toolbar-customizer-drop-end--active {
+  background: var(--accent-soft);
+  height: 24px;
+}
+
+/* --- Footer --- */
+
+.toolbar-customizer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.toolbar-customizer-reset {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.toolbar-customizer-reset:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+  border-color: var(--text-faint);
+}

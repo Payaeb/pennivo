@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
 import type { Node } from '@milkdown/prose/model';
 import mermaid from 'mermaid';
+import { parseKanbanMarkdown } from '@pennivo/core';
 
 function isDarkMode(): boolean {
   return document.documentElement.getAttribute('data-theme') === 'dark';
@@ -173,6 +174,89 @@ export const mermaidPlugin = $prose(() => {
     return wrapper;
   }
 
+  function createKanbanPreview(pos: number, code: string): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'kanban-preview-widget';
+    wrapper.contentEditable = 'false';
+
+    const parsed = parseKanbanMarkdown(code);
+    if (!parsed) {
+      wrapper.innerHTML = '<span class="mermaid-preview-hint">Invalid kanban data</span>';
+      return wrapper;
+    }
+
+    // Board title
+    if (parsed.title) {
+      const titleEl = document.createElement('div');
+      titleEl.className = 'kanban-preview-title';
+      titleEl.textContent = parsed.title;
+      wrapper.appendChild(titleEl);
+    }
+
+    // Columns container
+    const columnsEl = document.createElement('div');
+    columnsEl.className = 'kanban-preview-columns';
+
+    for (const col of parsed.columns) {
+      const colEl = document.createElement('div');
+      colEl.className = 'kanban-preview-column';
+
+      const colHeader = document.createElement('div');
+      colHeader.className = 'kanban-preview-column-header';
+      colHeader.textContent = col.title;
+      const countSpan = document.createElement('span');
+      countSpan.className = 'kanban-preview-count';
+      countSpan.textContent = String(col.cards.length);
+      colHeader.appendChild(countSpan);
+      colEl.appendChild(colHeader);
+
+      for (const card of col.cards) {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'kanban-preview-card';
+        const cardTitle = document.createElement('span');
+        cardTitle.className = 'kanban-preview-card-title';
+        cardTitle.textContent = card.title;
+        cardEl.appendChild(cardTitle);
+
+        if (card.labels && card.labels.length > 0) {
+          const labelsRow = document.createElement('div');
+          labelsRow.className = 'kanban-preview-labels';
+          for (const label of card.labels) {
+            const tag = document.createElement('span');
+            tag.className = 'kanban-preview-label';
+            tag.textContent = label;
+            labelsRow.appendChild(tag);
+          }
+          cardEl.appendChild(labelsRow);
+        }
+
+        colEl.appendChild(cardEl);
+      }
+
+      columnsEl.appendChild(colEl);
+    }
+
+    wrapper.appendChild(columnsEl);
+
+    // Edit Board button
+    wrapper.style.position = 'relative';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'mermaid-gantt-edit-btn';
+    editBtn.textContent = 'Edit Board';
+    editBtn.contentEditable = 'false';
+    editBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = wrapper.getBoundingClientRect();
+      document.dispatchEvent(new CustomEvent('kanban-edit-request', {
+        detail: { pos, code, rect: { top: rect.bottom, left: rect.left, width: rect.width } },
+      }));
+    });
+    wrapper.appendChild(editBtn);
+
+    return wrapper;
+  }
+
   function buildDecorations(doc: Node): DecorationSet {
     const decorations: Decoration[] = [];
 
@@ -182,7 +266,24 @@ export const mermaidPlugin = $prose(() => {
 
     doc.descendants((node, pos) => {
       if (node.type.name !== 'code_block') return;
-      if (node.attrs['language'] !== 'mermaid') return;
+
+      const lang = node.attrs['language'];
+
+      // Kanban code blocks
+      if (lang === 'kanban') {
+        const code = node.textContent;
+        decorations.push(
+          Decoration.widget(pos, () => createKanbanPreview(pos, code), { side: -1 })
+        );
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, {
+            class: 'mermaid-gantt-hidden-code',
+          })
+        );
+        return;
+      }
+
+      if (lang !== 'mermaid') return;
 
       const code = node.textContent;
       const isGantt = code.trim().startsWith('gantt');

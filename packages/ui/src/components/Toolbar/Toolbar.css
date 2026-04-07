@@ -24,8 +24,17 @@
   flex-shrink: 0;
 }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  min-width: 0;
+}
+
 .toolbar-spacer {
   flex: 1;
+  min-width: 4px;
 }
 
 .tool-btn {
@@ -136,4 +145,61 @@
   font-family: var(--font-mono);
   font-size: 10px;
   opacity: 0.5;
+}
+
+/* --- More overflow menu --- */
+
+.toolbar-more-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.toolbar-more-btn {
+  width: 26px;
+}
+
+.toolbar-more-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 910;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  animation: tooltip-in 0.1s ease-out;
+}
+
+.toolbar-more-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.toolbar-more-item:hover {
+  background: var(--bg-overlay);
+}
+
+.toolbar-more-item--active {
+  color: var(--accent);
+}
+
+.toolbar-more-item:disabled {
+  opacity: 0.3;
+  pointer-events: none;
 }

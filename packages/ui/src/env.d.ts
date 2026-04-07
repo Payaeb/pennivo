@@ -49,6 +49,10 @@ interface PennivoAPI {
   readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
 
+  // Toolbar config
+  getToolbarConfig: () => Promise<string[] | null>;
+  setToolbarConfig: (actions: string[]) => Promise<void>;
+
   // Spellcheck
   getSpellCheckLanguages: () => Promise<string[]>;
   getAvailableSpellLanguages: () => Promise<string[]>;

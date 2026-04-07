@@ -9,7 +9,8 @@ export type MenuAction =
   | 'findReplace' | 'clearRecentFiles'
   | 'exportHtml' | 'exportPdf'
   | 'spellcheckSettings'
-  | 'cycleTheme' | 'themeDefault' | 'themeSepia' | 'themeNord' | 'themeRosepine';
+  | 'cycleTheme' | 'themeDefault' | 'themeSepia' | 'themeNord' | 'themeRosepine'
+  | 'customizeToolbar';
 
 export interface RecentFileEntry {
   filePath: string;
@@ -74,6 +75,8 @@ const MENU_SECTIONS: MenuSection[] = [
       { separator: true, label: '' },
       { label: 'Focus Mode',   action: 'focusMode',   shortcut: 'Ctrl+Shift+F' },
       { label: 'Toggle Theme', action: 'toggleTheme' },
+      { separator: true, label: '' },
+      { label: 'Customize Toolbar\u2026', action: 'customizeToolbar' },
       { separator: true, label: '' },
       { label: 'Zoom In',      action: 'zoomIn',      shortcut: 'Ctrl+=' },
       { label: 'Zoom Out',     action: 'zoomOut',     shortcut: 'Ctrl+\u2013' },

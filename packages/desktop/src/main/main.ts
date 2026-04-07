@@ -48,6 +48,26 @@ async function clearRecentFiles(): Promise<void> {
   await writeRecentFiles([]);
 }
 
+// --- Toolbar config persistence ---
+function getToolbarConfigPath(): string {
+  return path.join(app.getPath('userData'), 'toolbar-config.json');
+}
+
+async function readToolbarConfig(): Promise<string[] | null> {
+  try {
+    const data = await fs.readFile(getToolbarConfigPath(), 'utf-8');
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed) && parsed.every((s): s is string => typeof s === 'string')) return parsed;
+  } catch {
+    // File doesn't exist or is corrupt — return null so renderer uses defaults
+  }
+  return null;
+}
+
+async function writeToolbarConfig(actions: string[]): Promise<void> {
+  await fs.writeFile(getToolbarConfigPath(), JSON.stringify(actions), 'utf-8');
+}
+
 // --- Sidebar folder persistence ---
 const SIDEBAR_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
 
@@ -731,6 +751,15 @@ function registerIpcHandlers() {
 
   ipcMain.handle('sidebar:read-directory', async (_e, folderPath: string) => {
     return readDirectoryTree(folderPath);
+  });
+
+  // --- Toolbar config ---
+  ipcMain.handle('toolbar-config:get', async () => {
+    return readToolbarConfig();
+  });
+
+  ipcMain.handle('toolbar-config:set', async (_e, actions: string[]) => {
+    await writeToolbarConfig(actions);
   });
 
   // --- Spellcheck ---

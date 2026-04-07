@@ -9,3 +9,13 @@ export {
   parseMermaidGantt,
   ganttDataToMermaid,
 } from './gantt';
+
+export {
+  type KanbanCard,
+  type KanbanColumn,
+  type KanbanData,
+  generateCardId,
+  createDefaultKanbanData,
+  parseKanbanMarkdown,
+  kanbanDataToMarkdown,
+} from './kanban';

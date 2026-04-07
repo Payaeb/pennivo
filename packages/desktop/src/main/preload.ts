@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('pennivo', {
   readDirectory:     (folderPath: string) => ipcRenderer.invoke('sidebar:read-directory', folderPath) as Promise<FileTreeEntry[]>,
   onSidebarFolderChanged: (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('sidebar:folder-changed', handler); return () => { ipcRenderer.removeListener('sidebar:folder-changed', handler); }; },
 
+  // Toolbar config
+  getToolbarConfig:  () => ipcRenderer.invoke('toolbar-config:get') as Promise<string[] | null>,
+  setToolbarConfig:  (actions: string[]) => ipcRenderer.invoke('toolbar-config:set', actions) as Promise<void>,
+
   // Spellcheck
   getSpellCheckLanguages:      () => ipcRenderer.invoke('spellcheck:get-languages') as Promise<string[]>,
   getAvailableSpellLanguages:  () => ipcRenderer.invoke('spellcheck:get-available-languages') as Promise<string[]>,
