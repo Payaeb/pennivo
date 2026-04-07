@@ -37,3 +37,8 @@ release/
 
 # Test coverage
 coverage/
+
+# Private planning docs
+docs/launch/
+feature-planner.html
+mockup.html

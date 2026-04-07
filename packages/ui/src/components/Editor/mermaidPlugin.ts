@@ -84,12 +84,30 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
   const id = `mermaid-${++renderCounter}`;
   try {
     let { svg } = await mermaid.render(id, code);
-    // Strip inline fill from text/tspan so CSS var(--text-primary) controls all text color.
-    // Remove fill from style="..." attributes AND standalone fill="..." attributes.
+    const isGantt = code.trim().startsWith('gantt');
+
+    // --- SVG post-processing ---
+    // Mermaid's internal <style> block and inline attributes can produce wrong
+    // colors with theme:'base'. We strip fills selectively and apply correct
+    // fills via external CSS (Editor.css).
+
+    if (isGantt) {
+      // For gantt charts: strip fill declarations from gantt-specific CSS rules
+      // (exclude-range, section, task, done, active, crit, sectionTitle, grid)
+      // so our external CSS has full control over these elements.
+      svg = svg.replace(/<style[^>]*>([\s\S]*?)<\/style>/, (_match, css: string) => {
+        const cleaned = css.replace(
+          /(\.(?:exclude-range|section\d*|task\d*|done\d*|active\d*|crit\d*|doneCrit\d*|activeCrit\d*|sectionTitle\d*|taskText\S*|doneText\S*|activeText\S*|critText\S*|doneCritText\S*|activeCritText\S*|taskTextOutside\S*|today|grid\b)[^{]*\{[^}]*?)fill:\s*[^;]+;?/g,
+          '$1'
+        );
+        return `<style>${cleaned}</style>`;
+      });
+    }
+
+    // Strip inline fill from text/tspan (all diagram types) so CSS controls text color.
+    // Also strip fill="..." attribute set by D3 on grid tick text (.attr("fill", "#000")).
     svg = svg.replace(/<(text|tspan)\b[^>]*>/g, (match) => {
-      // Remove fill:... from style attribute
       let cleaned = match.replace(/(\bstyle="[^"]*?)fill:\s*[^";]+;?\s*/g, '$1');
-      // Remove standalone fill="..." attribute
       cleaned = cleaned.replace(/\bfill="[^"]*"/g, '');
       return cleaned;
     });

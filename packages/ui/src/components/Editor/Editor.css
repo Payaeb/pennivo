@@ -513,37 +513,170 @@
   border-color: var(--accent);
 }
 
-/* Force mermaid SVG text to follow theme text color.
-   Mermaid often sets inline style="fill:..." on text/tspan elements
-   which overrides class-based CSS. We need !important everywhere. */
+/* ── Mermaid SVG fill overrides ──
+   mermaidPlugin.ts strips fill declarations from gantt-specific CSS rules in
+   mermaid's internal <style> block and all inline fill attributes on text/tspan.
+   These rules provide the correct fills for all gantt elements. */
+
+/* --- Text: all text follows theme color --- */
 .mermaid-preview-widget text,
-.mermaid-preview-widget text tspan,
-.mermaid-preview-widget .taskText,
-.mermaid-preview-widget .taskText0,
-.mermaid-preview-widget .taskText1,
-.mermaid-preview-widget .taskText2,
-.mermaid-preview-widget .taskText3,
-.mermaid-preview-widget .taskTextOutsideRight,
-.mermaid-preview-widget .taskTextOutsideLeft,
-.mermaid-preview-widget .titleText,
-.mermaid-preview-widget .sectionTitle,
-.mermaid-preview-widget .sectionTitle0,
-.mermaid-preview-widget .sectionTitle1,
-.mermaid-preview-widget .sectionTitle2,
-.mermaid-preview-widget .sectionTitle3,
-.mermaid-preview-widget .nodeLabel,
-.mermaid-preview-widget .edgeLabel,
-.mermaid-preview-widget .label,
-.mermaid-preview-widget .tick text,
-.mermaid-preview-widget [class*="taskText"] {
+.mermaid-preview-widget tspan {
   fill: var(--text-primary) !important;
   color: var(--text-primary) !important;
 }
 
 /* Muted text for axis tick labels */
 .mermaid-preview-widget .tick text,
-.mermaid-preview-widget .tick text tspan {
+.mermaid-preview-widget .tick tspan {
   fill: var(--text-muted) !important;
+}
+
+/* --- Gantt: weekend/excluded day columns --- */
+.mermaid-preview-widget .exclude-range {
+  fill: rgba(0, 0, 0, 0.035) !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .exclude-range {
+  fill: rgba(255, 255, 255, 0.035) !important;
+}
+
+/* --- Gantt: section row backgrounds --- */
+.mermaid-preview-widget .section0,
+.mermaid-preview-widget .section2 {
+  fill: transparent !important;
+  opacity: 1 !important;
+}
+.mermaid-preview-widget .section1,
+.mermaid-preview-widget .section3 {
+  fill: rgba(0, 0, 0, 0.04) !important;
+  opacity: 1 !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .section1,
+[data-theme="dark"] .mermaid-preview-widget .section3 {
+  fill: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* --- Gantt: task bar fills --- */
+.mermaid-preview-widget .task0,
+.mermaid-preview-widget .task1,
+.mermaid-preview-widget .task2,
+.mermaid-preview-widget .task3 {
+  fill: rgba(74, 124, 89, 0.2) !important;
+  stroke: var(--text-faint) !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .task0,
+[data-theme="dark"] .mermaid-preview-widget .task1,
+[data-theme="dark"] .mermaid-preview-widget .task2,
+[data-theme="dark"] .mermaid-preview-widget .task3 {
+  fill: rgba(94, 158, 116, 0.25) !important;
+  stroke: #7a7872 !important;
+}
+
+/* Active tasks */
+.mermaid-preview-widget .active0,
+.mermaid-preview-widget .active1,
+.mermaid-preview-widget .active2,
+.mermaid-preview-widget .active3 {
+  fill: rgba(74, 124, 89, 0.25) !important;
+  stroke: var(--accent) !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .active0,
+[data-theme="dark"] .mermaid-preview-widget .active1,
+[data-theme="dark"] .mermaid-preview-widget .active2,
+[data-theme="dark"] .mermaid-preview-widget .active3 {
+  fill: rgba(94, 158, 116, 0.3) !important;
+  stroke: var(--accent) !important;
+}
+
+/* Done tasks */
+.mermaid-preview-widget .done0,
+.mermaid-preview-widget .done1,
+.mermaid-preview-widget .done2,
+.mermaid-preview-widget .done3 {
+  fill: rgba(174, 172, 166, 0.15) !important;
+  stroke: var(--text-faint) !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .done0,
+[data-theme="dark"] .mermaid-preview-widget .done1,
+[data-theme="dark"] .mermaid-preview-widget .done2,
+[data-theme="dark"] .mermaid-preview-widget .done3 {
+  fill: rgba(90, 88, 82, 0.2) !important;
+  stroke: #5A5852 !important;
+}
+
+/* Critical tasks */
+.mermaid-preview-widget .crit0,
+.mermaid-preview-widget .crit1,
+.mermaid-preview-widget .crit2,
+.mermaid-preview-widget .crit3 {
+  fill: rgba(176, 96, 64, 0.2) !important;
+  stroke: #B06040 !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .crit0,
+[data-theme="dark"] .mermaid-preview-widget .crit1,
+[data-theme="dark"] .mermaid-preview-widget .crit2,
+[data-theme="dark"] .mermaid-preview-widget .crit3 {
+  fill: rgba(212, 152, 114, 0.3) !important;
+  stroke: #D49872 !important;
+}
+
+/* Active-critical */
+.mermaid-preview-widget .activeCrit0,
+.mermaid-preview-widget .activeCrit1,
+.mermaid-preview-widget .activeCrit2,
+.mermaid-preview-widget .activeCrit3 {
+  fill: rgba(74, 124, 89, 0.25) !important;
+  stroke: #B06040 !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .activeCrit0,
+[data-theme="dark"] .mermaid-preview-widget .activeCrit1,
+[data-theme="dark"] .mermaid-preview-widget .activeCrit2,
+[data-theme="dark"] .mermaid-preview-widget .activeCrit3 {
+  fill: rgba(94, 158, 116, 0.3) !important;
+  stroke: #D49872 !important;
+}
+
+/* Done-critical */
+.mermaid-preview-widget .doneCrit0,
+.mermaid-preview-widget .doneCrit1,
+.mermaid-preview-widget .doneCrit2,
+.mermaid-preview-widget .doneCrit3 {
+  fill: rgba(174, 172, 166, 0.15) !important;
+  stroke: #B06040 !important;
+}
+[data-theme="dark"] .mermaid-preview-widget .doneCrit0,
+[data-theme="dark"] .mermaid-preview-widget .doneCrit1,
+[data-theme="dark"] .mermaid-preview-widget .doneCrit2,
+[data-theme="dark"] .mermaid-preview-widget .doneCrit3 {
+  fill: rgba(90, 88, 82, 0.2) !important;
+  stroke: #D49872 !important;
+}
+
+/* --- Gantt: section title text --- */
+.mermaid-preview-widget .sectionTitle,
+.mermaid-preview-widget .sectionTitle0,
+.mermaid-preview-widget .sectionTitle1,
+.mermaid-preview-widget .sectionTitle2,
+.mermaid-preview-widget .sectionTitle3 {
+  fill: var(--text-primary) !important;
+}
+
+/* --- Gantt: today line --- */
+.mermaid-preview-widget .today {
+  fill: none !important;
+  stroke: var(--accent) !important;
+}
+
+/* --- Gantt: grid --- */
+.mermaid-preview-widget .grid path {
+  fill: none !important;
+}
+
+/* --- Flowchart / general diagram elements --- */
+.mermaid-preview-widget .nodeLabel,
+.mermaid-preview-widget .edgeLabel,
+.mermaid-preview-widget .label {
+  fill: var(--text-primary) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Mermaid lines and arrows follow theme */
