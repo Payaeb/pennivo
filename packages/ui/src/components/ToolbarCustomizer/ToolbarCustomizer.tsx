@@ -271,6 +271,7 @@ function ActionIcon({ action }: { action: ConfigurableAction }) {
     case 'kanban':        return <KanbanSmIcon />;
     case 'mermaid':       return <MermaidSmIcon />;
     case 'gantt':         return <GanttSmIcon />;
+    case 'typewriterMode': return <TypewriterSmIcon />;
     default:              return null;
   }
 }
@@ -367,6 +368,17 @@ function GanttSmIcon() {
       <line x1="2" y1="4" x2="9" y2="4" strokeWidth="2.5" />
       <line x1="4" y1="8" x2="12" y2="8" strokeWidth="2.5" />
       <line x1="3" y1="12" x2="7" y2="12" strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+function TypewriterSmIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+      <rect x="2" y="3" width="12" height="7" rx="1.2" />
+      <line x1="5" y1="5.5" x2="11" y2="5.5" />
+      <line x1="5" y1="7.5" x2="11" y2="7.5" />
+      <line x1="4" y1="12.5" x2="12" y2="12.5" />
     </svg>
   );
 }

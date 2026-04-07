@@ -11,6 +11,7 @@ interface AppShellProps {
   saveStatus?: SaveStatus;
   focusMode?: boolean;
   sourceMode?: boolean;
+  typewriterMode?: boolean;
   onMenuAction?: (action: MenuAction) => void;
   recentFiles?: RecentFileEntry[];
   onOpenRecentFile?: (filePath: string) => void;
@@ -29,6 +30,7 @@ export function AppShell({
   saveStatus = 'saved',
   focusMode = false,
   sourceMode = false,
+  typewriterMode = false,
   onMenuAction,
   recentFiles,
   onOpenRecentFile,
@@ -88,6 +90,7 @@ export function AppShell({
     focusMode ? 'app-shell--focus' : '',
     focusMode && !chromeVisible ? 'app-shell--chrome-hidden' : '',
     sourceMode ? 'app-shell--source' : '',
+    typewriterMode ? 'app-shell--typewriter' : '',
   ]
     .filter(Boolean)
     .join(' ');

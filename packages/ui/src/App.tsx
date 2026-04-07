@@ -111,6 +111,8 @@ function AppContent() {
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [typewriterMode, setTypewriterMode] = useState(false);
+  const typewriterModeRef = useRef(false);
   const [outlineVisible, setOutlineVisible] = useState(false);
   const [outlineMarkdown, setOutlineMarkdown] = useState(DEFAULT_CONTENT);
 
@@ -418,6 +420,15 @@ function AppContent() {
     setFocusMode((prev) => {
       const next = !prev;
       window.pennivo?.setFullScreen(next);
+      return next;
+    });
+  }, []);
+
+  // --- Typewriter mode toggle ---
+  const toggleTypewriterMode = useCallback(() => {
+    setTypewriterMode(prev => {
+      const next = !prev;
+      typewriterModeRef.current = next;
       return next;
     });
   }, []);
@@ -933,6 +944,17 @@ function AppContent() {
   // --- Editor view update (toolbar sync) ---
   const handleViewUpdate = useCallback((view: EditorView) => {
     setActiveFormats(getActiveFormats(view));
+
+    // Typewriter mode: scroll cursor to vertical center of the editor area
+    if (typewriterModeRef.current) {
+      const area = document.querySelector('.app-editor-area');
+      if (!area) return;
+      const coords = view.coordsAtPos(view.state.selection.head);
+      const areaRect = area.getBoundingClientRect();
+      const cursorRelative = coords.top - areaRect.top + area.scrollTop;
+      const targetScroll = cursorRelative - areaRect.height / 2;
+      area.scrollTop = targetScroll;
+    }
   }, []);
 
   // --- Toolbar actions ---
@@ -940,6 +962,7 @@ function AppContent() {
     (action: ToolbarAction) => {
       if (action === 'toggleTheme') { toggleTheme(); return; }
       if (action === 'focusMode') { toggleFocusMode(); return; }
+      if (action === 'typewriterMode') { toggleTypewriterMode(); return; }
       if (action === 'sourceMode') {
         setSourceMode((prev) => {
           const next = !prev;
@@ -1223,7 +1246,7 @@ function AppContent() {
           break;
       }
     },
-    [loading, getInstance, toggleTheme, toggleFocusMode, showToast, insertImage, doSaveAs, openLinkPopover, setTableSizePicker],
+    [loading, getInstance, toggleTheme, toggleFocusMode, toggleTypewriterMode, showToast, insertImage, doSaveAs, openLinkPopover, setTableSizePicker],
   );
 
   // --- Table size picker selection ---
@@ -1374,6 +1397,7 @@ function AppContent() {
     // View
     { id: 'sourceMode',    label: 'Toggle Source Mode',                       category: 'View', keywords: 'markdown code raw' },
     { id: 'focusMode',     label: 'Toggle Focus Mode', shortcut: 'Ctrl+Shift+F', category: 'View', keywords: 'zen distraction free fullscreen' },
+    { id: 'typewriterMode', label: 'Toggle Typewriter Mode',                  category: 'View', keywords: 'center scroll focus writing' },
     { id: 'toggleTheme',   label: 'Toggle Theme',                            category: 'View', keywords: 'dark light mode' },
     { id: 'toggleSidebar', label: 'Toggle Sidebar',    shortcut: 'Ctrl+B',   category: 'View', keywords: 'file tree panel' },
     { id: 'findReplace',   label: 'Find & Replace',    shortcut: 'Ctrl+F',   category: 'View', keywords: 'search' },
@@ -1495,7 +1519,7 @@ function AppContent() {
       'bold', 'italic', 'strikethrough', 'h1', 'h2',
       'bulletList', 'orderedList', 'taskList', 'blockquote',
       'link', 'image', 'mermaid', 'gantt', 'kanban', 'code',
-      'focusMode', 'toggleTheme', 'sourceMode',
+      'focusMode', 'toggleTheme', 'sourceMode', 'typewriterMode',
     ]);
 
     if (toolbarActions.has(id)) {
@@ -1509,6 +1533,7 @@ function AppContent() {
     const formats = new Set(activeFormats);
     if (focusMode) formats.add('focusMode');
     if (sourceMode) formats.add('sourceMode');
+    if (typewriterMode) formats.add('typewriterMode');
     return formats;
   })();
 
@@ -1521,6 +1546,7 @@ function AppContent() {
       saveStatus={saveStatus}
       focusMode={focusMode}
       sourceMode={sourceMode}
+      typewriterMode={typewriterMode}
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
@@ -1566,6 +1592,7 @@ function AppContent() {
         <SourceEditor
           content={sourceContent}
           active={sourceMode}
+          typewriterMode={typewriterMode}
           onMarkdownChange={handleMarkdownChange}
           onWordCountChange={setWordCount}
           onCharCountChange={setCharCount}

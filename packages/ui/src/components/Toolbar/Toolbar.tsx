@@ -7,6 +7,7 @@ export type ToolbarAction =
   | 'bulletList' | 'orderedList' | 'taskList' | 'blockquote'
   | 'table'
   | 'link' | 'image' | 'mermaid' | 'gantt' | 'kanban' | 'code'
+  | 'typewriterMode'
   | 'focusMode' | 'toggleTheme' | 'sourceMode';
 
 /** Actions that can be customized (shown/hidden/reordered) */
@@ -18,6 +19,7 @@ export const ACTION_CATEGORY: Record<ConfigurableAction, string> = {
   h1: 'heading', h2: 'heading',
   bulletList: 'list', orderedList: 'list', taskList: 'list', blockquote: 'list',
   link: 'insert', image: 'insert', code: 'insert', table: 'insert', kanban: 'insert', mermaid: 'insert', gantt: 'insert',
+  typewriterMode: 'mode',
 };
 
 /** All configurable actions in default order */
@@ -34,6 +36,7 @@ export const ALL_CONFIGURABLE_ACTIONS: ConfigurableAction[] = [
   'h1', 'h2',
   'bulletList', 'orderedList', 'taskList', 'blockquote',
   'link', 'image', 'code', 'table', 'kanban', 'mermaid', 'gantt',
+  'typewriterMode',
 ];
 
 interface TooltipInfo {
@@ -59,6 +62,7 @@ export const TOOLTIP_DATA: Record<string, TooltipInfo> = {
   link:          { label: 'Link',          shortcut: 'Ctrl+K',       syntax: '[text](url)' },
   image:         { label: 'Image',                                    syntax: '![alt](url)' },
   code:          { label: 'Code',                                      syntax: '`inline` / ```block```' },
+  typewriterMode:{ label: 'Typewriter Mode' },
   toggleTheme:   { label: 'Toggle Theme' },
   focusMode:     { label: 'Focus Mode',    shortcut: 'Ctrl+Shift+F' },
   sourceMode:    { label: 'Source Mode' },
@@ -281,6 +285,7 @@ function renderActionButton(
     case 'kanban':        return btn('kanban',         'Kanban Board',  <KanbanIcon />, disabled);
     case 'mermaid':       return btn('mermaid',        'Mermaid Diagram', <MermaidIcon />, disabled);
     case 'gantt':         return btn('gantt',          'Gantt Chart',   <GanttIcon />, disabled);
+    case 'typewriterMode': return btn('typewriterMode', 'Typewriter Mode', <TypewriterIcon />);
     default:              return null;
   }
 }
@@ -425,6 +430,17 @@ function GanttIcon() {
       <line x1="2" y1="4" x2="9" y2="4" strokeWidth="2.5" />
       <line x1="4" y1="8" x2="12" y2="8" strokeWidth="2.5" />
       <line x1="3" y1="12" x2="7" y2="12" strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+function TypewriterIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="12" height="7" rx="1.2" />
+      <line x1="5" y1="5.5" x2="11" y2="5.5" />
+      <line x1="5" y1="7.5" x2="11" y2="7.5" />
+      <line x1="4" y1="12.5" x2="12" y2="12.5" />
     </svg>
   );
 }
