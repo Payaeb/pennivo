@@ -9,103 +9,60 @@ function isDarkMode(): boolean {
 }
 
 function initMermaid() {
+  const dark = isDarkMode();
   mermaid.initialize({
     startOnLoad: false,
-    // Use 'neutral' for unfilled/outline-style boxes
-    theme: 'neutral',
+    theme: 'base',
     securityLevel: 'loose',
     fontFamily: '"Segoe UI", system-ui, sans-serif',
-    themeVariables: isDarkMode()
-      ? {
-          primaryColor: 'transparent',
-          primaryBorderColor: '#7a7872',
-          primaryTextColor: '#E8E6E1',
-          secondaryColor: 'transparent',
-          secondaryBorderColor: '#5A5852',
-          secondaryTextColor: '#E8E6E1',
-          tertiaryColor: 'transparent',
-          tertiaryBorderColor: '#5A5852',
-          tertiaryTextColor: '#E8E6E1',
-          lineColor: '#7a7872',
-          textColor: '#E8E6E1',
-          mainBkg: 'transparent',
-          nodeBorder: '#7a7872',
-          clusterBkg: 'rgba(255,255,255,0.05)',
-          titleColor: '#E8E6E1',
-          edgeLabelBackground: '#1C1C1C',
-          nodeTextColor: '#E8E6E1',
-          // Gantt-specific
-          sectionBkgColor: '#1a1a1a',
-          altSectionBkgColor: '#222222',
-          excludeBkgColor: '#2a2a2a',
-          gridColor: '#333333',
-          taskTextColor: '#E8E6E1',
-          taskTextDarkColor: '#E8E6E1',
-          taskTextOutsideColor: '#E8E6E1',
-          taskBorderColor: '#7a7872',
-          taskBkgColor: 'rgba(94, 158, 116, 0.25)',
-          activeTaskBorderColor: '#5E9E74',
-          activeTaskBkgColor: 'rgba(94, 158, 116, 0.3)',
-          doneTaskBorderColor: '#5A5852',
-          doneTaskBkgColor: 'rgba(90, 88, 82, 0.2)',
-          critBorderColor: '#D49872',
-          critBkgColor: 'rgba(212, 152, 114, 0.3)',
-          todayLineColor: '#5E9E74',
-          // Sequence diagram
-          actorTextColor: '#E8E6E1',
-          actorBorder: '#7a7872',
-          actorBkg: 'transparent',
-          signalColor: '#E8E6E1',
-          labelTextColor: '#E8E6E1',
-          noteBkgColor: 'rgba(255,255,255,0.06)',
-          noteTextColor: '#E8E6E1',
-          noteBorderColor: '#5A5852',
-        }
-      : {
-          primaryColor: 'transparent',
-          primaryBorderColor: '#8A8880',
-          primaryTextColor: '#1A1A18',
-          secondaryColor: 'transparent',
-          secondaryBorderColor: '#AEACA6',
-          secondaryTextColor: '#1A1A18',
-          tertiaryColor: 'transparent',
-          tertiaryBorderColor: '#AEACA6',
-          tertiaryTextColor: '#1A1A18',
-          lineColor: '#8A8880',
-          textColor: '#1A1A18',
-          mainBkg: 'transparent',
-          nodeBorder: '#8A8880',
-          clusterBkg: 'rgba(0,0,0,0.03)',
-          titleColor: '#1A1A18',
-          edgeLabelBackground: '#FAFAF8',
-          nodeTextColor: '#1A1A18',
-          // Gantt-specific
-          sectionBkgColor: 'rgba(0,0,0,0.02)',
-          altSectionBkgColor: 'rgba(0,0,0,0.05)',
-          excludeBkgColor: 'rgba(0,0,0,0.06)',
-          gridColor: '#ddd',
-          taskTextColor: '#1A1A18',
-          taskTextDarkColor: '#1A1A18',
-          taskTextOutsideColor: '#1A1A18',
-          taskBorderColor: '#8A8880',
-          taskBkgColor: 'rgba(74, 124, 89, 0.2)',
-          activeTaskBorderColor: '#4A7C59',
-          activeTaskBkgColor: 'rgba(74, 124, 89, 0.35)',
-          doneTaskBorderColor: '#AEACA6',
-          doneTaskBkgColor: 'rgba(174, 172, 166, 0.2)',
-          critBorderColor: '#B06040',
-          critBkgColor: 'rgba(176, 96, 64, 0.2)',
-          todayLineColor: '#4A7C59',
-          // Sequence diagram
-          actorTextColor: '#1A1A18',
-          actorBorder: '#8A8880',
-          actorBkg: 'transparent',
-          signalColor: '#1A1A18',
-          labelTextColor: '#1A1A18',
-          noteBkgColor: 'rgba(0,0,0,0.03)',
-          noteTextColor: '#1A1A18',
-          noteBorderColor: '#AEACA6',
-        },
+    themeVariables: {
+      // Background
+      primaryColor: 'transparent',
+      primaryBorderColor: dark ? '#7a7872' : '#8A8880',
+      primaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      secondaryColor: 'transparent',
+      secondaryBorderColor: dark ? '#5A5852' : '#AEACA6',
+      secondaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      tertiaryColor: 'transparent',
+      tertiaryBorderColor: dark ? '#5A5852' : '#AEACA6',
+      tertiaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      lineColor: dark ? '#7a7872' : '#8A8880',
+      textColor: dark ? '#E8E6E1' : '#1A1A18',
+      mainBkg: 'transparent',
+      nodeBorder: dark ? '#7a7872' : '#8A8880',
+      clusterBkg: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+      titleColor: dark ? '#E8E6E1' : '#1A1A18',
+      edgeLabelBackground: dark ? '#1C1C1C' : '#FAFAF8',
+      nodeTextColor: dark ? '#E8E6E1' : '#1A1A18',
+
+      // Gantt
+      sectionBkgColor: dark ? '#1a1a1a' : 'transparent',
+      altSectionBkgColor: dark ? '#222222' : 'rgba(0,0,0,0.03)',
+      excludeBkgColor: dark ? '#2a2a2a' : 'rgba(0,0,0,0.05)',
+      gridColor: dark ? '#333333' : '#e0e0e0',
+      taskTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      taskTextDarkColor: dark ? '#E8E6E1' : '#1A1A18',
+      taskTextOutsideColor: dark ? '#E8E6E1' : '#1A1A18',
+      taskBorderColor: dark ? '#7a7872' : '#8A8880',
+      taskBkgColor: dark ? 'rgba(94,158,116,0.25)' : 'rgba(74,124,89,0.2)',
+      activeTaskBorderColor: dark ? '#5E9E74' : '#4A7C59',
+      activeTaskBkgColor: dark ? 'rgba(94,158,116,0.3)' : 'rgba(74,124,89,0.25)',
+      doneTaskBorderColor: dark ? '#5A5852' : '#AEACA6',
+      doneTaskBkgColor: dark ? 'rgba(90,88,82,0.2)' : 'rgba(174,172,166,0.15)',
+      critBorderColor: dark ? '#D49872' : '#B06040',
+      critBkgColor: dark ? 'rgba(212,152,114,0.3)' : 'rgba(176,96,64,0.2)',
+      todayLineColor: dark ? '#5E9E74' : '#4A7C59',
+
+      // Sequence
+      actorTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      actorBorder: dark ? '#7a7872' : '#8A8880',
+      actorBkg: 'transparent',
+      signalColor: dark ? '#E8E6E1' : '#1A1A18',
+      labelTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      noteBkgColor: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
+      noteTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      noteBorderColor: dark ? '#5A5852' : '#AEACA6',
+    },
   });
 }
 
@@ -127,9 +84,14 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
   const id = `mermaid-${++renderCounter}`;
   try {
     let { svg } = await mermaid.render(id, code);
-    // Strip inline fill styles from text/tspan so CSS can control colors
-    svg = svg.replace(/<(text|tspan)([^>]*)\s+style="[^"]*fill:\s*[^";]+;?[^"]*"/g, (match) => {
-      return match.replace(/fill:\s*[^";]+;?\s*/g, '');
+    // Strip inline fill from text/tspan so CSS var(--text-primary) controls all text color.
+    // Remove fill from style="..." attributes AND standalone fill="..." attributes.
+    svg = svg.replace(/<(text|tspan)\b[^>]*>/g, (match) => {
+      // Remove fill:... from style attribute
+      let cleaned = match.replace(/(\bstyle="[^"]*?)fill:\s*[^";]+;?\s*/g, '$1');
+      // Remove standalone fill="..." attribute
+      cleaned = cleaned.replace(/\bfill="[^"]*"/g, '');
+      return cleaned;
     });
     svgCache.set(cacheKey, svg);
     return { svg };
