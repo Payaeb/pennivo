@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { MilkdownProvider, useInstance } from '@milkdown/react';
 import { editorViewCtx } from '@milkdown/core';
 import DOMPurify from 'dompurify';
@@ -28,9 +28,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
 import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
-import { SourceEditor } from './components/SourceEditor/SourceEditor';
 import { Toolbar, type ToolbarAction, type ConfigurableAction, DEFAULT_TOOLBAR_CONFIG } from './components/Toolbar/Toolbar';
-import { ToolbarCustomizer } from './components/ToolbarCustomizer/ToolbarCustomizer';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import { FindReplace } from './components/FindReplace/FindReplace';
 import type { SaveStatus } from './components/Statusbar/Statusbar';
@@ -38,14 +36,18 @@ import { Sidebar } from './components/Sidebar/Sidebar';
 import type { MenuAction, RecentFileEntry } from './components/Titlebar/TitlebarMenu';
 import { CommandPalette, type CommandItem } from './components/CommandPalette/CommandPalette';
 import { OutlinePanel, type HeadingEntry } from './components/OutlinePanel/OutlinePanel';
-import { GanttEditorPanel } from './components/GanttEditor/GanttEditorPanel';
-import { KanbanEditorPanel } from './components/KanbanEditor/KanbanEditorPanel';
 import { TableToolbar } from './components/TableToolbar/TableToolbar';
 import { TableSizePicker } from './components/TableSizePicker/TableSizePicker';
 import { executeTableAction, type TableAction } from './components/Editor/tablePlugin';
 import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData, parseKanbanMarkdown, kanbanDataToMarkdown, createDefaultKanbanData, type KanbanData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+
+// Lazy-loaded components — deferred until first use to reduce startup bundle
+const LazySourceEditor = lazy(() => import('./components/SourceEditor/SourceEditor').then(m => ({ default: m.SourceEditor })));
+const LazyGanttEditorPanel = lazy(() => import('./components/GanttEditor/GanttEditorPanel').then(m => ({ default: m.GanttEditorPanel })));
+const LazyKanbanEditorPanel = lazy(() => import('./components/KanbanEditor/KanbanEditorPanel').then(m => ({ default: m.KanbanEditorPanel })));
+const LazyToolbarCustomizer = lazy(() => import('./components/ToolbarCustomizer/ToolbarCustomizer').then(m => ({ default: m.ToolbarCustomizer })));
 
 const AUTO_SAVE_DELAY = 3000;
 const DRAFT_SAVE_INTERVAL = 30_000;
@@ -198,7 +200,15 @@ function AppContent() {
   const [activeFormats, setActiveFormats] = useState<Set<ToolbarAction>>(new Set());
   const [focusMode, setFocusMode] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
-  const [sourceMode, setSourceMode] = useState(false);
+  const [sourceMode, setSourceModeRaw] = useState(false);
+  const [sourceEverActivated, setSourceEverActivated] = useState(false); // defer CodeMirror mount until first use
+  const setSourceMode = useCallback((v: boolean | ((prev: boolean) => boolean)) => {
+    setSourceModeRaw(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      if (next) setSourceEverActivated(true);
+      return next;
+    });
+  }, []);
   const [sourceContent, setSourceContent] = useState('');
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import('@codemirror/view').EditorView | null>(null);
@@ -1200,6 +1210,7 @@ function AppContent() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
     };
   }, []);
 
@@ -1603,48 +1614,16 @@ function AppContent() {
     }
   }, []);
 
-  // Ctrl+F opens find & replace (works in both modes)
+  // Global keyboard shortcuts — single listener instead of 4 separate ones
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setFindReplaceOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Ctrl+B toggles sidebar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        setSidebarVisible((v) => !v);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Ctrl+Shift+P opens command palette
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Ctrl+Shift+O toggles outline panel
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'O') {
-        e.preventDefault();
-        setOutlineVisible(v => !v);
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.shiftKey) {
+        if (e.key === 'P') { e.preventDefault(); setCommandPaletteOpen(true); }
+        else if (e.key === 'O') { e.preventDefault(); setOutlineVisible(v => !v); }
+      } else {
+        if (e.key === 'f') { e.preventDefault(); setFindReplaceOpen(true); }
+        else if (e.key === 'b') { e.preventDefault(); setSidebarVisible(v => !v); }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1871,18 +1850,22 @@ function AppContent() {
           onImagePaste={handleImagePaste}
         />
       </div>
-      <div className={sourceMode ? 'editor-pane editor-pane--source' : 'editor-pane editor-pane--hidden'}>
-        <SourceEditor
-          content={sourceContent}
-          active={sourceMode}
-          typewriterMode={typewriterMode}
-          onMarkdownChange={handleMarkdownChange}
-          onWordCountChange={setWordCount}
-          onCharCountChange={setCharCount}
-          onViewReady={(view) => { cmViewRef.current = view; }}
-          onViewDestroy={() => { cmViewRef.current = null; }}
-        />
-      </div>
+      {sourceEverActivated && (
+        <div className={sourceMode ? 'editor-pane editor-pane--source' : 'editor-pane editor-pane--hidden'}>
+          <Suspense fallback={null}>
+            <LazySourceEditor
+              content={sourceContent}
+              active={sourceMode}
+              typewriterMode={typewriterMode}
+              onMarkdownChange={handleMarkdownChange}
+              onWordCountChange={setWordCount}
+              onCharCountChange={setCharCount}
+              onViewReady={(view) => { cmViewRef.current = view; }}
+              onViewDestroy={() => { cmViewRef.current = null; }}
+            />
+          </Suspense>
+        </div>
+      )}
       {showDropZone && (
         <div className="drop-zone-overlay">
           <div className="drop-zone-content">
@@ -1922,20 +1905,24 @@ function AppContent() {
         />
       )}
       {ganttEditor && (
-        <GanttEditorPanel
-          data={ganttEditor.data}
-          anchorRect={ganttEditor.anchorRect}
-          onUpdate={handleGanttUpdate}
-          onClose={handleGanttClose}
-        />
+        <Suspense fallback={null}>
+          <LazyGanttEditorPanel
+            data={ganttEditor.data}
+            anchorRect={ganttEditor.anchorRect}
+            onUpdate={handleGanttUpdate}
+            onClose={handleGanttClose}
+          />
+        </Suspense>
       )}
       {kanbanEditor && (
-        <KanbanEditorPanel
-          data={kanbanEditor.data}
-          anchorRect={kanbanEditor.anchorRect}
-          onUpdate={handleKanbanUpdate}
-          onClose={handleKanbanClose}
-        />
+        <Suspense fallback={null}>
+          <LazyKanbanEditorPanel
+            data={kanbanEditor.data}
+            anchorRect={kanbanEditor.anchorRect}
+            onUpdate={handleKanbanUpdate}
+            onClose={handleKanbanClose}
+          />
+        </Suspense>
       )}
       {tableToolbarVisible && !sourceMode && (
         <TableToolbar
@@ -1950,11 +1937,13 @@ function AppContent() {
         />
       )}
       {toolbarCustomizerOpen && (
-        <ToolbarCustomizer
-          config={toolbarConfig}
-          onUpdate={handleToolbarConfigUpdate}
-          onClose={() => setToolbarCustomizerOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <LazyToolbarCustomizer
+            config={toolbarConfig}
+            onUpdate={handleToolbarConfigUpdate}
+            onClose={() => setToolbarCustomizerOpen(false)}
+          />
+        </Suspense>
       )}
     </AppShell>
   );

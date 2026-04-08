@@ -2,7 +2,6 @@ import { $prose } from '@milkdown/utils';
 import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
 import type { Node } from '@milkdown/prose/model';
-import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { parseKanbanMarkdown } from '@pennivo/core';
 
@@ -17,8 +16,29 @@ function isDarkMode(): boolean {
   return document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
-function initMermaid() {
+// Lazy-load mermaid — it's ~150-200 KB and only needed when a document
+// contains mermaid code blocks.  Deferred import keeps it out of the
+// critical startup path.
+let mermaidLib: typeof import('mermaid').default | null = null;
+let mermaidLoading: Promise<typeof import('mermaid').default> | null = null;
+
+async function getMermaid() {
+  if (mermaidLib) return mermaidLib;
+  if (!mermaidLoading) {
+    mermaidLoading = import('mermaid').then(m => {
+      mermaidLib = m.default;
+      return mermaidLib;
+    });
+  }
+  return mermaidLoading;
+}
+
+let lastInitDark: boolean | null = null;
+
+function initMermaid(mermaid: typeof import('mermaid').default) {
   const dark = isDarkMode();
+  if (lastInitDark === dark) return; // skip if theme unchanged
+  lastInitDark = dark;
   mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
@@ -88,7 +108,8 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
   const cached = svgCache.get(cacheKey);
   if (cached) return { svg: cached };
 
-  initMermaid();
+  const mermaid = await getMermaid();
+  initMermaid(mermaid);
 
   const id = `mermaid-${++renderCounter}`;
   try {
@@ -136,6 +157,7 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
 export const mermaidPlugin = $prose(() => {
   const previewElements = new Map<number, HTMLElement>();
   const renderedContent = new Map<number, string>();
+  let generation = 0; // incremented on each buildDecorations to discard stale async renders
 
   function createPreviewWidget(pos: number, code: string): HTMLElement {
     const wrapper = document.createElement('div');
@@ -143,12 +165,15 @@ export const mermaidPlugin = $prose(() => {
     wrapper.contentEditable = 'false';
 
     const isGantt = code.trim().startsWith('gantt');
+    const gen = generation; // capture current generation
 
     if (!code.trim()) {
       wrapper.innerHTML = '<span class="mermaid-preview-hint">Enter mermaid syntax below...</span>';
     } else {
       wrapper.innerHTML = '<span class="mermaid-preview-loading">Rendering...</span>';
       renderMermaidSvg(code).then(({ svg, error }) => {
+        // Discard result if decorations were rebuilt while we were rendering
+        if (gen !== generation) return;
         if (svg) {
           wrapper.innerHTML = svg;
         } else {
@@ -272,7 +297,8 @@ export const mermaidPlugin = $prose(() => {
   function buildDecorations(doc: Node): DecorationSet {
     const decorations: Decoration[] = [];
 
-    // Clear all cached elements — fresh render every time
+    // Invalidate stale async renders and clear cached elements
+    generation++;
     previewElements.clear();
     renderedContent.clear();
 
@@ -354,6 +380,7 @@ export const mermaidPlugin = $prose(() => {
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
             svgCache.clear();
+            lastInitDark = null; // re-check theme on next render
             previewElements.clear();
             renderedContent.clear();
             view.dispatch(view.state.tr.setMeta(mermaidKey, true));
