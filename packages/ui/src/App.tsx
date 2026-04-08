@@ -42,6 +42,9 @@ import { executeTableAction, type TableAction } from './components/Editor/tableP
 import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData, parseKanbanMarkdown, kanbanDataToMarkdown, createDefaultKanbanData, type KanbanData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+import { resolveImagePaths, relativizeImagePaths } from './utils/imagePaths';
+import { extractFilename } from './utils/paths';
+import { saveDraft, loadDraft, clearDraft, type DraftData } from './utils/draftStorage';
 
 // Lazy-loaded components — deferred until first use to reduce startup bundle
 const LazySourceEditor = lazy(() => import('./components/SourceEditor/SourceEditor').then(m => ({ default: m.SourceEditor })));
@@ -51,99 +54,10 @@ const LazyToolbarCustomizer = lazy(() => import('./components/ToolbarCustomizer/
 
 const AUTO_SAVE_DELAY = 3000;
 const DRAFT_SAVE_INTERVAL = 30_000;
-const DRAFT_STORAGE_KEY = 'pennivo-draft';
-
-interface DraftData {
-  content: string;
-  filePath: string | null;
-  timestamp: number;
-}
-
-function saveDraft(content: string, filePath: string | null) {
-  try {
-    const draft: DraftData = { content, filePath, timestamp: Date.now() };
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-  } catch {
-    // localStorage may be full or unavailable
-  }
-}
-
-function loadDraft(): DraftData | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as DraftData;
-    if (draft && typeof draft.content === 'string' && typeof draft.timestamp === 'number') {
-      return draft;
-    }
-  } catch {
-    // Corrupt data
-  }
-  return null;
-}
-
-function clearDraft() {
-  try {
-    localStorage.removeItem(DRAFT_STORAGE_KEY);
-  } catch {
-    // Ignore
-  }
-}
 
 const FILE_SIZE_WARN = 500_000;         // 500 KB — warn, user chooses mode
 const FILE_SIZE_SOURCE_DEFAULT = 1_000_000; // 1 MB — auto source mode, can switch back with warning
 const FILE_SIZE_SOURCE_LOCKED = 1_500_000;  // 1.5 MB — locked to source mode
-
-// --- Relative ↔ absolute image path conversion ---
-// Markdown image pattern: ![alt](src) or ![alt](src "title")
-// Group 1: prefix `![alt](`  Group 2: URL (no spaces)  Group 3: optional title + `)`
-const MD_IMAGE_REGEX = /(!\[[^\]]*]\()(\S+?)((?:\s+"[^"]*")?\))/g;
-
-/**
- * Convert relative image paths (e.g. `./images/foo.png`) to absolute
- * `pennivo-file:///` URLs for display in the editor.
- */
-function resolveImagePaths(markdown: string, filePath: string): string {
-  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
-  return markdown.replace(MD_IMAGE_REGEX, (_match, prefix, src, suffix) => {
-    // Already absolute — leave as-is
-    if (src.startsWith('pennivo-file://') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
-      return `${prefix}${src}${suffix}`;
-    }
-    // Relative path — resolve against file directory.
-    // Encode spaces so the URL is valid in markdown (spaces terminate the URL
-    // portion before the optional title in markdown image syntax).
-    const resolved = `${fileDir}/${src.replace(/^\.\//, '')}`.replace(/ /g, '%20');
-    return `${prefix}pennivo-file:///${resolved}${suffix}`;
-  });
-}
-
-/**
- * Convert absolute `pennivo-file:///` image URLs back to relative paths
- * for portable markdown storage. Only relativizes paths that are inside
- * the file's directory tree.
- */
-function relativizeImagePaths(markdown: string, filePath: string): string {
-  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
-  const prefix = `pennivo-file:///${fileDir}/`;
-  // remark-stringify may percent-encode spaces in URLs
-  const encodedPrefix = prefix.replace(/ /g, '%20');
-  return markdown.replace(MD_IMAGE_REGEX, (_match, mdPrefix, src, suffix) => {
-    if (src.startsWith(prefix)) {
-      const relative = `./${src.slice(prefix.length)}`;
-      return `${mdPrefix}${relative}${suffix}`;
-    }
-    if (src.startsWith(encodedPrefix)) {
-      const relative = `./${decodeURIComponent(src.slice(encodedPrefix.length))}`;
-      return `${mdPrefix}${relative}${suffix}`;
-    }
-    return `${mdPrefix}${src}${suffix}`;
-  });
-}
-
-function extractFilename(filePath: string): string {
-  return filePath.split(/[/\\]/).pop() || 'untitled.md';
-}
 
 function getActiveFormats(view: EditorView): Set<ToolbarAction> {
   const active = new Set<ToolbarAction>();
