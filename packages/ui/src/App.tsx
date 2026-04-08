@@ -45,8 +45,52 @@ import { TableSizePicker } from './components/TableSizePicker/TableSizePicker';
 import { executeTableAction, type TableAction } from './components/Editor/tablePlugin';
 import { parseMermaidGantt, ganttDataToMermaid, createDefaultGanttData, type GanttData, parseKanbanMarkdown, kanbanDataToMarkdown, createDefaultKanbanData, type KanbanData } from '@pennivo/core';
 import { useTheme } from './hooks/useTheme';
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 
 const AUTO_SAVE_DELAY = 3000;
+const DRAFT_SAVE_INTERVAL = 30_000;
+const DRAFT_STORAGE_KEY = 'pennivo-draft';
+
+interface DraftData {
+  content: string;
+  filePath: string | null;
+  timestamp: number;
+}
+
+function saveDraft(content: string, filePath: string | null) {
+  try {
+    const draft: DraftData = { content, filePath, timestamp: Date.now() };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // localStorage may be full or unavailable
+  }
+}
+
+function loadDraft(): DraftData | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as DraftData;
+    if (draft && typeof draft.content === 'string' && typeof draft.timestamp === 'number') {
+      return draft;
+    }
+  } catch {
+    // Corrupt data
+  }
+  return null;
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore
+  }
+}
+
+const FILE_SIZE_WARN = 500_000;         // 500 KB — warn, user chooses mode
+const FILE_SIZE_SOURCE_DEFAULT = 1_000_000; // 1 MB — auto source mode, can switch back with warning
+const FILE_SIZE_SOURCE_LOCKED = 1_500_000;  // 1.5 MB — locked to source mode
 
 function extractFilename(filePath: string): string {
   return filePath.split(/[/\\]/).pop() || 'untitled.md';
@@ -128,6 +172,9 @@ function AppContent() {
   const markdownRef = useRef(DEFAULT_CONTENT);
   const savedMarkdownRef = useRef(DEFAULT_CONTENT);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const draftTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const fileSizeRef = useRef(0);
+  const [draftRecovery, setDraftRecovery] = useState<DraftData | null>(null);
 
   // --- Sidebar state ---
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -221,6 +268,24 @@ function AppContent() {
 
   const filename = filePath ? extractFilename(filePath) : 'untitled.md';
 
+  // --- Toast state ---
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const showToast = useCallback((message: string, deferred = false) => {
+    const show = () => {
+      setToast(message);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+    };
+    if (deferred) {
+      // Wait until the browser has painted so the toast starts after loading finishes
+      requestAnimationFrame(() => requestAnimationFrame(show));
+    } else {
+      show();
+    }
+  }, []);
+
   // --- Save operations ---
   const doSave = useCallback(async (): Promise<boolean> => {
     const currentPath = filePathRef.current;
@@ -236,6 +301,7 @@ function AppContent() {
       savedMarkdownRef.current = content;
       setIsDirty(false);
       setSaveStatus('saved');
+      clearDraft();
       return true;
     } catch {
       setSaveStatus('unsaved');
@@ -262,6 +328,7 @@ function AppContent() {
         savedMarkdownRef.current = content;
         setIsDirty(false);
         setSaveStatus('saved');
+        clearDraft();
         loadRecentFiles();
         return true;
       }
@@ -283,10 +350,19 @@ function AppContent() {
     } else {
       const editor = getInstance();
       if (editor && !loading) {
-        editor.action(replaceAll(content));
+        try {
+          editor.action(replaceAll(content));
+        } catch (err) {
+          console.error('[loadContent] Markdown parse failed, falling back to source mode:', err);
+          // Switch to source mode so the user can see and fix the raw content
+          setSourceMode(true);
+          sourceModeRef.current = true;
+          setSourceContent(content);
+          showToast("This file couldn\u2019t be parsed as markdown. Showing raw content.");
+        }
       }
     }
-  }, [loading, getInstance]);
+  }, [loading, getInstance, showToast]);
 
 
   // --- Open file ---
@@ -305,13 +381,36 @@ function AppContent() {
     const result = await window.pennivo?.openFile();
     if (!result) return;
 
-    loadContent(result.content);
+    const size = result.fileSize ?? 0;
+    fileSizeRef.current = size;
+
+    if (size > FILE_SIZE_SOURCE_LOCKED) {
+      // 1.5 MB+ — locked to source mode
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Very large file — opened in source mode only to prevent crashes', true);
+    } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
+      // 1 MB–1.5 MB — default to source mode
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Large file — opened in source mode for performance', true);
+    } else if (size > FILE_SIZE_WARN) {
+      // 500 KB–1 MB — warn, let user choose
+      showToast('Large file — may be slow in WYSIWYG mode', true);
+      loadContent(result.content);
+    } else {
+      loadContent(result.content);
+    }
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [doSave, loadRecentFiles, loadContent]);
+  }, [doSave, loadRecentFiles, loadContent, showToast]);
 
   // --- Open recent file by path ---
   const openRecentFile = useCallback(async (recentPath: string) => {
@@ -328,13 +427,33 @@ function AppContent() {
     const result = await window.pennivo?.openFilePath(recentPath);
     if (!result) return;
 
-    loadContent(result.content);
+    const size = result.fileSize ?? 0;
+    fileSizeRef.current = size;
+
+    if (size > FILE_SIZE_SOURCE_LOCKED) {
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Very large file — opened in source mode only to prevent crashes', true);
+    } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Large file — opened in source mode for performance', true);
+    } else if (size > FILE_SIZE_WARN) {
+      showToast('Large file — may be slow in WYSIWYG mode', true);
+      loadContent(result.content);
+    } else {
+      loadContent(result.content);
+    }
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [doSave, loadRecentFiles, loadContent]);
+  }, [doSave, loadRecentFiles, loadContent, showToast]);
 
   // --- Sidebar file click ---
   const handleSidebarFileClick = useCallback(async (clickedPath: string) => {
@@ -350,13 +469,33 @@ function AppContent() {
     const result = await window.pennivo?.openFilePath(clickedPath);
     if (!result) return;
 
-    loadContent(result.content);
+    const size = result.fileSize ?? 0;
+    fileSizeRef.current = size;
+
+    if (size > FILE_SIZE_SOURCE_LOCKED) {
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Very large file — opened in source mode only to prevent crashes', true);
+    } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
+      if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
+      setSourceContent(result.content);
+      markdownRef.current = result.content;
+      setOutlineMarkdown(result.content);
+      showToast('Large file — opened in source mode for performance', true);
+    } else if (size > FILE_SIZE_WARN) {
+      showToast('Large file — may be slow in WYSIWYG mode', true);
+      loadContent(result.content);
+    } else {
+      loadContent(result.content);
+    }
     setFilePath(result.filePath);
     savedMarkdownRef.current = result.content;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
-  }, [doSave, loadRecentFiles, loadContent]);
+  }, [doSave, loadRecentFiles, loadContent, showToast]);
 
   // --- New file ---
   const doNewFile = useCallback(async () => {
@@ -371,6 +510,7 @@ function AppContent() {
 
     loadContent('');
     setFilePath(null);
+    fileSizeRef.current = 0;
     savedMarkdownRef.current = '';
     setIsDirty(false);
     setSaveStatus('saved');
@@ -389,10 +529,56 @@ function AppContent() {
         savedMarkdownRef.current = markdownRef.current;
         setIsDirty(false);
         setSaveStatus('saved');
+        clearDraft();
       } catch {
         setSaveStatus('unsaved');
       }
     }, AUTO_SAVE_DELAY);
+  }, []);
+
+  // --- Periodic draft save to localStorage ---
+  useEffect(() => {
+    draftTimerRef.current = setInterval(() => {
+      if (isDirtyRef.current && markdownRef.current) {
+        saveDraft(markdownRef.current, filePathRef.current);
+      }
+    }, DRAFT_SAVE_INTERVAL);
+    return () => {
+      if (draftTimerRef.current) clearInterval(draftTimerRef.current);
+    };
+  }, []);
+
+  // --- Check for draft recovery on mount ---
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && draft.content && draft.content.length > 0) {
+      // Only offer recovery if the draft is recent (within 24 hours)
+      const age = Date.now() - draft.timestamp;
+      if (age < 24 * 60 * 60 * 1000) {
+        setDraftRecovery(draft);
+      } else {
+        clearDraft();
+      }
+    }
+  }, []);
+
+  const handleRecoverDraft = useCallback(() => {
+    if (!draftRecovery) return;
+    loadContent(draftRecovery.content);
+    if (draftRecovery.filePath) {
+      setFilePath(draftRecovery.filePath);
+    }
+    markdownRef.current = draftRecovery.content;
+    setIsDirty(true);
+    setSaveStatus('unsaved');
+    setDraftRecovery(null);
+    clearDraft();
+    showToast('Draft recovered');
+  }, [draftRecovery, loadContent, showToast]);
+
+  const handleDiscardDraft = useCallback(() => {
+    setDraftRecovery(null);
+    clearDraft();
   }, []);
 
   // --- Markdown change handler ---
@@ -433,16 +619,6 @@ function AppContent() {
       typewriterModeRef.current = next;
       return next;
     });
-  }, []);
-
-  // --- Toast state ---
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const showToast = useCallback((message: string) => {
-    setToast(message);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
   // --- Export helpers ---
@@ -971,6 +1147,18 @@ function AppContent() {
       if (action === 'focusMode') { toggleFocusMode(); return; }
       if (action === 'typewriterMode') { toggleTypewriterMode(); return; }
       if (action === 'sourceMode') {
+        // Guard switching to WYSIWYG based on file size tiers
+        if (sourceModeRef.current) {
+          const size = fileSizeRef.current;
+          if (size > FILE_SIZE_SOURCE_LOCKED) {
+            showToast('This file is too large for WYSIWYG mode — it would crash the editor');
+            return;
+          }
+          if (size > FILE_SIZE_SOURCE_DEFAULT) {
+            showToast('Warning — WYSIWYG may be slow with this file size', true);
+          }
+        }
+
         setSourceMode((prev) => {
           const next = !prev;
           sourceModeRef.current = next;
@@ -1626,6 +1814,15 @@ function AppContent() {
         onSelect={handleCommandSelect}
         onClose={() => setCommandPaletteOpen(false)}
       />
+      {draftRecovery && (
+        <div className="draft-recovery-banner">
+          <span>Unsaved draft found{draftRecovery.filePath ? ` for ${extractFilename(draftRecovery.filePath)}` : ''}. Recover it?</span>
+          <div className="draft-recovery-actions">
+            <button className="draft-recovery-btn draft-recovery-btn--primary" onClick={handleRecoverDraft}>Recover</button>
+            <button className="draft-recovery-btn" onClick={handleDiscardDraft}>Discard</button>
+          </div>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
       {linkPopover && (
         <LinkPopover
@@ -1677,8 +1874,10 @@ function AppContent() {
 
 export function App() {
   return (
-    <MilkdownProvider>
-      <AppContent />
-    </MilkdownProvider>
+    <ErrorBoundary>
+      <MilkdownProvider>
+        <AppContent />
+      </MilkdownProvider>
+    </ErrorBoundary>
   );
 }

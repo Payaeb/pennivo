@@ -157,8 +157,9 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
           const isLastNode = afterPos >= docSize;
           const nextNode = isLastNode ? null : state.doc.nodeAt(afterPos);
           const nextIsCodeBlock = nextNode?.type.name === 'code_block';
+          const nextIsTable = nextNode?.type.name === 'table';
 
-          if (event.key === 'ArrowDown' && (isLastNode || nextIsCodeBlock)) {
+          if (event.key === 'ArrowDown' && (isLastNode || nextIsCodeBlock || nextIsTable)) {
             // Insert paragraph after this code block and move cursor there
             const paragraph = state.schema.nodes['paragraph'].create();
             const tr = state.tr.insert(afterPos, paragraph);
@@ -173,7 +174,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
             const lastNewline = textBeforeCursor.lastIndexOf('\n');
             const lastLine = lastNewline === -1 ? textBeforeCursor : textBeforeCursor.slice(lastNewline + 1);
 
-            if (lastLine === '' && (isLastNode || nextIsCodeBlock)) {
+            if (lastLine === '' && (isLastNode || nextIsCodeBlock || nextIsTable)) {
               // Remove the trailing newline and insert a paragraph after
               const paragraph = state.schema.nodes['paragraph'].create();
               const tr = state.tr
@@ -183,6 +184,74 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
               view.dispatch(tr);
               return true;
             }
+          }
+
+          return false;
+        },
+      },
+    }));
+
+    // Allow escaping tables: ArrowDown in the last cell of the last row
+    // when the table is the last element, creates a paragraph below.
+    const tableEscape = $prose(() => new Plugin({
+      props: {
+        handleKeyDown: (view, event) => {
+          if (event.key !== 'ArrowDown') return false;
+
+          const { state } = view;
+          const { $from, empty } = state.selection;
+          if (!empty) return false;
+
+          // Walk up to find a table_cell or table_header
+          let cellDepth = -1;
+          for (let d = $from.depth; d >= 0; d--) {
+            const name = $from.node(d).type.name;
+            if (name === 'table_cell' || name === 'table_header') {
+              cellDepth = d;
+              break;
+            }
+          }
+          if (cellDepth < 0) return false;
+
+          // Find the table node (parent of table_row which is parent of cell)
+          let tableDepth = -1;
+          for (let d = cellDepth - 1; d >= 0; d--) {
+            if ($from.node(d).type.name === 'table') {
+              tableDepth = d;
+              break;
+            }
+          }
+          if (tableDepth < 0) return false;
+
+          const tableNode = $from.node(tableDepth);
+          const tablePos = $from.before(tableDepth);
+          const afterTablePos = tablePos + tableNode.nodeSize;
+
+          // Check if cursor is in the last row
+          const rowDepth = cellDepth - 1;
+          const rowNode = $from.node(rowDepth);
+          const rowIndex = $from.index(tableDepth);
+          const isLastRow = rowIndex === tableNode.childCount - 1;
+          if (!isLastRow) return false;
+
+          // Check if cursor is in the last cell of the row
+          const cellIndex = $from.index(rowDepth);
+          const isLastCell = cellIndex === rowNode.childCount - 1;
+          if (!isLastCell) return false;
+
+          // Check if cursor is at the end of the cell content
+          const cell = $from.parent;
+          if ($from.parentOffset < cell.content.size) return false;
+
+          // Only act if the table is the last node in the document
+          const isLastNode = afterTablePos >= state.doc.content.size;
+
+          if (isLastNode) {
+            const paragraph = state.schema.nodes['paragraph'].create();
+            const tr = state.tr.insert(afterTablePos, paragraph);
+            tr.setSelection(Selection.near(tr.doc.resolve(afterTablePos + 1)));
+            view.dispatch(tr);
+            return true;
           }
 
           return false;
@@ -323,6 +392,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(linkClick)
       .use(imagePaste)
       .use(codeBlockEscape)
+      .use(tableEscape)
       .use(syntaxHighlightPlugin)
       .use(highlightRefreshPlugin)
       .use(mermaidPlugin)

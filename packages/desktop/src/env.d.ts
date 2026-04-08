@@ -22,7 +22,7 @@ interface PennivoAPI {
   // File I/O
   saveImage: (filePath: string, buffer: number[], mimeType: string) => Promise<{ relativePath: string; absolutePath: string }>;
   pickImage: (filePath: string) => Promise<{ relativePath: string; absolutePath: string } | null>;
-  openFile: () => Promise<{ filePath: string; content: string } | null>;
+  openFile: () => Promise<{ filePath: string; content: string; fileSize?: number } | null>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
   saveFileAs: (content: string, defaultPath?: string) => Promise<string | null>;
   confirmDiscard: () => Promise<number>;
@@ -33,7 +33,7 @@ interface PennivoAPI {
   getRecentFiles: () => Promise<string[]>;
   addRecentFile: (filePath: string) => Promise<string[]>;
   clearRecentFiles: () => Promise<string[]>;
-  openFilePath: (filePath: string) => Promise<{ filePath: string; content: string } | null>;
+  openFilePath: (filePath: string) => Promise<{ filePath: string; content: string; fileSize?: number } | null>;
 
   // Export
   exportHtml: (html: string, title: string) => Promise<string | null>;

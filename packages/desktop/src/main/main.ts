@@ -429,6 +429,23 @@ function createWindow() {
     }
   });
 
+  // Handle renderer crash — reload so draft recovery can kick in
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[main] Renderer process gone:', details.reason, details.exitCode);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Renderer Crashed',
+        message: 'The editor crashed unexpectedly. Reloading now — any unsaved drafts will be recovered.',
+        buttons: ['Reload'],
+      }).then(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.reload();
+        }
+      });
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -580,9 +597,11 @@ function registerIpcHandlers() {
     if (canceled || filePaths.length === 0) return null;
 
     const filePath = filePaths[0];
+    const stat = await fs.stat(filePath);
+    const fileSize = stat.size;
     const content = await fs.readFile(filePath, 'utf-8');
     await addRecentFile(filePath);
-    return { filePath, content };
+    return { filePath, content, fileSize };
   });
 
   // Save to existing path
@@ -690,9 +709,11 @@ function registerIpcHandlers() {
   // Open a specific file by path (used by Recent Files)
   ipcMain.handle('file:open-path', async (_e, filePath: string) => {
     try {
+      const stat = await fs.stat(filePath);
+      const fileSize = stat.size;
       const content = await fs.readFile(filePath, 'utf-8');
       await addRecentFile(filePath);
-      return { filePath, content };
+      return { filePath, content, fileSize };
     } catch {
       return null;
     }

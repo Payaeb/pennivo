@@ -46,7 +46,7 @@ button {
   font-family: var(--font-ui);
   z-index: 1000;
   pointer-events: none;
-  animation: toast-in 0.2s ease, toast-out 0.3s ease 2.7s forwards;
+  animation: toast-in 0.2s ease, toast-out 0.3s ease 4.7s forwards;
 }
 
 @keyframes toast-in {
@@ -57,6 +57,61 @@ button {
 @keyframes toast-out {
   from { opacity: 1; }
   to   { opacity: 0; }
+}
+
+/* Draft recovery banner */
+.draft-recovery-banner {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-family: var(--font-ui);
+  z-index: 1001;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  animation: toast-in 0.2s ease;
+}
+
+.draft-recovery-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.draft-recovery-btn {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-mid);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.draft-recovery-btn:hover {
+  background: var(--bg-overlay);
+}
+
+.draft-recovery-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.draft-recovery-btn--primary:hover {
+  opacity: 0.9;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Drop zone overlay */
