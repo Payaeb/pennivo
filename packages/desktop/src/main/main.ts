@@ -484,7 +484,6 @@ function createMenu() {
         },
         {
           label: 'Export as PDF',
-          accelerator: 'CmdOrCtrl+Shift+P',
           click: () => mainWindow?.webContents.send('menu:export-pdf'),
         },
         { type: 'separator' },

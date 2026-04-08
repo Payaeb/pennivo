@@ -35,6 +35,9 @@ export default defineConfig({
     ]),
     renderer(),
   ],
+  optimizeDeps: {
+    include: ['mermaid'],
+  },
   build: {
     outDir: 'dist/renderer',
   },

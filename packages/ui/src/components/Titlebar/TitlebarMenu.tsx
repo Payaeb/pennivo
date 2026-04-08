@@ -46,7 +46,7 @@ const MENU_SECTIONS: MenuSection[] = [
       { label: 'Save As\u2026', action: 'saveAs', shortcut: 'Ctrl+Shift+S' },
       { separator: true, label: '' },
       { label: 'Export as HTML', action: 'exportHtml', shortcut: 'Ctrl+Shift+E' },
-      { label: 'Export as PDF',  action: 'exportPdf',  shortcut: 'Ctrl+Shift+P' },
+      { label: 'Export as PDF',  action: 'exportPdf' },
       { separator: true, label: '' },
       { label: 'Quit',         action: 'quit',   shortcut: 'Alt+F4' },
     ],
