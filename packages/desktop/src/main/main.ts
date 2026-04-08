@@ -627,10 +627,17 @@ function registerIpcHandlers() {
     return filePath;
   });
 
-  // Save image to images/ subfolder next to the current .md file
+  // Build the per-file images folder name: "mynotes-md-images" for "mynotes.md"
+  function imagesDirName(filePath: string): string {
+    const base = path.basename(filePath); // e.g. "mynotes.md"
+    return base.replace(/\./g, '-') + '-images'; // "mynotes-md-images"
+  }
+
+  // Save image to per-file images subfolder next to the current .md file
   ipcMain.handle('file:save-image', async (_e, args: { filePath: string; buffer: number[]; mimeType: string }) => {
     const dir = path.dirname(args.filePath);
-    const imagesDir = path.join(dir, 'images');
+    const imgFolder = imagesDirName(args.filePath);
+    const imagesDir = path.join(dir, imgFolder);
     await fs.mkdir(imagesDir, { recursive: true });
 
     const ext = args.mimeType === 'image/jpeg' ? 'jpg' : 'png';
@@ -649,12 +656,12 @@ function registerIpcHandlers() {
     const absolutePath = path.join(imagesDir, filename);
     await fs.writeFile(absolutePath, Buffer.from(args.buffer));
     return {
-      relativePath: `./images/${filename}`,
+      relativePath: `./${imgFolder}/${filename}`,
       absolutePath: absolutePath.replace(/\\/g, '/'),
     };
   });
 
-  // Pick an image via file dialog, copy it to images/ subfolder, return paths
+  // Pick an image via file dialog, copy it to per-file images subfolder, return paths
   ipcMain.handle('file:pick-image', async (_e, args: { filePath: string }) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
       filters: [
@@ -669,7 +676,8 @@ function registerIpcHandlers() {
     const srcPath = filePaths[0];
     const ext = path.extname(srcPath).toLowerCase() || '.png';
     const dir = path.dirname(args.filePath);
-    const imagesDir = path.join(dir, 'images');
+    const imgFolder = imagesDirName(args.filePath);
+    const imagesDir = path.join(dir, imgFolder);
     await fs.mkdir(imagesDir, { recursive: true });
 
     const now = new Date();
@@ -687,7 +695,7 @@ function registerIpcHandlers() {
 
     await fs.copyFile(srcPath, absolutePath);
     return {
-      relativePath: `./images/${filename}`,
+      relativePath: `./${imgFolder}/${filename}`,
       absolutePath: absolutePath.replace(/\\/g, '/'),
     };
   });

@@ -92,6 +92,53 @@ const FILE_SIZE_WARN = 500_000;         // 500 KB — warn, user chooses mode
 const FILE_SIZE_SOURCE_DEFAULT = 1_000_000; // 1 MB — auto source mode, can switch back with warning
 const FILE_SIZE_SOURCE_LOCKED = 1_500_000;  // 1.5 MB — locked to source mode
 
+// --- Relative ↔ absolute image path conversion ---
+// Markdown image pattern: ![alt](src) or ![alt](src "title")
+// Group 1: prefix `![alt](`  Group 2: URL (no spaces)  Group 3: optional title + `)`
+const MD_IMAGE_REGEX = /(!\[[^\]]*]\()(\S+?)((?:\s+"[^"]*")?\))/g;
+
+/**
+ * Convert relative image paths (e.g. `./images/foo.png`) to absolute
+ * `pennivo-file:///` URLs for display in the editor.
+ */
+function resolveImagePaths(markdown: string, filePath: string): string {
+  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+  return markdown.replace(MD_IMAGE_REGEX, (_match, prefix, src, suffix) => {
+    // Already absolute — leave as-is
+    if (src.startsWith('pennivo-file://') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+      return `${prefix}${src}${suffix}`;
+    }
+    // Relative path — resolve against file directory.
+    // Encode spaces so the URL is valid in markdown (spaces terminate the URL
+    // portion before the optional title in markdown image syntax).
+    const resolved = `${fileDir}/${src.replace(/^\.\//, '')}`.replace(/ /g, '%20');
+    return `${prefix}pennivo-file:///${resolved}${suffix}`;
+  });
+}
+
+/**
+ * Convert absolute `pennivo-file:///` image URLs back to relative paths
+ * for portable markdown storage. Only relativizes paths that are inside
+ * the file's directory tree.
+ */
+function relativizeImagePaths(markdown: string, filePath: string): string {
+  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+  const prefix = `pennivo-file:///${fileDir}/`;
+  // remark-stringify may percent-encode spaces in URLs
+  const encodedPrefix = prefix.replace(/ /g, '%20');
+  return markdown.replace(MD_IMAGE_REGEX, (_match, mdPrefix, src, suffix) => {
+    if (src.startsWith(prefix)) {
+      const relative = `./${src.slice(prefix.length)}`;
+      return `${mdPrefix}${relative}${suffix}`;
+    }
+    if (src.startsWith(encodedPrefix)) {
+      const relative = `./${decodeURIComponent(src.slice(encodedPrefix.length))}`;
+      return `${mdPrefix}${relative}${suffix}`;
+    }
+    return `${mdPrefix}${src}${suffix}`;
+  });
+}
+
 function extractFilename(filePath: string): string {
   return filePath.split(/[/\\]/).pop() || 'untitled.md';
 }
@@ -297,7 +344,9 @@ function AppContent() {
 
     setSaveStatus('saving');
     try {
-      await window.pennivo?.saveFile(currentPath, content);
+      // Relativize image paths before writing to disk
+      const saveContent = relativizeImagePaths(content, currentPath);
+      await window.pennivo?.saveFile(currentPath, saveContent);
       savedMarkdownRef.current = content;
       setIsDirty(false);
       setSaveStatus('saved');
@@ -322,7 +371,9 @@ function AppContent() {
         const base = currentPath.slice(lastSep + 1).replace(/\.md$/i, '');
         defaultSavePath = `${dir}${base} (copy).md`;
       }
-      const newPath = await window.pennivo?.saveFileAs(content, defaultSavePath);
+      // Relativize image paths before writing to disk
+      const saveContent = currentPath ? relativizeImagePaths(content, currentPath) : content;
+      const newPath = await window.pennivo?.saveFileAs(saveContent, defaultSavePath);
       if (newPath) {
         setFilePath(newPath);
         savedMarkdownRef.current = content;
@@ -346,7 +397,11 @@ function AppContent() {
     markdownRef.current = content;
     setOutlineMarkdown(content);
     if (sourceModeRef.current) {
-      setSourceContent(content);
+      // Source mode shows relative paths; content has resolved pennivo-file:// URLs
+      const sourceMarkdown = filePathRef.current
+        ? relativizeImagePaths(content, filePathRef.current)
+        : content;
+      setSourceContent(sourceMarkdown);
     } else {
       const editor = getInstance();
       if (editor && !loading) {
@@ -357,7 +412,10 @@ function AppContent() {
           // Switch to source mode so the user can see and fix the raw content
           setSourceMode(true);
           sourceModeRef.current = true;
-          setSourceContent(content);
+          const sourceMarkdown = filePathRef.current
+            ? relativizeImagePaths(content, filePathRef.current)
+            : content;
+          setSourceContent(sourceMarkdown);
           showToast("This file couldn\u2019t be parsed as markdown. Showing raw content.");
         }
       }
@@ -384,29 +442,34 @@ function AppContent() {
     const size = result.fileSize ?? 0;
     fileSizeRef.current = size;
 
+    // Set file path first so loadContent can resolve/relativize against it
+    setFilePath(result.filePath);
+
+    // Resolve relative image paths to pennivo-file:// for display
+    const displayContent = resolveImagePaths(result.content, result.filePath);
+
     if (size > FILE_SIZE_SOURCE_LOCKED) {
       // 1.5 MB+ — locked to source mode
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
-      setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      setSourceContent(result.content); // Show raw disk content (relative paths)
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Very large file — opened in source mode only to prevent crashes', true);
     } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
       // 1 MB–1.5 MB — default to source mode
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
-      setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      setSourceContent(result.content); // Show raw disk content (relative paths)
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Large file — opened in source mode for performance', true);
     } else if (size > FILE_SIZE_WARN) {
       // 500 KB–1 MB — warn, let user choose
       showToast('Large file — may be slow in WYSIWYG mode', true);
-      loadContent(result.content);
+      loadContent(displayContent);
     } else {
-      loadContent(result.content);
+      loadContent(displayContent);
     }
-    setFilePath(result.filePath);
-    savedMarkdownRef.current = result.content;
+    savedMarkdownRef.current = displayContent;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
@@ -430,26 +493,28 @@ function AppContent() {
     const size = result.fileSize ?? 0;
     fileSizeRef.current = size;
 
+    setFilePath(result.filePath);
+    const displayContent = resolveImagePaths(result.content, result.filePath);
+
     if (size > FILE_SIZE_SOURCE_LOCKED) {
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
       setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Very large file — opened in source mode only to prevent crashes', true);
     } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
       setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Large file — opened in source mode for performance', true);
     } else if (size > FILE_SIZE_WARN) {
       showToast('Large file — may be slow in WYSIWYG mode', true);
-      loadContent(result.content);
+      loadContent(displayContent);
     } else {
-      loadContent(result.content);
+      loadContent(displayContent);
     }
-    setFilePath(result.filePath);
-    savedMarkdownRef.current = result.content;
+    savedMarkdownRef.current = displayContent;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
@@ -472,26 +537,28 @@ function AppContent() {
     const size = result.fileSize ?? 0;
     fileSizeRef.current = size;
 
+    setFilePath(result.filePath);
+    const displayContent = resolveImagePaths(result.content, result.filePath);
+
     if (size > FILE_SIZE_SOURCE_LOCKED) {
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
       setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Very large file — opened in source mode only to prevent crashes', true);
     } else if (size > FILE_SIZE_SOURCE_DEFAULT) {
       if (!sourceModeRef.current) { setSourceMode(true); sourceModeRef.current = true; }
       setSourceContent(result.content);
-      markdownRef.current = result.content;
-      setOutlineMarkdown(result.content);
+      markdownRef.current = displayContent;
+      setOutlineMarkdown(displayContent);
       showToast('Large file — opened in source mode for performance', true);
     } else if (size > FILE_SIZE_WARN) {
       showToast('Large file — may be slow in WYSIWYG mode', true);
-      loadContent(result.content);
+      loadContent(displayContent);
     } else {
-      loadContent(result.content);
+      loadContent(displayContent);
     }
-    setFilePath(result.filePath);
-    savedMarkdownRef.current = result.content;
+    savedMarkdownRef.current = displayContent;
     setIsDirty(false);
     setSaveStatus('saved');
     loadRecentFiles();
@@ -525,7 +592,8 @@ function AppContent() {
       if (!isDirtyRef.current || !filePathRef.current) return;
       setSaveStatus('saving');
       try {
-        await window.pennivo?.saveFile(filePathRef.current, markdownRef.current);
+        const saveContent = relativizeImagePaths(markdownRef.current, filePathRef.current);
+        await window.pennivo?.saveFile(filePathRef.current, saveContent);
         savedMarkdownRef.current = markdownRef.current;
         setIsDirty(false);
         setSaveStatus('saved');
@@ -540,7 +608,10 @@ function AppContent() {
   useEffect(() => {
     draftTimerRef.current = setInterval(() => {
       if (isDirtyRef.current && markdownRef.current) {
-        saveDraft(markdownRef.current, filePathRef.current);
+        const draftContent = filePathRef.current
+          ? relativizeImagePaths(markdownRef.current, filePathRef.current)
+          : markdownRef.current;
+        saveDraft(draftContent, filePathRef.current);
       }
     }, DRAFT_SAVE_INTERVAL);
     return () => {
@@ -564,11 +635,14 @@ function AppContent() {
 
   const handleRecoverDraft = useCallback(() => {
     if (!draftRecovery) return;
-    loadContent(draftRecovery.content);
+    const displayContent = draftRecovery.filePath
+      ? resolveImagePaths(draftRecovery.content, draftRecovery.filePath)
+      : draftRecovery.content;
+    loadContent(displayContent);
     if (draftRecovery.filePath) {
       setFilePath(draftRecovery.filePath);
     }
-    markdownRef.current = draftRecovery.content;
+    markdownRef.current = displayContent;
     setIsDirty(true);
     setSaveStatus('unsaved');
     setDraftRecovery(null);
@@ -584,8 +658,13 @@ function AppContent() {
   // --- Markdown change handler ---
   const outlineTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleMarkdownChange = useCallback((markdown: string) => {
-    markdownRef.current = markdown;
-    const dirty = markdown !== savedMarkdownRef.current;
+    // Source mode emits relative image paths; resolve them so markdownRef
+    // always holds the same form (pennivo-file:// URLs) for dirty comparison.
+    const normalized = sourceModeRef.current && filePathRef.current
+      ? resolveImagePaths(markdown, filePathRef.current)
+      : markdown;
+    markdownRef.current = normalized;
+    const dirty = normalized !== savedMarkdownRef.current;
 
     if (dirty !== isDirtyRef.current) {
       setIsDirty(dirty);
@@ -977,9 +1056,9 @@ function AppContent() {
       const result = await window.pennivo?.saveImage(currentPath, buffer, mimeType);
       if (result) {
         showToast('Image saved');
-        // Use custom protocol so the image displays in the editor
-        // (file:// is blocked when page is served from http://localhost in dev)
-        return `pennivo-file:///${result.absolutePath}`;
+        // Use custom protocol so the image displays in the editor.
+        // Encode spaces so the URL is valid in markdown syntax.
+        return `pennivo-file:///${result.absolutePath.replace(/ /g, '%20')}`;
       }
       return null;
     } catch {
@@ -1172,7 +1251,11 @@ function AppContent() {
               const maxScroll = area.scrollHeight - area.clientHeight;
               scrollFraction = maxScroll > 0 ? area.scrollTop / maxScroll : 0;
             }
-            setSourceContent(markdownRef.current);
+            // Show relative paths in source mode for clean markdown
+            const sourceMarkdown = filePathRef.current
+              ? relativizeImagePaths(markdownRef.current, filePathRef.current)
+              : markdownRef.current;
+            setSourceContent(sourceMarkdown);
           } else {
             // Source → WYSIWYG: get scroll from CodeMirror scroller
             const cmScroller = cmViewRef.current?.scrollDOM;
@@ -1180,9 +1263,14 @@ function AppContent() {
               const maxScroll = cmScroller.scrollHeight - cmScroller.clientHeight;
               scrollFraction = maxScroll > 0 ? cmScroller.scrollTop / maxScroll : 0;
             }
+            // Resolve relative paths back to pennivo-file:// for WYSIWYG rendering
+            const displayMarkdown = filePathRef.current
+              ? resolveImagePaths(markdownRef.current, filePathRef.current)
+              : markdownRef.current;
+            markdownRef.current = displayMarkdown;
             const ed = getInstance();
             if (ed && !loading) {
-              ed.action(replaceAll(markdownRef.current));
+              ed.action(replaceAll(displayMarkdown));
             }
           }
 
@@ -1301,7 +1389,7 @@ function AppContent() {
           }
           const result = await window.pennivo?.pickImage(currentPath);
           if (!result) return;
-          const src = `pennivo-file:///${result.absolutePath}`;
+          const src = `pennivo-file:///${result.absolutePath.replace(/ /g, '%20')}`;
           insertImage(src);
           showToast('Image inserted');
         })();
