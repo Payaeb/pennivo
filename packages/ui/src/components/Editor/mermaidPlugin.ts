@@ -3,7 +3,15 @@ import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
 import type { Node } from '@milkdown/prose/model';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
 import { parseKanbanMarkdown } from '@pennivo/core';
+
+// Allow SVG + HTML elements (mermaid uses <foreignObject> with nested HTML for labels)
+const svgPurifyConfig = {
+  USE_PROFILES: { html: true, svg: true, svgFilters: true },
+  ADD_TAGS: ['foreignObject', 'style'],
+  ADD_ATTR: ['dominant-baseline', 'text-anchor', 'transform', 'marker-end', 'marker-start', 'clip-path'],
+};
 
 function isDarkMode(): boolean {
   return document.documentElement.getAttribute('data-theme') === 'dark';
@@ -14,7 +22,7 @@ function initMermaid() {
   mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
     fontFamily: '"Segoe UI", system-ui, sans-serif',
     themeVariables: {
       // Background
@@ -112,6 +120,10 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
       cleaned = cleaned.replace(/\bfill="[^"]*"/g, '');
       return cleaned;
     });
+
+    // Sanitize SVG before injection
+    svg = DOMPurify.sanitize(svg, svgPurifyConfig) as string;
+
     svgCache.set(cacheKey, svg);
     return { svg };
   } catch (err) {

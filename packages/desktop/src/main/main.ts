@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, session, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { watch, type FSWatcher } from 'node:fs';
@@ -164,6 +164,8 @@ function stopFolderWatcher() {
 function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
   // Convert pennivo-file:// protocol URLs to file:// for standalone HTML
   let html = bodyHtml.replace(/pennivo-file:\/\/\//g, 'file:///');
+  // Override dark-mode fill colors in mermaid SVG <style> blocks for light export background
+  html = html.replace(/(<style>[^<]*?{[^}]*?)fill:#[Ee][0-9A-Fa-f]{5};/g, '$1fill:#1A1A18;');
   // Fix bare domain hrefs — add https:// if no protocol
   html = html.replace(/href="([^"]+)"/g, (match, href) => {
     if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) || href.startsWith('#') || href.startsWith('/') || href.startsWith('./') || href.startsWith('../')) {
@@ -176,6 +178,7 @@ function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: file:; font-src data:;">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${safeTitle}</title>
 <meta name="generator" content="Pennivo">
@@ -320,6 +323,12 @@ img { max-width: 100%; border-radius: var(--radius-md); margin: 12px 0; }
 .hljs-meta, .hljs-meta .hljs-keyword { color: var(--sh-meta); }
 .hljs-name, .hljs-tag { color: var(--sh-tag); }
 .hljs-regexp { color: var(--sh-string); }
+svg text, svg tspan { fill: var(--text-primary); }
+svg .tick text, svg .tick tspan { fill: var(--text-muted); }
+svg .nodeLabel, svg .edgeLabel, svg foreignObject div, svg foreignObject span, svg foreignObject p {
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
 @media print {
   body { max-width: none; padding: 0; background: white; }
 }
@@ -345,6 +354,7 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       spellcheck: true,
     },
   });
@@ -791,7 +801,12 @@ function registerIpcHandlers() {
       show: false,
       width: 800,
       height: 600,
-      webPreferences: { offscreen: true },
+      webPreferences: {
+        offscreen: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     });
 
     try {
@@ -834,6 +849,34 @@ app.whenReady().then(() => {
     // URL format: pennivo-file:///C:/path/to/image.png
     const filePath = decodeURIComponent(request.url.replace('pennivo-file:///', ''));
     return net.fetch(pathToFileURL(filePath).href);
+  });
+
+  // --- Content Security Policy ---
+  const isDev = !!process.env.VITE_DEV_SERVER_URL;
+  const csp = [
+    "default-src 'none'",
+    isDev
+      ? "script-src 'self' 'unsafe-inline'"   // Vite HMR injects inline module scripts
+      : "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",        // ProseMirror + Mermaid SVG inline styles
+    "img-src 'self' data: pennivo-file: file:",
+    "font-src 'self' data:",
+    isDev
+      ? "connect-src 'self' ws:"               // Vite HMR WebSocket
+      : "connect-src 'self' pennivo-file:",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
   });
 
   registerIpcHandlers();

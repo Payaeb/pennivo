@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { MilkdownProvider, useInstance } from '@milkdown/react';
 import { editorViewCtx } from '@milkdown/core';
+import DOMPurify from 'dompurify';
 import { callCommand, replaceAll } from '@milkdown/utils';
 import { lift } from '@milkdown/prose/commands';
 import type { EditorView } from '@milkdown/prose/view';
@@ -287,6 +288,7 @@ function AppContent() {
     }
   }, [loading, getInstance]);
 
+
   // --- Open file ---
   const doOpen = useCallback(async () => {
     // Guard unsaved changes
@@ -453,7 +455,12 @@ function AppContent() {
       const view = ctx.get(editorViewCtx);
       html = view.dom.innerHTML;
     });
-    return html;
+    // Sanitize before sending to main process for export
+    return DOMPurify.sanitize(html, {
+      USE_PROFILES: { html: true, svg: true, svgFilters: true },
+      ADD_TAGS: ['foreignObject', 'style'],
+      ADD_ATTR: ['class', 'data-type', 'colspan', 'rowspan', 'dominant-baseline', 'text-anchor', 'transform', 'marker-end', 'marker-start', 'clip-path'],
+    });
   }, [loading, getInstance]);
 
   const doExportHtml = useCallback(async () => {

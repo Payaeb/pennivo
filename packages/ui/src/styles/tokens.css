@@ -73,16 +73,16 @@
   --selection-bg:    rgba(94, 158, 116, 0.18);
 
   /* ── Syntax highlighting (dark) ── */
-  --sh-keyword:      #B699D6;    /* soft lavender */
-  --sh-string:       #C9A86C;    /* golden sand */
-  --sh-number:       #D49872;    /* soft peach */
-  --sh-comment:      #5A5852;    /* dim stone */
-  --sh-function:     #6BB5C5;    /* pale teal */
-  --sh-type:         #5E9E74;    /* accent green */
-  --sh-attr:         #B5A45A;    /* muted gold */
-  --sh-punctuation:  #6A6862;    /* dim gray */
-  --sh-meta:         #B08DB0;    /* soft plum */
-  --sh-tag:          #C29070;    /* warm clay */
+  --sh-keyword:      #C4A0F0;    /* vivid lavender */
+  --sh-string:       #E2BF6A;    /* bright gold */
+  --sh-number:       #ECA06A;    /* warm orange */
+  --sh-comment:      #6E6D68;    /* stone gray */
+  --sh-function:     #6DD0E0;    /* bright teal */
+  --sh-type:         #6DC28A;    /* bright green */
+  --sh-attr:         #D4C262;    /* vivid gold */
+  --sh-punctuation:  #8A8880;    /* medium gray */
+  --sh-meta:         #D0A0D0;    /* vivid plum */
+  --sh-tag:          #E0A070;    /* warm clay */
 }
 
 /* ══════════════════════════════════════════
@@ -133,16 +133,16 @@
   --titlebar-border: rgba(221, 212, 194, 0.08);
   --selection-bg:    rgba(196, 154, 92, 0.18);
 
-  --sh-keyword:      #B89AD6;
-  --sh-string:       #C49A5C;
-  --sh-number:       #D4926A;
-  --sh-comment:      #5A5448;
-  --sh-function:     #6BA89A;
-  --sh-type:         #C49A5C;
-  --sh-attr:         #B5A45A;
-  --sh-punctuation:  #6A6458;
-  --sh-meta:         #B08DA0;
-  --sh-tag:          #C2906A;
+  --sh-keyword:      #CCA8F0;
+  --sh-string:       #E0B46A;
+  --sh-number:       #ECA06A;
+  --sh-comment:      #6E6860;
+  --sh-function:     #70C0B0;
+  --sh-type:         #E0B46A;
+  --sh-attr:         #D4C262;
+  --sh-punctuation:  #8A8478;
+  --sh-meta:         #D0A0C0;
+  --sh-tag:          #E0A070;
 }
 
 /* ══════════════════════════════════════════

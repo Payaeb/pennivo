@@ -2,6 +2,7 @@ import { $prose } from '@milkdown/utils';
 import { createHighlightPlugin } from 'prosemirror-highlight';
 import { createParser } from 'prosemirror-highlight/lowlight';
 import { createLowlight } from 'lowlight';
+import { Plugin, PluginKey } from '@milkdown/prose/state';
 
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -46,10 +47,47 @@ const parser: typeof lowlightParser = (options) => {
   return lowlightParser(options);
 };
 
+const refreshKey = new PluginKey('highlight-refresh');
+
 export const syntaxHighlightPlugin = $prose(() =>
   createHighlightPlugin({
     parser,
     nodeTypes: ['code_block'],
     languageExtractor: (node) => node.attrs['language'] || null,
+  }),
+);
+
+// Companion plugin: debounced refresh to ensure decorations update during live typing
+let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const highlightRefreshPlugin = $prose(() =>
+  new Plugin({
+    key: refreshKey,
+    view() {
+      return {
+        update(view, prevState) {
+          if (!view.state.doc.eq(prevState.doc)) {
+            let hasCodeBlock = false;
+            view.state.doc.descendants((node) => {
+              if (node.type.name === 'code_block' && node.attrs['language']) {
+                hasCodeBlock = true;
+                return false;
+              }
+            });
+            if (hasCodeBlock) {
+              if (debounceTimer) clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(() => {
+                view.dispatch(
+                  view.state.tr.setMeta('prosemirror-highlight-refresh', true)
+                );
+              }, 300);
+            }
+          }
+        },
+        destroy() {
+          if (debounceTimer) clearTimeout(debounceTimer);
+        },
+      };
+    },
   }),
 );

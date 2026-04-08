@@ -10,7 +10,7 @@ import { Plugin, Selection } from '@milkdown/prose/state';
 import { InputRule, inputRules } from '@milkdown/prose/inputrules';
 import type { EditorView } from '@milkdown/prose/view';
 import { countWords, countCharacters } from '../../utils/textStats';
-import { syntaxHighlightPlugin } from './syntaxHighlight';
+import { syntaxHighlightPlugin, highlightRefreshPlugin } from './syntaxHighlight';
 import { mermaidPlugin } from './mermaidPlugin';
 import { collapsibleListPlugin } from './collapsibleListPlugin';
 import { tablePlugin } from './tablePlugin';
@@ -324,6 +324,7 @@ export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, on
       .use(imagePaste)
       .use(codeBlockEscape)
       .use(syntaxHighlightPlugin)
+      .use(highlightRefreshPlugin)
       .use(mermaidPlugin)
       .use(collapsibleListPlugin)
       .use(tablePlugin)
