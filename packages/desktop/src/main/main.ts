@@ -348,6 +348,7 @@ function createWindow() {
     minWidth: 600,
     minHeight: 400,
     title: 'Pennivo',
+    icon: path.join(__dirname, '../../resources/icon.png'),
     frame: false,
     backgroundColor: '#FAFAF8',
     webPreferences: {

@@ -1,4 +1,5 @@
 import { TitlebarMenu, type MenuAction, type RecentFileEntry } from './TitlebarMenu';
+import logoSrc from '../../assets/logo-32.png';
 import './Titlebar.css';
 
 interface TitlebarProps {
@@ -20,7 +21,7 @@ export function Titlebar({ filename, isDirty, onMenuAction, recentFiles, onOpenR
     <div className="titlebar">
       <div className="titlebar-left">
         {onMenuAction && <TitlebarMenu onAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />}
-        <AppIcon />
+        <img className="titlebar-app-icon" src={logoSrc} alt="Pennivo" draggable={false} />
         <span className="titlebar-filename">{filename === 'untitled.md' ? 'untitled' : filename}</span>
         <span className="titlebar-appname">&mdash; Pennivo</span>
         {isDirty && <span className="titlebar-dirty" title="Unsaved changes" />}
@@ -38,16 +39,6 @@ export function Titlebar({ filename, isDirty, onMenuAction, recentFiles, onOpenR
         </button>
       </div>
     </div>
-  );
-}
-
-function AppIcon() {
-  return (
-    <svg className="titlebar-app-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="12" height="12" rx="2" />
-      <line x1="5" y1="6" x2="11" y2="6" />
-      <line x1="5" y1="9" x2="9" y2="9" />
-    </svg>
   );
 }
 
