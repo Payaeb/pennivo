@@ -29,15 +29,6 @@ export function TableSizePicker({ anchorRect, onSelect, onClose }: TableSizePick
     };
   }, [onClose]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   const handleCellHover = useCallback((row: number, col: number) => {
     setHover({ row, col });
     // Expand grid when hovering near edges
@@ -53,6 +44,28 @@ export function TableSizePicker({ anchorRect, onSelect, onClose }: TableSizePick
     },
     [onSelect],
   );
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        const r = hover?.row ?? 0;
+        const c = hover?.col ?? 0;
+        switch (e.key) {
+          case 'ArrowDown': handleCellHover(Math.min(r + 1, 9), c); break;
+          case 'ArrowUp': handleCellHover(Math.max(r - 1, 0), c); break;
+          case 'ArrowRight': handleCellHover(r, Math.min(c + 1, 9)); break;
+          case 'ArrowLeft': handleCellHover(r, Math.max(c - 1, 0)); break;
+          case 'Enter':
+          case ' ': handleClick(r, c); break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose, hover, handleCellHover, handleClick]);
 
   // Position below anchor, clamp to viewport
   const style: React.CSSProperties = {
@@ -77,12 +90,14 @@ export function TableSizePicker({ anchorRect, onSelect, onClose }: TableSizePick
       style={style}
       onMouseLeave={() => setHover(null)}
     >
-      <div className="table-size-grid">
+      <div className="table-size-grid" role="grid" aria-label="Select table size">
         {Array.from({ length: gridSize.rows }, (_, row) => (
-          <div key={row} className="table-size-row">
+          <div key={row} className="table-size-row" role="row">
             {Array.from({ length: gridSize.cols }, (_, col) => (
               <div
                 key={col}
+                role="gridcell"
+                aria-label={`${col + 1} columns, ${row + 1} rows`}
                 className={`table-size-cell${
                   hover && row <= hover.row && col <= hover.col
                     ? ' table-size-cell--active'
@@ -98,7 +113,7 @@ export function TableSizePicker({ anchorRect, onSelect, onClose }: TableSizePick
           </div>
         ))}
       </div>
-      <div className="table-size-label">{label}</div>
+      <div className="table-size-label" aria-live="polite">{label}</div>
     </div>
   );
 }

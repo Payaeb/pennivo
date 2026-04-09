@@ -56,6 +56,21 @@ export function LinkPopover({
       } else if (e.key === 'Escape') {
         e.preventDefault();
         onCancel();
+      } else if (e.key === 'Tab') {
+        // Focus trap: cycle between inputs and buttons within popover
+        const focusable = popoverRef.current?.querySelectorAll<HTMLElement>(
+          'input, button'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     },
     [handleSubmit, onCancel],
@@ -70,18 +85,24 @@ export function LinkPopover({
   };
 
   return (
-    <div className="link-popover" ref={popoverRef} style={style}>
+    <div className="link-popover" ref={popoverRef} style={style} role="dialog" aria-label="Insert link">
       {!hasSelection && (
-        <input
-          className="link-popover-input"
-          type="text"
-          placeholder="Link text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
+        <>
+          <label htmlFor="link-popover-text" className="sr-only">Link text</label>
+          <input
+            id="link-popover-text"
+            className="link-popover-input"
+            type="text"
+            placeholder="Link text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+        </>
       )}
+      <label htmlFor="link-popover-url" className="sr-only">URL</label>
       <input
+        id="link-popover-url"
         ref={urlRef}
         className="link-popover-input"
         type="url"

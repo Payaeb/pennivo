@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import './TitlebarMenu.css';
 
 export type MenuAction =
@@ -178,6 +178,37 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
 
   const hasRecentFiles = recentFiles && recentFiles.length > 0;
 
+  // Keyboard navigation for menu items
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const dropdown = menuRef.current?.querySelector('.titlebar-menu-dropdown');
+    if (!dropdown) return;
+
+    const items = Array.from(dropdown.querySelectorAll<HTMLElement>('.menu-item:not(.menu-item--disabled), .menu-section-header'));
+    if (items.length === 0) return;
+
+    const currentIdx = items.indexOf(document.activeElement as HTMLElement);
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const nextIdx = currentIdx < items.length - 1 ? currentIdx + 1 : 0;
+        items[nextIdx]?.focus();
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prevIdx = currentIdx > 0 ? currentIdx - 1 : items.length - 1;
+        items[prevIdx]?.focus();
+        break;
+      }
+      case 'Tab': {
+        // Focus trap within open menu
+        e.preventDefault();
+        break;
+      }
+    }
+  }, []);
+
   return (
     <div className="titlebar-menu" ref={menuRef}>
       <button
@@ -192,7 +223,7 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
       </button>
 
       {open && (
-        <div className="titlebar-menu-dropdown">
+        <div className="titlebar-menu-dropdown" role="menu" onKeyDown={handleMenuKeyDown}>
           {MENU_SECTIONS.map((section, sectionIdx) => {
             const isExpanded = expandedSection === section.label;
             return (
@@ -200,6 +231,8 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                 <button
                   className={`menu-section-header${isExpanded ? ' menu-section-header--expanded' : ''}`}
                   onClick={() => setExpandedSection(isExpanded ? '' : section.label)}
+                  aria-expanded={isExpanded}
+                  role="menuitem"
                 >
                   <span className="menu-section-chevron">
                     <ChevronRightIcon />
@@ -219,6 +252,7 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                             <button
                               className="menu-item"
                               onClick={() => handleItemClick(item.action)}
+                              role="menuitem"
                             >
                               <span className="menu-item-label">{item.label}</span>
                               {item.shortcut && (
@@ -238,6 +272,9 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                 <button
                                   className={`menu-item${recentSubmenuOpen ? ' menu-item--active' : ''}${!hasRecentFiles ? ' menu-item--disabled' : ''}`}
                                   onClick={() => hasRecentFiles && setRecentSubmenuOpen(!recentSubmenuOpen)}
+                                  role="menuitem"
+                                  aria-expanded={recentSubmenuOpen}
+                                  aria-disabled={!hasRecentFiles}
                                 >
                                   <span className="menu-item-label">Recent Files</span>
                                   <span className="menu-item-arrow">
@@ -248,6 +285,8 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                   <div
                                     ref={submenuRef}
                                     className="menu-submenu"
+                                    role="menu"
+                                    aria-label="Recent files"
                                     style={submenuPos ? { top: submenuPos.top, left: submenuPos.left } : undefined}
                                     onMouseEnter={handleSubmenuEnter}
                                     onMouseLeave={handleSubmenuLeave}
@@ -256,6 +295,7 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                       <button
                                         key={entry.filePath}
                                         className="menu-item"
+                                        role="menuitem"
                                         onClick={() => {
                                           setOpen(false);
                                           setRecentSubmenuOpen(false);
@@ -271,6 +311,7 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                     <div className="menu-separator" />
                                     <button
                                       className="menu-item"
+                                      role="menuitem"
                                       onClick={() => handleItemClick('clearRecentFiles')}
                                     >
                                       <span className="menu-item-label menu-item-label--muted">Clear Recent</span>

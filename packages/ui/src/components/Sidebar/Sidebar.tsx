@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -70,14 +70,11 @@ export function Sidebar({
       </div>
 
       {folderPath && tree.length > 0 ? (
-        <div className="sidebar-tree">
-          <TreeNodes
-            entries={tree}
-            depth={0}
-            currentFilePath={currentFilePath}
-            onFileClick={onFileClick}
-          />
-        </div>
+        <TreeContainer
+          tree={tree}
+          currentFilePath={currentFilePath}
+          onFileClick={onFileClick}
+        />
       ) : (
         <div className="sidebar-empty">
           <span className="sidebar-empty-text">
@@ -97,18 +94,174 @@ export function Sidebar({
   );
 }
 
-// --- Tree rendering ---
+// --- Tree rendering with keyboard navigation ---
+
+function TreeContainer({
+  tree,
+  currentFilePath,
+  onFileClick,
+}: {
+  tree: FileTreeEntry[];
+  currentFilePath: string | null;
+  onFileClick: (filePath: string) => void;
+}) {
+  const treeRef = useRef<HTMLDivElement>(null);
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  // Track expanded folders — default expand depth 0
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const e of tree) if (e.type === 'folder') set.add(e.path);
+    return set;
+  });
+
+  // Flatten visible items for keyboard navigation
+  const flatItems = useCallback((): FileTreeEntry[] => {
+    const items: FileTreeEntry[] = [];
+    const walk = (entries: FileTreeEntry[]) => {
+      for (const entry of entries) {
+        items.push(entry);
+        if (entry.type === 'folder' && expandedPaths.has(entry.path) && entry.children) {
+          walk(entry.children);
+        }
+      }
+    };
+    walk(tree);
+    return items;
+  }, [tree, expandedPaths]);
+
+  const toggleExpanded = useCallback((path: string) => {
+    setExpandedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  // Find parent folder of an entry
+  const findParent = useCallback((targetPath: string, entries: FileTreeEntry[], parent: FileTreeEntry | null): FileTreeEntry | null => {
+    for (const entry of entries) {
+      if (entry.path === targetPath) return parent;
+      if (entry.type === 'folder' && entry.children) {
+        const found = findParent(targetPath, entry.children, entry);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const items = flatItems();
+    if (items.length === 0) return;
+
+    const currentIdx = focusedPath ? items.findIndex(i => i.path === focusedPath) : -1;
+    const current = currentIdx >= 0 ? items[currentIdx] : null;
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const nextIdx = Math.min(currentIdx + 1, items.length - 1);
+        setFocusedPath(items[nextIdx].path);
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prevIdx = Math.max(currentIdx - 1, 0);
+        setFocusedPath(items[prevIdx].path);
+        break;
+      }
+      case 'ArrowRight': {
+        e.preventDefault();
+        if (current?.type === 'folder') {
+          if (!expandedPaths.has(current.path)) {
+            toggleExpanded(current.path);
+          } else if (current.children && current.children.length > 0) {
+            setFocusedPath(current.children[0].path);
+          }
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        if (current?.type === 'folder' && expandedPaths.has(current.path)) {
+          toggleExpanded(current.path);
+        } else if (current) {
+          const parent = findParent(current.path, tree, null);
+          if (parent) setFocusedPath(parent.path);
+        }
+        break;
+      }
+      case 'Enter':
+      case ' ': {
+        e.preventDefault();
+        if (current?.type === 'folder') {
+          toggleExpanded(current.path);
+        } else if (current) {
+          onFileClick(current.path);
+        }
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        if (items.length > 0) setFocusedPath(items[0].path);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        if (items.length > 0) setFocusedPath(items[items.length - 1].path);
+        break;
+      }
+    }
+  }, [flatItems, focusedPath, expandedPaths, toggleExpanded, findParent, tree, onFileClick]);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (!focusedPath || !treeRef.current) return;
+    const el = treeRef.current.querySelector(`[data-path="${CSS.escape(focusedPath)}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
+    el?.focus();
+  }, [focusedPath]);
+
+  return (
+    <div
+      className="sidebar-tree"
+      ref={treeRef}
+      role="tree"
+      aria-label="File browser"
+      onKeyDown={handleKeyDown}
+    >
+      <TreeNodes
+        entries={tree}
+        depth={0}
+        currentFilePath={currentFilePath}
+        onFileClick={onFileClick}
+        expandedPaths={expandedPaths}
+        toggleExpanded={toggleExpanded}
+        focusedPath={focusedPath}
+        setFocusedPath={setFocusedPath}
+      />
+    </div>
+  );
+}
 
 function TreeNodes({
   entries,
   depth,
   currentFilePath,
   onFileClick,
+  expandedPaths,
+  toggleExpanded,
+  focusedPath,
+  setFocusedPath,
 }: {
   entries: FileTreeEntry[];
   depth: number;
   currentFilePath: string | null;
   onFileClick: (filePath: string) => void;
+  expandedPaths: Set<string>;
+  toggleExpanded: (path: string) => void;
+  focusedPath: string | null;
+  setFocusedPath: (path: string) => void;
 }) {
   return (
     <>
@@ -119,6 +272,10 @@ function TreeNodes({
           depth={depth}
           currentFilePath={currentFilePath}
           onFileClick={onFileClick}
+          expandedPaths={expandedPaths}
+          toggleExpanded={toggleExpanded}
+          focusedPath={focusedPath}
+          setFocusedPath={setFocusedPath}
         />
       ))}
     </>
@@ -130,17 +287,26 @@ function TreeNode({
   depth,
   currentFilePath,
   onFileClick,
+  expandedPaths,
+  toggleExpanded,
+  focusedPath,
+  setFocusedPath,
 }: {
   entry: FileTreeEntry;
   depth: number;
   currentFilePath: string | null;
   onFileClick: (filePath: string) => void;
+  expandedPaths: Set<string>;
+  toggleExpanded: (path: string) => void;
+  focusedPath: string | null;
+  setFocusedPath: (path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(depth < 1);
   const isFolder = entry.type === 'folder';
+  const expanded = isFolder && expandedPaths.has(entry.path);
   const isActive = !isFolder && currentFilePath
     ? normalizePath(entry.path) === normalizePath(currentFilePath)
     : false;
+  const isFocused = entry.path === focusedPath;
   const indent = 12 + depth * 16;
 
   if (isFolder) {
@@ -149,7 +315,12 @@ function TreeNode({
         <button
           className="tree-item"
           style={{ paddingLeft: indent }}
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => toggleExpanded(entry.path)}
+          onFocus={() => setFocusedPath(entry.path)}
+          role="treeitem"
+          aria-expanded={expanded}
+          tabIndex={isFocused ? 0 : -1}
+          data-path={entry.path}
         >
           <span className={`tree-item-chevron${expanded ? ' tree-item-chevron--open' : ''}`}>
             <ChevronIcon />
@@ -157,12 +328,18 @@ function TreeNode({
           <span className="tree-item-name">{entry.name}</span>
         </button>
         {expanded && entry.children && (
-          <TreeNodes
-            entries={entry.children}
-            depth={depth + 1}
-            currentFilePath={currentFilePath}
-            onFileClick={onFileClick}
-          />
+          <div role="group">
+            <TreeNodes
+              entries={entry.children}
+              depth={depth + 1}
+              currentFilePath={currentFilePath}
+              onFileClick={onFileClick}
+              expandedPaths={expandedPaths}
+              toggleExpanded={toggleExpanded}
+              focusedPath={focusedPath}
+              setFocusedPath={setFocusedPath}
+            />
+          </div>
         )}
       </>
     );
@@ -173,7 +350,12 @@ function TreeNode({
       className={`tree-item${isActive ? ' tree-item--active' : ''}`}
       style={{ paddingLeft: indent }}
       onClick={() => onFileClick(entry.path)}
+      onFocus={() => setFocusedPath(entry.path)}
       title={entry.path}
+      role="treeitem"
+      aria-selected={isActive}
+      tabIndex={isFocused ? 0 : -1}
+      data-path={entry.path}
     >
       <span className="tree-item-chevron--placeholder" />
       <span className="tree-item-name">{entry.name}</span>

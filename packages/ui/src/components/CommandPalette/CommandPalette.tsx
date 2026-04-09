@@ -85,6 +85,10 @@ export function CommandPalette({ visible, commands, onSelect, onClose }: Command
         e.preventDefault();
         onClose();
         break;
+      case 'Tab':
+        // Focus trap: keep Tab/Shift+Tab within the palette
+        e.preventDefault();
+        break;
     }
   }, [filtered, selectedIndex, onSelect, onClose]);
 
@@ -92,7 +96,14 @@ export function CommandPalette({ visible, commands, onSelect, onClose }: Command
 
   return (
     <div className="command-palette-overlay" onMouseDown={onClose}>
-      <div className="command-palette" onMouseDown={e => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        className="command-palette"
+        onMouseDown={e => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+      >
         <div className="command-palette-input-row">
           <svg className="command-palette-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <circle cx="7" cy="7" r="4.5" />
@@ -107,19 +118,27 @@ export function CommandPalette({ visible, commands, onSelect, onClose }: Command
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             spellCheck={false}
             autoComplete="off"
+            aria-label="Search commands"
+            aria-activedescendant={filtered[selectedIndex] ? `cp-option-${filtered[selectedIndex].id}` : undefined}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-palette-listbox"
           />
         </div>
-        <div className="command-palette-list" ref={listRef}>
+        <div className="command-palette-list" ref={listRef} role="listbox" id="command-palette-listbox">
           {filtered.length === 0 && (
             <div className="command-palette-empty">No matching commands</div>
           )}
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
+              id={`cp-option-${cmd.id}`}
               className={`command-palette-item${i === selectedIndex ? ' command-palette-item--selected' : ''}`}
               onMouseEnter={() => setSelectedIndex(i)}
               onClick={() => onSelect(cmd.id)}
               tabIndex={-1}
+              role="option"
+              aria-selected={i === selectedIndex}
             >
               <span className="command-palette-item-label">
                 {cmd.category && <span className="command-palette-item-category">{cmd.category}</span>}

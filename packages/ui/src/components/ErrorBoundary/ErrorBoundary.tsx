@@ -1,4 +1,4 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, type ReactNode, type ErrorInfo, createRef } from 'react';
 import './ErrorBoundary.css';
 
 interface Props {
@@ -13,6 +13,7 @@ interface State {
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null };
+  private recoverBtnRef = createRef<HTMLButtonElement>();
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -21,6 +22,12 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[ErrorBoundary] Caught rendering error:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
+  }
+
+  componentDidUpdate(_prevProps: Props, prevState: State) {
+    if (this.state.hasError && !prevState.hasError) {
+      this.recoverBtnRef.current?.focus();
+    }
   }
 
   handleReload = () => {
@@ -35,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
 
     return (
-      <div className="error-boundary">
+      <div className="error-boundary" role="alert">
         <div className="error-boundary-content">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -50,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <pre className="error-boundary-detail">{this.state.error.message}</pre>
           )}
           <div className="error-boundary-actions">
-            <button className="error-boundary-btn error-boundary-btn--primary" onClick={this.handleRecover}>
+            <button ref={this.recoverBtnRef} className="error-boundary-btn error-boundary-btn--primary" onClick={this.handleRecover}>
               Try to recover
             </button>
             <button className="error-boundary-btn" onClick={this.handleReload}>

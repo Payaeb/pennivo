@@ -1,4 +1,4 @@
-import { useRef, useEffect, useReducer } from 'react';
+import { useRef, useEffect, useReducer, useState, useCallback } from 'react';
 import { getActiveTableElement, type TableAction } from '../Editor/tablePlugin';
 import './TableToolbar.css';
 
@@ -58,21 +58,49 @@ export function TableToolbar({ onAction }: TableToolbarProps) {
     };
   }, []);
 
-  const btn = (action: TableAction, title: string, icon: React.ReactNode, className = '') => (
-    <button
-      className={`table-tb-btn ${className}`.trim()}
-      title={title}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => onAction(action)}
-    >
-      {icon}
-    </button>
-  );
+  const [rovingIdx, setRovingIdx] = useState(0);
+  let btnCounter = 0;
+
+  const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const toolbar = ref.current;
+    if (!toolbar) return;
+    const buttons = Array.from(toolbar.querySelectorAll<HTMLElement>('.table-tb-btn'));
+    if (buttons.length === 0) return;
+
+    let newIdx = rovingIdx;
+    if (e.key === 'ArrowRight') { e.preventDefault(); newIdx = (rovingIdx + 1) % buttons.length; }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); newIdx = (rovingIdx - 1 + buttons.length) % buttons.length; }
+    else if (e.key === 'Home') { e.preventDefault(); newIdx = 0; }
+    else if (e.key === 'End') { e.preventDefault(); newIdx = buttons.length - 1; }
+    else return;
+    setRovingIdx(newIdx);
+    buttons[newIdx]?.focus();
+  }, [rovingIdx]);
+
+  const btn = (action: TableAction, title: string, icon: React.ReactNode, className = '') => {
+    const idx = btnCounter++;
+    return (
+      <button
+        className={`table-tb-btn ${className}`.trim()}
+        title={title}
+        aria-label={title}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => onAction(action)}
+        tabIndex={idx === rovingIdx ? 0 : -1}
+        onFocus={() => setRovingIdx(idx)}
+      >
+        {icon}
+      </button>
+    );
+  };
 
   return (
     <div
       ref={ref}
       className="table-toolbar"
+      role="toolbar"
+      aria-label="Table actions"
+      onKeyDown={handleToolbarKeyDown}
       style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { top: -9999, left: 0, opacity: 0 }}
     >
       <div className="table-tb-group">

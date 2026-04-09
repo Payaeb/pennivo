@@ -80,9 +80,11 @@ export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = fals
   const [tooltip, setTooltip] = useState<{ action: string; rect: DOMRect } | null>(null);
   const [hiddenActions, setHiddenActions] = useState<Set<string>>(new Set());
   const [moreOpen, setMoreOpen] = useState(false);
+  const [rovingIndex, setRovingIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const leftRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   // Detect which buttons are clipped by overflow
   useEffect(() => {
@@ -131,22 +133,28 @@ export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = fals
     setTooltip(null);
   }, []);
 
-  const btn = (action: ToolbarAction, label: string, children: React.ReactNode, disabled = false) => (
-    <button
-      key={action}
-      className={`tool-btn${activeFormats.has(action) ? ' tool-btn--active' : ''}${disabled ? ' tool-btn--disabled' : ''}`}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => { if (!disabled) { onAction?.(action); hideTooltip(); } }}
-      tabIndex={-1}
-      aria-label={label}
-      aria-pressed={activeFormats.has(action)}
-      aria-disabled={disabled}
-      onMouseEnter={(e) => showTooltip(action, e.currentTarget)}
-      onMouseLeave={hideTooltip}
-    >
-      {children}
-    </button>
-  );
+  // Counter for roving tabIndex — reset each render
+  let btnIndex = 0;
+  const btn = (action: ToolbarAction, label: string, children: React.ReactNode, disabled = false) => {
+    const idx = btnIndex++;
+    return (
+      <button
+        key={action}
+        className={`tool-btn${activeFormats.has(action) ? ' tool-btn--active' : ''}${disabled ? ' tool-btn--disabled' : ''}`}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => { if (!disabled) { onAction?.(action); hideTooltip(); } }}
+        tabIndex={idx === rovingIndex ? 0 : -1}
+        aria-label={label}
+        aria-pressed={activeFormats.has(action)}
+        aria-disabled={disabled}
+        onMouseEnter={(e) => showTooltip(action, e.currentTarget)}
+        onMouseLeave={hideTooltip}
+        onFocus={() => setRovingIndex(idx)}
+      >
+        {children}
+      </button>
+    );
+  };
 
   const tip = TOOLTIP_DATA[tooltip?.action ?? ''];
 
@@ -198,6 +206,33 @@ export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = fals
     );
   }
 
+  // Roving tabIndex keyboard handler
+  const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const buttons = Array.from(toolbar.querySelectorAll<HTMLElement>('.tool-btn'));
+    if (buttons.length === 0) return;
+
+    let newIndex = rovingIndex;
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      newIndex = (rovingIndex + 1) % buttons.length;
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      newIndex = (rovingIndex - 1 + buttons.length) % buttons.length;
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      newIndex = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      newIndex = buttons.length - 1;
+    } else {
+      return;
+    }
+    setRovingIndex(newIndex);
+    buttons[newIndex]?.focus();
+  }, [rovingIndex]);
+
   const handleContextMenu = (e: React.MouseEvent) => {
     if (!onCustomize) return;
     e.preventDefault();
@@ -205,7 +240,7 @@ export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = fals
   };
 
   return (
-    <div className="toolbar" role="toolbar" aria-label="Formatting" onContextMenu={handleContextMenu}>
+    <div className="toolbar" role="toolbar" aria-label="Formatting" ref={toolbarRef} onKeyDown={handleToolbarKeyDown} onContextMenu={handleContextMenu}>
       <div className="toolbar-left" ref={leftRef}>
         {groupedElements}
       </div>
@@ -218,6 +253,7 @@ export function Toolbar({ activeFormats = new Set(), onAction, sourceMode = fals
             onMouseDown={e => e.preventDefault()}
             tabIndex={-1}
             aria-label="More formatting"
+            aria-expanded={moreOpen}
           >
             <MoreIcon />
           </button>

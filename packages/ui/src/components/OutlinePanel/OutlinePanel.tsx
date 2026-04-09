@@ -202,7 +202,7 @@ export function OutlinePanel({
   if (!visible) return null;
 
   return (
-    <div className="outline-panel" ref={panelRef} style={{ width }}>
+    <div className="outline-panel" ref={panelRef} style={{ width }} role="navigation" aria-label="Document outline">
       <div
         className={`outline-resize-handle${resizing ? ' outline-resize-handle--active' : ''}`}
         onMouseDown={handleResizeStart}
@@ -211,20 +211,22 @@ export function OutlinePanel({
         <span className="outline-title">Outline</span>
       </div>
       {headings.length > 0 ? (
-        <div className="outline-list" ref={listRef}>
+        <div className="outline-list" ref={listRef} role="list">
           {headings.map((h, i) => (
-            <button
-              key={`${h.index}-${h.text}`}
-              className={`outline-item${activeIndex === i ? ' outline-item--active' : ''}`}
-              style={{ paddingLeft: 12 + (h.level - minLevel) * 16 }}
-              onClick={() => onHeadingClick(h)}
-              title={h.text}
-            >
-              <span className="outline-item-indicator" data-level={h.level}>
-                H{h.level}
-              </span>
-              <span className="outline-item-text">{h.text}</span>
-            </button>
+            <div key={`${h.index}-${h.text}`} role="listitem">
+              <button
+                className={`outline-item${activeIndex === i ? ' outline-item--active' : ''}`}
+                style={{ paddingLeft: 12 + (h.level - minLevel) * 16 }}
+                onClick={() => onHeadingClick(h)}
+                title={h.text}
+                aria-current={activeIndex === i ? 'true' : undefined}
+              >
+                <span className="outline-item-indicator" data-level={h.level}>
+                  H{h.level}
+                </span>
+                <span className="outline-item-text">{h.text}</span>
+              </button>
+            </div>
           ))}
         </div>
       ) : (

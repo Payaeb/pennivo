@@ -422,7 +422,7 @@ export function FindReplace({ visible, getView, getCmView, sourceMode = false, o
     : query ? 'No results' : '';
 
   return (
-    <div className="find-replace-bar" onKeyDown={handleKeyDown}>
+    <div className="find-replace-bar" onKeyDown={handleKeyDown} role="search">
       <div className="find-replace-row">
         <div className="find-input-wrapper">
           <input
@@ -433,24 +433,27 @@ export function FindReplace({ visible, getView, getCmView, sourceMode = false, o
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             spellCheck={false}
+            aria-label="Find"
           />
-          {matchLabel && <span className="find-match-count">{matchLabel}</span>}
+          {matchLabel && <span className="find-match-count" aria-live="polite">{matchLabel}</span>}
         </div>
         <button
           className={`find-btn find-btn--regex${useRegex ? ' find-btn--active' : ''}`}
           onClick={handleRegexToggle}
           title="Use regular expression"
+          aria-label="Use regular expression"
+          aria-pressed={useRegex}
           tabIndex={-1}
         >
           .*
         </button>
-        <button className="find-btn" onClick={() => goToMatch('prev')} title="Previous match (Shift+Enter)" tabIndex={-1}>
+        <button className="find-btn" onClick={() => goToMatch('prev')} title="Previous match (Shift+Enter)" aria-label="Previous match" tabIndex={-1}>
           <ChevronUpIcon />
         </button>
-        <button className="find-btn" onClick={() => goToMatch('next')} title="Next match (Enter)" tabIndex={-1}>
+        <button className="find-btn" onClick={() => goToMatch('next')} title="Next match (Enter)" aria-label="Next match" tabIndex={-1}>
           <ChevronDownIcon />
         </button>
-        <button className="find-btn find-btn--close" onClick={onClose} title="Close (Escape)" tabIndex={-1}>
+        <button className="find-btn find-btn--close" onClick={onClose} title="Close (Escape)" aria-label="Close find and replace" tabIndex={-1}>
           <CloseIcon />
         </button>
       </div>
@@ -463,12 +466,13 @@ export function FindReplace({ visible, getView, getCmView, sourceMode = false, o
             value={replaceText}
             onChange={(e) => setReplaceText(e.target.value)}
             spellCheck={false}
+            aria-label="Replace"
           />
         </div>
-        <button className="find-btn find-btn--action" onClick={doReplace} title="Replace" tabIndex={-1}>
+        <button className="find-btn find-btn--action" onClick={doReplace} title="Replace" aria-label="Replace" tabIndex={-1}>
           Replace
         </button>
-        <button className="find-btn find-btn--action" onClick={doReplaceAll} title="Replace All" tabIndex={-1}>
+        <button className="find-btn find-btn--action" onClick={doReplaceAll} title="Replace All" aria-label="Replace all" tabIndex={-1}>
           All
         </button>
       </div>

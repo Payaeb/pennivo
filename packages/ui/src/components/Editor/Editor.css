@@ -25,19 +25,22 @@
   opacity: 0.85;
 }
 
-/* Milkdown shell — remove default focus ring */
-.milkdown {
+/* Milkdown shell — hide focus ring on mouse click */
+.milkdown:focus:not(:focus-visible) {
   outline: none;
 }
 
-.milkdown .editor {
+.milkdown .editor:focus:not(:focus-visible) {
   outline: none;
 }
 
 /* ─── ProseMirror prose styles ─── */
 
-.ProseMirror {
+.ProseMirror:focus:not(:focus-visible) {
   outline: none;
+}
+
+.ProseMirror {
   white-space: pre-wrap;
   font-family: var(--font-editor);
   font-size: var(--text-base);

@@ -97,17 +97,21 @@ export function AppShell({
 
   return (
     <div className={shellClass}>
-      <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />
+      <header role="banner">
+        <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />
+      </header>
       <div className="app-toolbar-row">{toolbar}</div>
       {findReplace}
       <div className="app-body">
-        {sidebar}
+        {sidebar && <aside role="complementary" aria-label="File browser">{sidebar}</aside>}
         <main className="app-editor-area">
           <div className="app-editor-column">{children}</div>
         </main>
-        {outline}
+        {outline && <aside role="complementary" aria-label="Document outline">{outline}</aside>}
       </div>
-      <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
+      <footer role="contentinfo">
+        <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
+      </footer>
     </div>
   );
 }

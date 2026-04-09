@@ -35,9 +35,12 @@
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
-  outline: none;
   transition: border-color var(--transition-fast);
   box-sizing: border-box;
+}
+
+.link-popover-input:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .link-popover-input:focus {

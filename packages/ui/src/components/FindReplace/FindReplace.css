@@ -51,12 +51,15 @@
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 12.5px;
-  outline: none;
   transition: border-color var(--transition-fast);
 }
 
 .find-input::placeholder {
   color: var(--text-faint);
+}
+
+.find-input:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .find-input:focus {
