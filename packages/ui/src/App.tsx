@@ -346,6 +346,15 @@ function AppContent() {
 
   // --- Load content into the active editor ---
   // Both editors stay mounted; update the visible one directly.
+  //
+  // Cold-start race: when Pennivo is launched by double-clicking a .md
+  // in Explorer, the file IPC chain may resolve before Milkdown finishes
+  // initializing. We always update markdownRef first so the deferred
+  // effect below can drain it once the editor is ready, and we attempt
+  // a direct apply if the editor is already ready by the time we get
+  // here. We do NOT check `loading` — the deps would freeze its value
+  // in the closure and the late callers from the cold-start effect
+  // would always see loading=true and silently skip.
   const loadContent = useCallback((content: string) => {
     markdownRef.current = content;
     setOutlineMarkdown(content);
@@ -355,45 +364,41 @@ function AppContent() {
         ? relativizeImagePaths(content, filePathRef.current)
         : content;
       setSourceContent(sourceMarkdown);
-    } else {
-      const editor = getInstance();
-      if (editor && !loading) {
-        try {
-          editor.action(replaceAll(content));
-        } catch (err) {
-          console.error('[loadContent] Markdown parse failed, falling back to source mode:', err);
-          // Switch to source mode so the user can see and fix the raw content
-          setSourceMode(true);
-          sourceModeRef.current = true;
-          const sourceMarkdown = filePathRef.current
-            ? relativizeImagePaths(content, filePathRef.current)
-            : content;
-          setSourceContent(sourceMarkdown);
-          showToast("This file couldn\u2019t be parsed as markdown. Showing raw content.");
-        }
-      }
-    }
-  }, [loading, getInstance, showToast]);
-
-  // --- Apply pending markdown once Milkdown finishes initializing ---
-  // Cold-start path (double-clicking a .md in Explorer) reads the file
-  // via IPC and calls loadContent BEFORE Milkdown's editor instance
-  // is ready. In that case loadContent updates markdownRef but the
-  // WYSIWYG editor stays empty. Once `loading` flips false the editor
-  // is ready, so re-apply whatever's in markdownRef.
-  const initialContentAppliedRef = useRef(false);
-  useEffect(() => {
-    if (loading) return;
-    if (initialContentAppliedRef.current) return;
-    if (sourceModeRef.current) {
-      // Source mode doesn't go through Milkdown — already displayed.
-      initialContentAppliedRef.current = true;
       return;
     }
     const editor = getInstance();
+    if (!editor) {
+      // Milkdown still initializing — content stays in markdownRef and
+      // the effect below drains it once the editor is ready.
+      return;
+    }
+    try {
+      editor.action(replaceAll(content));
+    } catch (err) {
+      console.error('[loadContent] Markdown parse failed, falling back to source mode:', err);
+      // Switch to source mode so the user can see and fix the raw content
+      setSourceMode(true);
+      sourceModeRef.current = true;
+      const sourceMarkdown = filePathRef.current
+        ? relativizeImagePaths(content, filePathRef.current)
+        : content;
+      setSourceContent(sourceMarkdown);
+      showToast("This file couldn\u2019t be parsed as markdown. Showing raw content.");
+    }
+  }, [getInstance, showToast]);
+
+  // --- Drain pending markdown when Milkdown finishes initializing ---
+  // Pairs with loadContent above for the cold-start race: if a .md was
+  // opened from Explorer before the editor was ready, markdownRef holds
+  // the file content; flush it as soon as `loading` flips false. This
+  // effect runs at most once (Milkdown only transitions out of loading
+  // once per session), so there's no need for a guard ref.
+  useEffect(() => {
+    if (loading) return;
+    if (sourceModeRef.current) return;
+    const editor = getInstance();
     if (!editor) return;
     const pending = markdownRef.current;
-    initialContentAppliedRef.current = true;
     if (!pending) return;
     try {
       editor.action(replaceAll(pending));
