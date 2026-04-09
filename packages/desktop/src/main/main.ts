@@ -94,7 +94,11 @@ function readWindowState(): WindowState {
 
 function saveWindowState(): void {
   if (!mainWindow) return;
-  const bounds = mainWindow.getBounds();
+  // Use getNormalBounds() so we persist the pre-maximize size, not the
+  // maximized bounds. Otherwise restoring + unmaximizing leaves the
+  // window stuck at full-screen size with nothing smaller to fall back
+  // to.
+  const bounds = mainWindow.getNormalBounds();
   const maximized = mainWindow.isMaximized();
   const state: WindowState = {
     x: bounds.x,
