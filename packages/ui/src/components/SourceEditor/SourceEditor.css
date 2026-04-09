@@ -5,12 +5,17 @@
   height: 100%;
 }
 
-.source-editor-wrapper .cm-editor {
+.source-editor-wrapper .cm-editor,
+.source-editor-wrapper .cm-editor:focus,
+.source-editor-wrapper .cm-editor:focus-visible {
   outline: none;
   height: 100%;
 }
 
-.source-editor-wrapper .cm-editor.cm-focused {
+.source-editor-wrapper .cm-editor.cm-focused,
+.source-editor-wrapper .cm-content,
+.source-editor-wrapper .cm-content:focus,
+.source-editor-wrapper .cm-content:focus-visible {
   outline: none;
 }
 

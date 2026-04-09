@@ -61,6 +61,13 @@ contextBridge.exposeInMainWorld('pennivo', {
   setSpellCheckLanguages:      (languages: string[]) => ipcRenderer.invoke('spellcheck:set-languages', languages) as Promise<void>,
   addWordToDictionary:         (word: string) => ipcRenderer.invoke('spellcheck:add-word', word) as Promise<void>,
 
+  // Settings
+  getSettings:  () => ipcRenderer.invoke('settings:get') as Promise<Record<string, unknown>>,
+  setSettings:  (settings: Record<string, unknown>) => ipcRenderer.invoke('settings:set', settings) as Promise<void>,
+
+  // App info
+  getAppInfo:   () => ipcRenderer.invoke('app:get-info') as Promise<{ version: string; name: string }>,
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },

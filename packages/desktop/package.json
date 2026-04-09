@@ -1,8 +1,9 @@
 {
   "name": "@pennivo/desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Pennivo desktop application",
+  "productName": "Pennivo",
+  "description": "A markdown editor for writers",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
   "license": "MIT",
   "main": "dist/main/main.js",

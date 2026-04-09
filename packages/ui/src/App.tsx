@@ -45,12 +45,16 @@ import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { resolveImagePaths, relativizeImagePaths } from './utils/imagePaths';
 import { extractFilename } from './utils/paths';
 import { saveDraft, loadDraft, clearDraft, type DraftData } from './utils/draftStorage';
+import { WELCOME_CONTENT } from './utils/welcomeContent';
 
 // Lazy-loaded components — deferred until first use to reduce startup bundle
 const LazySourceEditor = lazy(() => import('./components/SourceEditor/SourceEditor').then(m => ({ default: m.SourceEditor })));
 const LazyGanttEditorPanel = lazy(() => import('./components/GanttEditor/GanttEditorPanel').then(m => ({ default: m.GanttEditorPanel })));
 const LazyKanbanEditorPanel = lazy(() => import('./components/KanbanEditor/KanbanEditorPanel').then(m => ({ default: m.KanbanEditorPanel })));
 const LazyToolbarCustomizer = lazy(() => import('./components/ToolbarCustomizer/ToolbarCustomizer').then(m => ({ default: m.ToolbarCustomizer })));
+const LazyAboutDialog = lazy(() => import('./components/AboutDialog/AboutDialog').then(m => ({ default: m.AboutDialog })));
+const LazyShortcutsSheet = lazy(() => import('./components/ShortcutsSheet/ShortcutsSheet').then(m => ({ default: m.ShortcutsSheet })));
+const LazySettingsPanel = lazy(() => import('./components/SettingsPanel/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
 
 const AUTO_SAVE_DELAY = 3000;
 const DRAFT_SAVE_INTERVAL = 30_000;
@@ -155,6 +159,29 @@ function AppContent() {
   // --- Toolbar config ---
   const [toolbarConfig, setToolbarConfig] = useState<ConfigurableAction[]>(DEFAULT_TOOLBAR_CONFIG);
   const [toolbarCustomizerOpen, setToolbarCustomizerOpen] = useState(false);
+
+  // --- Dialog state ---
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // --- Settings-backed UI state ---
+  const [showWordCount, setShowWordCount] = useState(true);
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    window.pennivo?.getSettings?.().then((saved) => {
+      if (saved && typeof saved.showWordCount === 'boolean') {
+        setShowWordCount(saved.showWordCount);
+      }
+    });
+  }, []);
+
+  const handleSettingsChange = useCallback((settings: Record<string, unknown>) => {
+    if (typeof settings.showWordCount === 'boolean') {
+      setShowWordCount(settings.showWordCount);
+    }
+  }, []);
 
   // --- Recent files ---
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
@@ -360,7 +387,14 @@ function AppContent() {
       // response === 1: discard, proceed
     }
 
-    const result = await window.pennivo?.openFile();
+    let result;
+    try {
+      result = await window.pennivo?.openFile();
+    } catch (err) {
+      console.error('[doOpen] Failed to read file:', err);
+      showToast('Could not open this file — it may be corrupted or unreadable');
+      return;
+    }
     if (!result) return;
 
     const size = result.fileSize ?? 0;
@@ -411,7 +445,14 @@ function AppContent() {
       }
     }
 
-    const result = await window.pennivo?.openFilePath(recentPath);
+    let result;
+    try {
+      result = await window.pennivo?.openFilePath(recentPath);
+    } catch (err) {
+      console.error('[openRecentFile] Failed to read file:', err);
+      showToast('Could not open this file — it may be missing or unreadable');
+      return;
+    }
     if (!result) return;
 
     const size = result.fileSize ?? 0;
@@ -455,7 +496,14 @@ function AppContent() {
       }
     }
 
-    const result = await window.pennivo?.openFilePath(clickedPath);
+    let result;
+    try {
+      result = await window.pennivo?.openFilePath(clickedPath);
+    } catch (err) {
+      console.error('[handleSidebarFileClick] Failed to read file:', err);
+      showToast('Could not open this file — it may be missing or unreadable');
+      return;
+    }
     if (!result) return;
 
     const size = result.fileSize ?? 0;
@@ -551,10 +599,21 @@ function AppContent() {
       const age = Date.now() - draft.timestamp;
       if (age < 24 * 60 * 60 * 1000) {
         setDraftRecovery(draft);
+        return; // Don't load welcome doc if there's a draft to recover
       } else {
         clearDraft();
       }
     }
+
+    // First-run onboarding: load welcome document on first launch
+    window.pennivo?.getSettings?.().then((settings: Record<string, unknown>) => {
+      if (settings && settings.firstRun === false) return; // Not first run
+      // First run (firstRun is undefined or true) — show welcome content
+      loadContent(WELCOME_CONTENT);
+      markdownRef.current = WELCOME_CONTENT;
+      setOutlineMarkdown(WELCOME_CONTENT);
+      window.pennivo?.setSettings?.({ ...settings, firstRun: false });
+    });
   }, []);
 
   const handleRecoverDraft = useCallback(() => {
@@ -872,13 +931,16 @@ function AppContent() {
       if (findReplaceOpen) return;
       if (commandPaletteOpen) return;
       if (toolbarCustomizerOpen) return;
+      if (aboutOpen) return;
+      if (shortcutsOpen) return;
+      if (settingsOpen) return;
       if (document.querySelector('.titlebar-menu-dropdown')) return;
       setFocusMode(false);
       window.pennivo?.setFullScreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode, linkPopover, findReplaceOpen, commandPaletteOpen, kanbanEditor, toolbarCustomizerOpen]);
+  }, [focusMode, linkPopover, findReplaceOpen, commandPaletteOpen, kanbanEditor, toolbarCustomizerOpen, aboutOpen, shortcutsOpen, settingsOpen]);
 
   const openLinkPopover = useCallback(() => {
     if (loading) return;
@@ -1538,6 +1600,8 @@ function AppContent() {
       } else {
         if (e.key === 'f') { e.preventDefault(); setFindReplaceOpen(true); }
         else if (e.key === 'b') { e.preventDefault(); setSidebarVisible(v => !v); }
+        else if (e.key === '/') { e.preventDefault(); setShortcutsOpen(v => !v); }
+        else if (e.key === ',') { e.preventDefault(); setSettingsOpen(v => !v); }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1590,6 +1654,10 @@ function AppContent() {
     // Settings
     { id: 'customizeToolbar', label: 'Customize Toolbar', category: 'Settings', keywords: 'toolbar buttons customize configure' },
     { id: 'spellcheckSettings', label: 'Spellcheck Languages', category: 'Settings', keywords: 'spell check language dictionary' },
+    { id: 'openSettings', label: 'Open Settings', shortcut: 'Ctrl+,', category: 'Settings', keywords: 'preferences options config' },
+    // Help
+    { id: 'showShortcuts', label: 'Keyboard Shortcuts', shortcut: 'Ctrl+/', category: 'Help', keywords: 'keys hotkeys bindings' },
+    { id: 'showAbout', label: 'About Pennivo', category: 'Help', keywords: 'version info' },
   ], []);
 
   // --- Hamburger menu actions ---
@@ -1654,6 +1722,9 @@ function AppContent() {
         case 'themeNord':     setColorScheme('nord'); showToast('Theme: Nord'); break;
         case 'themeRosepine': setColorScheme('rosepine'); showToast('Theme: Rose Pine'); break;
         case 'customizeToolbar': setToolbarCustomizerOpen(true); break;
+        case 'openSettings':       setSettingsOpen(true); break;
+        case 'showShortcuts':      setShortcutsOpen(true); break;
+        case 'showAbout':          setAboutOpen(true); break;
         case 'spellcheckSettings': {
           // Cycle through common language presets
           (async () => {
@@ -1720,6 +1791,7 @@ function AppContent() {
       wordCount={wordCount}
       charCount={charCount}
       saveStatus={saveStatus}
+      showWordCount={showWordCount}
       focusMode={focusMode}
       sourceMode={sourceMode}
       typewriterMode={typewriterMode}
@@ -1859,6 +1931,21 @@ function AppContent() {
           />
         </Suspense>
       )}
+      <Suspense fallback={null}>
+        <LazyAboutDialog visible={aboutOpen} onClose={() => setAboutOpen(false)} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <LazyShortcutsSheet visible={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <LazySettingsPanel
+          visible={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          typewriterMode={typewriterMode}
+          onTypewriterModeChange={(v) => { setTypewriterMode(v); typewriterModeRef.current = v; }}
+          onChange={handleSettingsChange}
+        />
+      </Suspense>
     </AppShell>
   );
 }

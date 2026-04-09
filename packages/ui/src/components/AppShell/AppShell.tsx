@@ -9,6 +9,7 @@ interface AppShellProps {
   wordCount?: number;
   charCount?: number;
   saveStatus?: SaveStatus;
+  showWordCount?: boolean;
   focusMode?: boolean;
   sourceMode?: boolean;
   typewriterMode?: boolean;
@@ -28,6 +29,7 @@ export function AppShell({
   wordCount = 0,
   charCount = 0,
   saveStatus = 'saved',
+  showWordCount = true,
   focusMode = false,
   sourceMode = false,
   typewriterMode = false,
@@ -110,7 +112,7 @@ export function AppShell({
         {outline && <aside role="complementary" aria-label="Document outline">{outline}</aside>}
       </div>
       <footer role="contentinfo">
-        <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} />
+        <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} showWordCount={showWordCount} />
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, screen, session, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { watch, type FSWatcher } from 'node:fs';
+import { readFileSync, writeFileSync, watch, type FSWatcher } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,6 +11,85 @@ let mainWindow: BrowserWindow | null = null;
 let isDirty = false;
 let forceClose = false;
 let folderWatcher: FSWatcher | null = null;
+
+// --- Window state persistence ---
+interface WindowState {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  maximized: boolean;
+}
+
+const DEFAULT_WINDOW_STATE: WindowState = { width: 1200, height: 800, maximized: false };
+
+function getWindowStatePath(): string {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function readWindowState(): WindowState {
+  try {
+    const data = readFileSync(getWindowStatePath(), 'utf-8');
+    const parsed = JSON.parse(data);
+    if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+      return parsed;
+    }
+  } catch {
+    // File doesn't exist or is corrupt
+  }
+  return DEFAULT_WINDOW_STATE;
+}
+
+function saveWindowState(): void {
+  if (!mainWindow) return;
+  const bounds = mainWindow.getBounds();
+  const maximized = mainWindow.isMaximized();
+  const state: WindowState = {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    maximized,
+  };
+  writeFileSync(getWindowStatePath(), JSON.stringify(state), 'utf-8');
+}
+
+function isPositionOnScreen(x: number, y: number): boolean {
+  const displays = screen.getAllDisplays();
+  return displays.some((d) => {
+    const { x: dx, y: dy, width, height } = d.bounds;
+    return x >= dx && x < dx + width && y >= dy && y < dy + height;
+  });
+}
+
+// --- Settings persistence ---
+interface AppSettings {
+  firstRun?: boolean;
+  editorFontSize?: number;
+  editorFontFamily?: string;
+  autoSave?: boolean;
+  autoSaveDelay?: number;
+  spellcheck?: boolean;
+  showWordCount?: boolean;
+  typewriterMode?: boolean;
+}
+
+function getSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readSettings(): AppSettings {
+  try {
+    const data = readFileSync(getSettingsPath(), 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+async function writeSettings(settings: AppSettings): Promise<void> {
+  await fs.writeFile(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf-8');
+}
 
 // --- Recent files persistence ---
 const RECENT_FILES_MAX = 10;
@@ -342,9 +421,10 @@ svg .nodeLabel, svg .edgeLabel, svg foreignObject div, svg foreignObject span, s
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+  const savedState = readWindowState();
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: savedState.width,
+    height: savedState.height,
     minWidth: 600,
     minHeight: 400,
     title: 'Pennivo',
@@ -358,7 +438,21 @@ function createWindow() {
       sandbox: true,
       spellcheck: true,
     },
-  });
+  };
+
+  // Restore position if it's on a visible screen
+  if (savedState.x !== undefined && savedState.y !== undefined) {
+    if (isPositionOnScreen(savedState.x, savedState.y)) {
+      windowOptions.x = savedState.x;
+      windowOptions.y = savedState.y;
+    }
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
+
+  if (savedState.maximized) {
+    mainWindow.maximize();
+  }
 
   // Prevent Electron from navigating when files are dragged onto the window
   mainWindow.webContents.on('will-navigate', (e) => {
@@ -409,7 +503,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  // Save window state before close
   mainWindow.on('close', async (e) => {
+    saveWindowState();
     if (forceClose || !isDirty) return;
 
     e.preventDefault();
@@ -596,12 +692,16 @@ function registerIpcHandlers() {
 
     if (canceled || filePaths.length === 0) return null;
 
-    const filePath = filePaths[0];
-    const stat = await fs.stat(filePath);
-    const fileSize = stat.size;
-    const content = await fs.readFile(filePath, 'utf-8');
-    await addRecentFile(filePath);
-    return { filePath, content, fileSize };
+    try {
+      const filePath = filePaths[0];
+      const stat = await fs.stat(filePath);
+      const fileSize = stat.size;
+      const content = await fs.readFile(filePath, 'utf-8');
+      await addRecentFile(filePath);
+      return { filePath, content, fileSize };
+    } catch {
+      return null;
+    }
   });
 
   // Save to existing path
@@ -816,6 +916,23 @@ function registerIpcHandlers() {
 
   ipcMain.handle('spellcheck:add-word', (_e, word: string) => {
     mainWindow?.webContents.session.addWordToSpellCheckerDictionary(word);
+  });
+
+  // --- Settings ---
+  ipcMain.handle('settings:get', () => {
+    return readSettings();
+  });
+
+  ipcMain.handle('settings:set', async (_e, settings: AppSettings) => {
+    await writeSettings(settings);
+  });
+
+  // --- App info ---
+  ipcMain.handle('app:get-info', () => {
+    return {
+      version: app.getVersion(),
+      name: app.getName(),
+    };
   });
 
   ipcMain.handle('export:pdf', async (_e, args: { html: string; title: string }) => {

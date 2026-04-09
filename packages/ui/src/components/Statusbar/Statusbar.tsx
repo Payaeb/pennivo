@@ -6,21 +6,26 @@ interface StatusbarProps {
   wordCount: number;
   charCount: number;
   saveStatus: SaveStatus;
+  showWordCount?: boolean;
 }
 
-export function Statusbar({ wordCount, charCount, saveStatus }: StatusbarProps) {
+export function Statusbar({ wordCount, charCount, saveStatus, showWordCount = true }: StatusbarProps) {
   const rawMinutes = wordCount / 238;
   const readingLabel = rawMinutes < 1 ? '< 1 min read' : `${Math.ceil(rawMinutes)} min read`;
 
   return (
     <div className="statusbar" role="status">
       <StatusSave status={saveStatus} />
-      <span className="status-sep">·</span>
-      <span className="status-item">{wordCount.toLocaleString()} words</span>
-      <span className="status-sep">·</span>
-      <span className="status-item">{charCount.toLocaleString()} characters</span>
-      <span className="status-sep">·</span>
-      <span className="status-item">{readingLabel}</span>
+      {showWordCount && (
+        <>
+          <span className="status-sep">·</span>
+          <span className="status-item">{wordCount.toLocaleString()} words</span>
+          <span className="status-sep">·</span>
+          <span className="status-item">{charCount.toLocaleString()} characters</span>
+          <span className="status-sep">·</span>
+          <span className="status-item">{readingLabel}</span>
+        </>
+      )}
     </div>
   );
 }

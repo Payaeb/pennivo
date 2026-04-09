@@ -25,18 +25,21 @@
   opacity: 0.85;
 }
 
-/* Milkdown shell — hide focus ring on mouse click */
-.milkdown:focus:not(:focus-visible) {
-  outline: none;
-}
-
-.milkdown .editor:focus:not(:focus-visible) {
+/* Milkdown shell — never show a focus outline; editable area has its own caret */
+.milkdown,
+.milkdown:focus,
+.milkdown:focus-visible,
+.milkdown .editor,
+.milkdown .editor:focus,
+.milkdown .editor:focus-visible {
   outline: none;
 }
 
 /* ─── ProseMirror prose styles ─── */
 
-.ProseMirror:focus:not(:focus-visible) {
+.ProseMirror,
+.ProseMirror:focus,
+.ProseMirror:focus-visible {
   outline: none;
 }
 

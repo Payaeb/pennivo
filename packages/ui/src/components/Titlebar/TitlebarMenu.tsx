@@ -10,7 +10,8 @@ export type MenuAction =
   | 'exportHtml' | 'exportPdf'
   | 'spellcheckSettings'
   | 'cycleTheme' | 'themeDefault' | 'themeSepia' | 'themeNord' | 'themeRosepine'
-  | 'customizeToolbar';
+  | 'customizeToolbar'
+  | 'openSettings' | 'showShortcuts' | 'showAbout';
 
 export interface RecentFileEntry {
   filePath: string;
@@ -77,10 +78,19 @@ const MENU_SECTIONS: MenuSection[] = [
       { label: 'Toggle Theme', action: 'toggleTheme' },
       { separator: true, label: '' },
       { label: 'Customize Toolbar\u2026', action: 'customizeToolbar' },
+      { label: 'Settings\u2026', action: 'openSettings', shortcut: 'Ctrl+,' },
       { separator: true, label: '' },
       { label: 'Zoom In',      action: 'zoomIn',      shortcut: 'Ctrl+=' },
       { label: 'Zoom Out',     action: 'zoomOut',     shortcut: 'Ctrl+\u2013' },
       { label: 'Reset Zoom',   action: 'resetZoom',   shortcut: 'Ctrl+0' },
+    ],
+  },
+  {
+    label: 'Help',
+    items: [
+      { label: 'Keyboard Shortcuts', action: 'showShortcuts', shortcut: 'Ctrl+/' },
+      { separator: true, label: '' },
+      { label: 'About Pennivo', action: 'showAbout' },
     ],
   },
 ];

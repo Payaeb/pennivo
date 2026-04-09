@@ -59,6 +59,13 @@ interface PennivoAPI {
   setSpellCheckLanguages: (languages: string[]) => Promise<void>;
   addWordToDictionary: (word: string) => Promise<void>;
 
+  // Settings
+  getSettings: () => Promise<Record<string, unknown>>;
+  setSettings: (settings: Record<string, unknown>) => Promise<void>;
+
+  // App info
+  getAppInfo: () => Promise<{ version: string; name: string }>;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;
