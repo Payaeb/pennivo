@@ -66,6 +66,10 @@ interface PennivoAPI {
   // App info
   getAppInfo: () => Promise<{ version: string; name: string }>;
 
+  // File-from-OS (double-click .md in Explorer / second-instance launch)
+  getPendingFilePath: () => Promise<string | null>;
+  onFileOpenFromOS: (cb: (filePath: string) => void) => () => void;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;

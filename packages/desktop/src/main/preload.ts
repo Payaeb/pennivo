@@ -68,6 +68,14 @@ contextBridge.exposeInMainWorld('pennivo', {
   // App info
   getAppInfo:   () => ipcRenderer.invoke('app:get-info') as Promise<{ version: string; name: string }>,
 
+  // File-from-OS (double-click .md in Explorer / second-instance launch)
+  getPendingFilePath: () => ipcRenderer.invoke('app:get-pending-file') as Promise<string | null>,
+  onFileOpenFromOS: (cb: (filePath: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, filePath: string) => cb(filePath);
+    ipcRenderer.on('file:open-from-os', handler);
+    return () => { ipcRenderer.removeListener('file:open-from-os', handler); };
+  },
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },

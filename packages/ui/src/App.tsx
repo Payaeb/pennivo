@@ -27,7 +27,7 @@ import {
 import './styles/tokens.css';
 import './styles/base.css';
 import { AppShell } from './components/AppShell/AppShell';
-import { Editor, DEFAULT_CONTENT } from './components/Editor/Editor';
+import { Editor } from './components/Editor/Editor';
 import { Toolbar, type ToolbarAction, type ConfigurableAction, DEFAULT_TOOLBAR_CONFIG } from './components/Toolbar/Toolbar';
 import { LinkPopover } from './components/LinkPopover/LinkPopover';
 import { FindReplace } from './components/FindReplace/FindReplace';
@@ -45,7 +45,6 @@ import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { resolveImagePaths, relativizeImagePaths } from './utils/imagePaths';
 import { extractFilename } from './utils/paths';
 import { saveDraft, loadDraft, clearDraft, type DraftData } from './utils/draftStorage';
-import { WELCOME_CONTENT } from './utils/welcomeContent';
 
 // Lazy-loaded components — deferred until first use to reduce startup bundle
 const LazySourceEditor = lazy(() => import('./components/SourceEditor/SourceEditor').then(m => ({ default: m.SourceEditor })));
@@ -134,7 +133,7 @@ function AppContent() {
   const [typewriterMode, setTypewriterMode] = useState(false);
   const typewriterModeRef = useRef(false);
   const [outlineVisible, setOutlineVisible] = useState(false);
-  const [outlineMarkdown, setOutlineMarkdown] = useState(DEFAULT_CONTENT);
+  const [outlineMarkdown, setOutlineMarkdown] = useState('');
 
   // --- File state ---
   const [filePath, setFilePathState] = useState<string | null>(null);
@@ -144,8 +143,8 @@ function AppContent() {
   // Refs for stable access in callbacks (avoids stale closures)
   const filePathRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
-  const markdownRef = useRef(DEFAULT_CONTENT);
-  const savedMarkdownRef = useRef(DEFAULT_CONTENT);
+  const markdownRef = useRef('');
+  const savedMarkdownRef = useRef('');
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const draftTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const fileSizeRef = useRef(0);
@@ -599,21 +598,10 @@ function AppContent() {
       const age = Date.now() - draft.timestamp;
       if (age < 24 * 60 * 60 * 1000) {
         setDraftRecovery(draft);
-        return; // Don't load welcome doc if there's a draft to recover
       } else {
         clearDraft();
       }
     }
-
-    // First-run onboarding: load welcome document on first launch
-    window.pennivo?.getSettings?.().then((settings: Record<string, unknown>) => {
-      if (settings && settings.firstRun === false) return; // Not first run
-      // First run (firstRun is undefined or true) — show welcome content
-      loadContent(WELCOME_CONTENT);
-      markdownRef.current = WELCOME_CONTENT;
-      setOutlineMarkdown(WELCOME_CONTENT);
-      window.pennivo?.setSettings?.({ ...settings, firstRun: false });
-    });
   }, []);
 
   const handleRecoverDraft = useCallback(() => {
@@ -1108,6 +1096,20 @@ function AppContent() {
     ];
     return () => cleanups.forEach(cleanup => cleanup?.());
   }, [doOpen, doSave, doSaveAs, toggleFocusMode, doSmartPaste, doNewFile, doExportHtml, doExportPdf]);
+
+  // --- Open .md file passed by the OS (double-click in Explorer) ---
+  // One-shot pull on mount picks up files from the launching argv;
+  // the persistent listener handles second-instance launches.
+  const pendingFileCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!pendingFileCheckedRef.current) {
+      pendingFileCheckedRef.current = true;
+      window.pennivo?.getPendingFilePath().then((filePath) => {
+        if (filePath) openRecentFile(filePath);
+      });
+    }
+    return window.pennivo?.onFileOpenFromOS((filePath) => openRecentFile(filePath));
+  }, [openRecentFile]);
 
   // --- Drag-and-drop .md files to open ---
   const [showDropZone, setShowDropZone] = useState(false);

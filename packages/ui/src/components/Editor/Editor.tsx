@@ -17,34 +17,6 @@ import { tablePlugin } from './tablePlugin';
 import { createFindReplacePlugin } from '../FindReplace/FindReplace';
 import './Editor.css';
 
-export const DEFAULT_CONTENT = `# On Writing
-
-Every writer I know has a ritual. Some need silence, others need the hum of a café. **What they all share is the need for a tool that disappears** — something that gets out of the way and lets the words come.
-
-Most writing software has forgotten this. It offers dashboards, integrations, templates. It wants you to manage your writing rather than *do* your writing.
-
-> "The best tool is the one you forget you're using."
-
-## What a writing tool should be
-
-Plain text, rendered beautifully. Saved reliably. Nothing more. The file format should be \`.md\` — readable anywhere, owned by no one, lasting forever.
-
-- Use the toolbar above to format text
-- Press \`Ctrl+B\` for bold, \`Ctrl+I\` for italic
-- Type \`## \` at the start of a line for a heading
-
-\`\`\`js
-function writeEveryDay(words) {
-  const target = 500;
-  if (words >= target) {
-    return "Well done.";
-  }
-  return \`Keep going — \${target - words} words left.\`;
-}
-\`\`\`
-`;
-
-
 interface EditorProps {
   initialContent?: string;
   onWordCountChange?: (count: number) => void;
@@ -54,7 +26,7 @@ interface EditorProps {
   onImagePaste?: (file: File) => Promise<string | null>;
 }
 
-export function Editor({ initialContent = DEFAULT_CONTENT, onWordCountChange, onCharCountChange, onMarkdownChange, onViewUpdate, onImagePaste }: EditorProps) {
+export function Editor({ initialContent = '', onWordCountChange, onCharCountChange, onMarkdownChange, onViewUpdate, onImagePaste }: EditorProps) {
   // Ref so the paste plugin always sees the latest callback without re-creating the editor
   const onImagePasteRef = useRef(onImagePaste);
   onImagePasteRef.current = onImagePaste;

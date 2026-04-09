@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, screen, session, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { readFileSync, writeFileSync, watch, type FSWatcher } from 'node:fs';
+import { readFileSync, writeFileSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,6 +11,57 @@ let mainWindow: BrowserWindow | null = null;
 let isDirty = false;
 let forceClose = false;
 let folderWatcher: FSWatcher | null = null;
+
+// --- Single-instance lock + file-from-OS handling ---
+// When a user double-clicks a .md file in Explorer (after we've registered
+// the file association), Windows launches Pennivo with the file path as
+// argv[1]. If Pennivo is already running, the OS spawns a second process —
+// we forward its argv to the existing instance and exit the new one.
+
+// Captured at module load so it's set before createWindow runs.
+let pendingFilePath: string | null = null;
+
+const MARKDOWN_EXT_RE = /\.(md|markdown|txt)$/i;
+
+function getFilePathFromArgv(argv: readonly string[]): string | null {
+  // argv[0] is the executable path; skip it. Skip flags (--foo) and the
+  // dev-mode "." cwd marker. Return the first remaining arg that has a
+  // markdown-ish extension and points to a real file.
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i];
+    if (typeof arg !== 'string') continue;
+    if (arg.startsWith('-')) continue;
+    if (arg === '.') continue;
+    if (!MARKDOWN_EXT_RE.test(arg)) continue;
+    try {
+      if (statSync(arg).isFile()) return path.resolve(arg);
+    } catch {
+      // not a real file — keep looking
+    }
+  }
+  return null;
+}
+
+if (!app.requestSingleInstanceLock()) {
+  // Another Pennivo instance is already running. The primary will receive
+  // our argv via the 'second-instance' event below. Quit immediately.
+  app.quit();
+  process.exit(0);
+}
+
+pendingFilePath = getFilePathFromArgv(process.argv);
+
+app.on('second-instance', (_event, commandLine) => {
+  const filePath = getFilePathFromArgv(commandLine);
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    if (filePath) mainWindow.webContents.send('file:open-from-os', filePath);
+  } else if (filePath) {
+    // Window not yet created — queue for the launch effect to pick up.
+    pendingFilePath = filePath;
+  }
+});
 
 // --- Window state persistence ---
 interface WindowState {
@@ -933,6 +984,14 @@ function registerIpcHandlers() {
       version: app.getVersion(),
       name: app.getName(),
     };
+  });
+
+  // Pulled by the renderer on mount to pick up a file passed via OS launch
+  // (e.g. double-clicking a .md in Explorer). One-shot — clears after read.
+  ipcMain.handle('app:get-pending-file', () => {
+    const p = pendingFilePath;
+    pendingFilePath = null;
+    return p;
   });
 
   ipcMain.handle('export:pdf', async (_e, args: { html: string; title: string }) => {
