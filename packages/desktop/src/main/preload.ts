@@ -76,6 +76,14 @@ contextBridge.exposeInMainWorld('pennivo', {
     return () => { ipcRenderer.removeListener('file:open-from-os', handler); };
   },
 
+  // Auto-update (production only — main process never fires these in dev)
+  onUpdateAvailable: (cb: (version: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, version: string) => cb(version);
+    ipcRenderer.on('update:available', handler);
+    return () => { ipcRenderer.removeListener('update:available', handler); };
+  },
+  installUpdate: () => ipcRenderer.send('update:install'),
+
   // Menu events from main process
   onMenuPaste:        (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:paste', handler); return () => { ipcRenderer.removeListener('menu:paste', handler); }; },
   onMenuOpen:         (cb: () => void) => { const handler = () => cb(); ipcRenderer.on('menu:open', handler); return () => { ipcRenderer.removeListener('menu:open', handler); }; },

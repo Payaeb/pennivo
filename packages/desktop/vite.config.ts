@@ -13,7 +13,7 @@ export default defineConfig({
           build: {
             outDir: 'dist/main',
             rollupOptions: {
-              external: ['electron'],
+              external: ['electron', 'electron-updater'],
             },
           },
         },
@@ -24,7 +24,7 @@ export default defineConfig({
           build: {
             outDir: 'dist/preload',
             rollupOptions: {
-              external: ['electron'],
+              external: ['electron', 'electron-updater'],
             },
           },
         },

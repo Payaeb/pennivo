@@ -70,6 +70,10 @@ interface PennivoAPI {
   getPendingFilePath: () => Promise<string | null>;
   onFileOpenFromOS: (cb: (filePath: string) => void) => () => void;
 
+  // Auto-update
+  onUpdateAvailable: (cb: (version: string) => void) => () => void;
+  installUpdate: () => void;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;

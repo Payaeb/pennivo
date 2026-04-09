@@ -150,6 +150,9 @@ function AppContent() {
   const fileSizeRef = useRef(0);
   const [draftRecovery, setDraftRecovery] = useState<DraftData | null>(null);
 
+  // --- Auto-update banner state (set when main fires update:available) ---
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+
   // --- Sidebar state ---
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
@@ -1111,6 +1114,13 @@ function AppContent() {
     return window.pennivo?.onFileOpenFromOS((filePath) => openRecentFile(filePath));
   }, [openRecentFile]);
 
+  // --- Auto-update available banner ---
+  // Main process only fires this in production after a release has been
+  // fully downloaded, so dev runs never see the banner.
+  useEffect(() => {
+    return window.pennivo?.onUpdateAvailable((version) => setUpdateAvailable(version));
+  }, []);
+
   // --- Drag-and-drop .md files to open ---
   const [showDropZone, setShowDropZone] = useState(false);
   const dragCounterRef = useRef(0);
@@ -1879,6 +1889,19 @@ function AppContent() {
           <div className="draft-recovery-actions">
             <button className="draft-recovery-btn draft-recovery-btn--primary" onClick={handleRecoverDraft}>Recover</button>
             <button className="draft-recovery-btn" onClick={handleDiscardDraft}>Discard</button>
+          </div>
+        </div>
+      )}
+      {updateAvailable && (
+        <div className="draft-recovery-banner" role="status" aria-live="polite">
+          <span>A new version of Pennivo is ready. Restart to update.</span>
+          <div className="draft-recovery-actions">
+            <button
+              className="draft-recovery-btn draft-recovery-btn--primary"
+              onClick={() => window.pennivo?.installUpdate()}
+            >
+              Restart Now
+            </button>
           </div>
         </div>
       )}

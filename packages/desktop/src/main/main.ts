@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, screen, session, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { readFileSync, writeFileSync, statSync, watch, type FSWatcher } from 'node:fs';
@@ -1092,6 +1093,28 @@ app.whenReady().then(() => {
   readSidebarFolder().then((folder) => {
     if (folder) startFolderWatcher(folder);
   });
+
+  // --- Auto-update (production only) ---
+  // Skipped in dev so VITE_DEV_SERVER_URL runs are unaffected. Errors are
+  // logged but never surfaced as dialogs — network failures and missing
+  // releases are common and must fail silently.
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    autoUpdater.on('update-downloaded', (info) => {
+      mainWindow?.webContents.send('update:available', info.version);
+    });
+    autoUpdater.on('error', (err) => {
+      console.error('[autoUpdater]', err);
+    });
+
+    ipcMain.on('update:install', () => {
+      autoUpdater.quitAndInstall();
+    });
+
+    autoUpdater.checkForUpdates();
+    setInterval(() => {
+      autoUpdater.checkForUpdates();
+    }, 24 * 60 * 60 * 1000);
+  }
 });
 
 app.on('window-all-closed', () => {
