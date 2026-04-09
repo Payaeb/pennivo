@@ -375,6 +375,33 @@ function AppContent() {
     }
   }, [loading, getInstance, showToast]);
 
+  // --- Apply pending markdown once Milkdown finishes initializing ---
+  // Cold-start path (double-clicking a .md in Explorer) reads the file
+  // via IPC and calls loadContent BEFORE Milkdown's editor instance
+  // is ready. In that case loadContent updates markdownRef but the
+  // WYSIWYG editor stays empty. Once `loading` flips false the editor
+  // is ready, so re-apply whatever's in markdownRef.
+  const initialContentAppliedRef = useRef(false);
+  useEffect(() => {
+    if (loading) return;
+    if (initialContentAppliedRef.current) return;
+    if (sourceModeRef.current) {
+      // Source mode doesn't go through Milkdown — already displayed.
+      initialContentAppliedRef.current = true;
+      return;
+    }
+    const editor = getInstance();
+    if (!editor) return;
+    const pending = markdownRef.current;
+    initialContentAppliedRef.current = true;
+    if (!pending) return;
+    try {
+      editor.action(replaceAll(pending));
+    } catch (err) {
+      console.error('[deferred-load] Failed to apply pending markdown:', err);
+    }
+  }, [loading, getInstance]);
+
 
   // --- Open file ---
   const doOpen = useCallback(async () => {
