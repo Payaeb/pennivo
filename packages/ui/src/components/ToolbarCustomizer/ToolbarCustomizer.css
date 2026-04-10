@@ -12,8 +12,12 @@
 }
 
 @keyframes customizer-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .toolbar-customizer {
@@ -31,8 +35,14 @@
 }
 
 @keyframes customizer-panel-in {
-  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* --- Header --- */
@@ -63,7 +73,9 @@
   border-radius: var(--radius-sm);
   color: var(--text-faint);
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .toolbar-customizer-close:hover {
@@ -222,7 +234,10 @@
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .toolbar-customizer-item:hover .toolbar-customizer-item-btn {
@@ -285,7 +300,10 @@
   border-radius: var(--radius-sm);
   padding: 4px 10px;
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .toolbar-customizer-reset:hover {

@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import './OutlinePanel.css';
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import "./OutlinePanel.css";
 
 export interface HeadingEntry {
   level: number;
@@ -22,7 +22,7 @@ const DEFAULT_WIDTH = 200;
 /** Extract headings from raw markdown text */
 function extractHeadings(markdown: string): HeadingEntry[] {
   const headings: HeadingEntry[] = [];
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
   let inCodeBlock = false;
   let headingIndex = 0;
 
@@ -38,7 +38,7 @@ function extractHeadings(markdown: string): HeadingEntry[] {
     if (match) {
       headings.push({
         level: match[1].length,
-        text: match[2].replace(/\s+#+\s*$/, '').trim(), // Strip trailing hashes
+        text: match[2].replace(/\s+#+\s*$/, "").trim(), // Strip trailing hashes
         index: headingIndex++,
       });
     }
@@ -61,7 +61,7 @@ export function OutlinePanel({
 
   // Find the minimum heading level to normalize indentation
   const minLevel = useMemo(
-    () => (headings.length > 0 ? Math.min(...headings.map(h => h.level)) : 1),
+    () => (headings.length > 0 ? Math.min(...headings.map((h) => h.level)) : 1),
     [headings],
   );
 
@@ -72,7 +72,9 @@ export function OutlinePanel({
   // Auto-scroll the outline list to keep the active item visible
   useEffect(() => {
     if (activeIndex < 0 || !listRef.current) return;
-    const activeEl = listRef.current.querySelector('.outline-item--active') as HTMLElement | null;
+    const activeEl = listRef.current.querySelector(
+      ".outline-item--active",
+    ) as HTMLElement | null;
     if (!activeEl) return;
 
     const list = listRef.current;
@@ -83,9 +85,9 @@ export function OutlinePanel({
 
     // Scroll into view if outside visible area with some padding
     if (itemTop < listScrollTop + 8) {
-      list.scrollTo({ top: Math.max(0, itemTop - 8), behavior: 'smooth' });
+      list.scrollTo({ top: Math.max(0, itemTop - 8), behavior: "smooth" });
     } else if (itemBottom > listScrollTop + listHeight - 8) {
-      list.scrollTo({ top: itemBottom - listHeight + 8, behavior: 'smooth' });
+      list.scrollTo({ top: itemBottom - listHeight + 8, behavior: "smooth" });
     }
   }, [activeIndex]);
 
@@ -93,14 +95,16 @@ export function OutlinePanel({
   useEffect(() => {
     if (!visible || sourceMode) return;
 
-    const editorArea = document.querySelector('.app-editor-area');
+    const editorArea = document.querySelector(".app-editor-area");
     if (!editorArea) return;
 
     const updateActive = () => {
-      const editorEl = document.querySelector('.ProseMirror') || document.querySelector('.editor-wrapper');
+      const editorEl =
+        document.querySelector(".ProseMirror") ||
+        document.querySelector(".editor-wrapper");
       if (!editorEl) return;
 
-      const headingEls = editorEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      const headingEls = editorEl.querySelectorAll("h1, h2, h3, h4, h5, h6");
       if (headingEls.length === 0) return;
 
       const areaRect = editorArea.getBoundingClientRect();
@@ -116,11 +120,11 @@ export function OutlinePanel({
       setActiveIndex(active);
     };
 
-    editorArea.addEventListener('scroll', updateActive, { passive: true });
+    editorArea.addEventListener("scroll", updateActive, { passive: true });
     updateActive();
 
     return () => {
-      editorArea.removeEventListener('scroll', updateActive);
+      editorArea.removeEventListener("scroll", updateActive);
     };
   }, [visible, sourceMode, headings]);
 
@@ -128,11 +132,14 @@ export function OutlinePanel({
   // CM6 virtualizes its DOM — only visible lines exist as elements.
   // Use scroll fraction mapped to heading line positions instead.
   const headingLineNumbers = useMemo(() => {
-    const lines = markdown.split('\n');
+    const lines = markdown.split("\n");
     const positions: number[] = [];
     let inCodeBlock = false;
     for (let i = 0; i < lines.length; i++) {
-      if (/^```/.test(lines[i].trimStart())) { inCodeBlock = !inCodeBlock; continue; }
+      if (/^```/.test(lines[i].trimStart())) {
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
       if (inCodeBlock) continue;
       if (/^#{1,6}\s+/.test(lines[i])) positions.push(i);
     }
@@ -142,15 +149,20 @@ export function OutlinePanel({
   useEffect(() => {
     if (!visible || !sourceMode) return;
 
-    const cmScroller = document.querySelector('.source-editor-wrapper .cm-scroller') as HTMLElement | null;
+    const cmScroller = document.querySelector(
+      ".source-editor-wrapper .cm-scroller",
+    ) as HTMLElement | null;
     if (!cmScroller) return;
 
-    const totalLines = markdown.split('\n').length;
+    const totalLines = markdown.split("\n").length;
     if (totalLines <= 1 || headingLineNumbers.length === 0) return;
 
     const updateActive = () => {
       const maxScroll = cmScroller.scrollHeight - cmScroller.clientHeight;
-      if (maxScroll <= 0) { setActiveIndex(headingLineNumbers.length > 0 ? 0 : -1); return; }
+      if (maxScroll <= 0) {
+        setActiveIndex(headingLineNumbers.length > 0 ? 0 : -1);
+        return;
+      }
 
       const scrollFraction = cmScroller.scrollTop / maxScroll;
       // Map scroll fraction to a line number
@@ -167,11 +179,11 @@ export function OutlinePanel({
       setActiveIndex(active);
     };
 
-    cmScroller.addEventListener('scroll', updateActive, { passive: true });
+    cmScroller.addEventListener("scroll", updateActive, { passive: true });
     const timer = setTimeout(updateActive, 100);
 
     return () => {
-      cmScroller.removeEventListener('scroll', updateActive);
+      cmScroller.removeEventListener("scroll", updateActive);
       clearTimeout(timer);
     };
   }, [visible, sourceMode, headings, headingLineNumbers, markdown]);
@@ -185,26 +197,35 @@ export function OutlinePanel({
 
     const handleMouseMove = (me: MouseEvent) => {
       // Dragging left edge, so invert
-      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth - (me.clientX - startX)));
+      const newWidth = Math.min(
+        MAX_WIDTH,
+        Math.max(MIN_WIDTH, startWidth - (me.clientX - startX)),
+      );
       setWidth(newWidth);
     };
 
     const handleMouseUp = () => {
       setResizing(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   }, []);
 
   if (!visible) return null;
 
   return (
-    <div className="outline-panel" ref={panelRef} style={{ width }} role="navigation" aria-label="Document outline">
+    <div
+      className="outline-panel"
+      ref={panelRef}
+      style={{ width }}
+      role="navigation"
+      aria-label="Document outline"
+    >
       <div
-        className={`outline-resize-handle${resizing ? ' outline-resize-handle--active' : ''}`}
+        className={`outline-resize-handle${resizing ? " outline-resize-handle--active" : ""}`}
         onMouseDown={handleResizeStart}
       />
       <div className="outline-header">
@@ -215,11 +236,11 @@ export function OutlinePanel({
           {headings.map((h, i) => (
             <div key={`${h.index}-${h.text}`} role="listitem">
               <button
-                className={`outline-item${activeIndex === i ? ' outline-item--active' : ''}`}
+                className={`outline-item${activeIndex === i ? " outline-item--active" : ""}`}
                 style={{ paddingLeft: 12 + (h.level - minLevel) * 16 }}
                 onClick={() => onHeadingClick(h)}
                 title={h.text}
-                aria-current={activeIndex === i ? 'true' : undefined}
+                aria-current={activeIndex === i ? "true" : undefined}
               >
                 <span className="outline-item-indicator" data-level={h.level}>
                   H{h.level}

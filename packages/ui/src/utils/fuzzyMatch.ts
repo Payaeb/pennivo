@@ -1,4 +1,7 @@
-export function fuzzyMatch(query: string, text: string): { match: boolean; score: number } {
+export function fuzzyMatch(
+  query: string,
+  text: string,
+): { match: boolean; score: number } {
   const lower = text.toLowerCase();
   const q = query.toLowerCase();
 
@@ -9,7 +12,7 @@ export function fuzzyMatch(query: string, text: string): { match: boolean; score
   if (lower.includes(q)) {
     const idx = lower.indexOf(q);
     // Bonus for matching at word start
-    const atStart = idx === 0 || text[idx - 1] === ' ';
+    const atStart = idx === 0 || text[idx - 1] === " ";
     return { match: true, score: atStart ? 100 - idx : 50 - idx };
   }
 
@@ -19,7 +22,7 @@ export function fuzzyMatch(query: string, text: string): { match: boolean; score
   let prevIdx = -1;
   for (let i = 0; i < lower.length && qi < q.length; i++) {
     if (lower[i] === q[qi]) {
-      score += (i === prevIdx + 1) ? 3 : 1;
+      score += i === prevIdx + 1 ? 3 : 1;
       prevIdx = i;
       qi++;
     }

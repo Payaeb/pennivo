@@ -8,7 +8,9 @@
   user-select: none;
   position: relative;
   flex-shrink: 0;
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 /* --- Header --- */
@@ -144,7 +146,7 @@
 }
 
 .outline-resize-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   right: 2px;

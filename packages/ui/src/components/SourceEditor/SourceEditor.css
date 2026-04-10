@@ -29,8 +29,10 @@
 }
 
 /* Placeholder when empty */
-.source-editor-wrapper .cm-editor .cm-content[contenteditable="true"]:empty::before {
-  content: 'Start writing…';
+.source-editor-wrapper
+  .cm-editor
+  .cm-content[contenteditable="true"]:empty::before {
+  content: "Start writing…";
   color: var(--text-faint);
   pointer-events: none;
   font-family: var(--font-mono);

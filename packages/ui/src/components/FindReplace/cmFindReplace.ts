@@ -1,5 +1,5 @@
-import { StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView } from '@codemirror/view';
+import { StateEffect, StateField } from "@codemirror/state";
+import { Decoration, EditorView } from "@codemirror/view";
 
 export interface CmFindState {
   query: string;
@@ -20,14 +20,17 @@ function buildTextMatches(
   if (useRegex) {
     let re: RegExp;
     try {
-      re = new RegExp(query, 'gi');
+      re = new RegExp(query, "gi");
     } catch {
-      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      re = new RegExp(escaped, 'gi');
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      re = new RegExp(escaped, "gi");
     }
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
-      if (m[0].length === 0) { re.lastIndex++; continue; }
+      if (m[0].length === 0) {
+        re.lastIndex++;
+        continue;
+      }
       matches.push({ from: m.index, to: m.index + m[0].length });
     }
   } else {
@@ -47,7 +50,7 @@ export const updateCmFind = StateEffect.define<Partial<CmFindState>>();
 
 export const cmFindField = StateField.define<CmFindState>({
   create() {
-    return { query: '', useRegex: false, matches: [], currentIndex: -1 };
+    return { query: "", useRegex: false, matches: [], currentIndex: -1 };
   },
   update(prev, tr) {
     let state = prev;
@@ -79,13 +82,15 @@ export const cmFindField = StateField.define<CmFindState>({
         state.query,
         state.useRegex,
       );
-      const currentIndex = matches.length > 0
-        ? Math.min(state.currentIndex, matches.length - 1)
-        : -1;
+      const currentIndex =
+        matches.length > 0
+          ? Math.min(state.currentIndex, matches.length - 1)
+          : -1;
       state = {
         ...state,
         matches,
-        currentIndex: currentIndex < 0 ? (matches.length > 0 ? 0 : -1) : currentIndex,
+        currentIndex:
+          currentIndex < 0 ? (matches.length > 0 ? 0 : -1) : currentIndex,
       };
     }
 
@@ -93,21 +98,25 @@ export const cmFindField = StateField.define<CmFindState>({
   },
 });
 
-const cmFindDecorations = EditorView.decorations.compute([cmFindField], (state) => {
-  const findState = state.field(cmFindField);
-  if (!findState.query || findState.matches.length === 0) {
-    return Decoration.none;
-  }
+const cmFindDecorations = EditorView.decorations.compute(
+  [cmFindField],
+  (state) => {
+    const findState = state.field(cmFindField);
+    if (!findState.query || findState.matches.length === 0) {
+      return Decoration.none;
+    }
 
-  const decos = findState.matches.map((m, i) => {
-    const cls = i === findState.currentIndex
-      ? 'find-match find-match--current'
-      : 'find-match';
-    return Decoration.mark({ class: cls }).range(m.from, m.to);
-  });
+    const decos = findState.matches.map((m, i) => {
+      const cls =
+        i === findState.currentIndex
+          ? "find-match find-match--current"
+          : "find-match";
+      return Decoration.mark({ class: cls }).range(m.from, m.to);
+    });
 
-  return Decoration.set(decos);
-});
+    return Decoration.set(decos);
+  },
+);
 
 export function cmFindExtension() {
   return [cmFindField, cmFindDecorations];

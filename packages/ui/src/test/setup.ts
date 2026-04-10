@@ -1,7 +1,7 @@
-import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
-import { createMockPennivoAPI } from './mocks';
+import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
+import { createMockPennivoAPI } from "./mocks";
 
 // Ensure cleanup between tests
 afterEach(() => {
@@ -9,14 +9,14 @@ afterEach(() => {
 });
 
 // Mock window.pennivo
-Object.defineProperty(window, 'pennivo', {
+Object.defineProperty(window, "pennivo", {
   value: createMockPennivoAPI(),
   writable: true,
   configurable: true,
 });
 
 // Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -36,7 +36,7 @@ class MockResizeObserver {
   unobserve = vi.fn();
   disconnect = vi.fn();
 }
-Object.defineProperty(window, 'ResizeObserver', {
+Object.defineProperty(window, "ResizeObserver", {
   writable: true,
   value: MockResizeObserver,
 });
@@ -47,7 +47,7 @@ class MockIntersectionObserver {
   unobserve = vi.fn();
   disconnect = vi.fn();
 }
-Object.defineProperty(window, 'IntersectionObserver', {
+Object.defineProperty(window, "IntersectionObserver", {
   writable: true,
   value: MockIntersectionObserver,
 });

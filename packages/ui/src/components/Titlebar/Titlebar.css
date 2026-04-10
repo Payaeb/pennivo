@@ -8,7 +8,9 @@
   flex-shrink: 0;
   user-select: none;
   -webkit-app-region: drag;
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .titlebar-left {
@@ -75,7 +77,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .caption-btn:hover {
@@ -84,7 +88,7 @@
 }
 
 .caption-btn--close:hover {
-  background: #C42B1C;
+  background: #c42b1c;
   color: #fff;
 }
 

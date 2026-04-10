@@ -1,9 +1,26 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, net, protocol, screen, session, shell } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import { readFileSync, writeFileSync, statSync, watch, type FSWatcher } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  Menu,
+  net,
+  protocol,
+  screen,
+  session,
+  shell,
+} from "electron";
+import { autoUpdater } from "electron-updater";
+import path from "node:path";
+import fs from "node:fs/promises";
+import {
+  readFileSync,
+  writeFileSync,
+  statSync,
+  watch,
+  type FSWatcher,
+} from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,9 +47,9 @@ function getFilePathFromArgv(argv: readonly string[]): string | null {
   // markdown-ish extension and points to a real file.
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
-    if (typeof arg !== 'string') continue;
-    if (arg.startsWith('-')) continue;
-    if (arg === '.') continue;
+    if (typeof arg !== "string") continue;
+    if (arg.startsWith("-")) continue;
+    if (arg === ".") continue;
     if (!MARKDOWN_EXT_RE.test(arg)) continue;
     try {
       if (statSync(arg).isFile()) return path.resolve(arg);
@@ -52,12 +69,12 @@ if (!app.requestSingleInstanceLock()) {
 
 pendingFilePath = getFilePathFromArgv(process.argv);
 
-app.on('second-instance', (_event, commandLine) => {
+app.on("second-instance", (_event, commandLine) => {
   const filePath = getFilePathFromArgv(commandLine);
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
-    if (filePath) mainWindow.webContents.send('file:open-from-os', filePath);
+    if (filePath) mainWindow.webContents.send("file:open-from-os", filePath);
   } else if (filePath) {
     // Window not yet created — queue for the launch effect to pick up.
     pendingFilePath = filePath;
@@ -73,17 +90,25 @@ interface WindowState {
   maximized: boolean;
 }
 
-const DEFAULT_WINDOW_STATE: WindowState = { width: 1200, height: 800, maximized: false };
+const DEFAULT_WINDOW_STATE: WindowState = {
+  width: 1200,
+  height: 800,
+  maximized: false,
+};
 
 function getWindowStatePath(): string {
-  return path.join(app.getPath('userData'), 'window-state.json');
+  return path.join(app.getPath("userData"), "window-state.json");
 }
 
 function readWindowState(): WindowState {
   try {
-    const data = readFileSync(getWindowStatePath(), 'utf-8');
+    const data = readFileSync(getWindowStatePath(), "utf-8");
     const parsed = JSON.parse(data);
-    if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+    if (
+      parsed &&
+      typeof parsed.width === "number" &&
+      typeof parsed.height === "number"
+    ) {
       return parsed;
     }
   } catch {
@@ -107,7 +132,7 @@ function saveWindowState(): void {
     height: bounds.height,
     maximized,
   };
-  writeFileSync(getWindowStatePath(), JSON.stringify(state), 'utf-8');
+  writeFileSync(getWindowStatePath(), JSON.stringify(state), "utf-8");
 }
 
 function isPositionOnScreen(x: number, y: number): boolean {
@@ -131,12 +156,12 @@ interface AppSettings {
 }
 
 function getSettingsPath(): string {
-  return path.join(app.getPath('userData'), 'settings.json');
+  return path.join(app.getPath("userData"), "settings.json");
 }
 
 function readSettings(): AppSettings {
   try {
-    const data = readFileSync(getSettingsPath(), 'utf-8');
+    const data = readFileSync(getSettingsPath(), "utf-8");
     return JSON.parse(data);
   } catch {
     return {};
@@ -144,21 +169,26 @@ function readSettings(): AppSettings {
 }
 
 async function writeSettings(settings: AppSettings): Promise<void> {
-  await fs.writeFile(getSettingsPath(), JSON.stringify(settings, null, 2), 'utf-8');
+  await fs.writeFile(
+    getSettingsPath(),
+    JSON.stringify(settings, null, 2),
+    "utf-8",
+  );
 }
 
 // --- Recent files persistence ---
 const RECENT_FILES_MAX = 10;
 
 function getRecentFilesPath(): string {
-  return path.join(app.getPath('userData'), 'recent-files.json');
+  return path.join(app.getPath("userData"), "recent-files.json");
 }
 
 async function readRecentFiles(): Promise<string[]> {
   try {
-    const data = await fs.readFile(getRecentFilesPath(), 'utf-8');
+    const data = await fs.readFile(getRecentFilesPath(), "utf-8");
     const parsed = JSON.parse(data);
-    if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === 'string');
+    if (Array.isArray(parsed))
+      return parsed.filter((p): p is string => typeof p === "string");
   } catch {
     // File doesn't exist or is corrupt
   }
@@ -166,14 +196,14 @@ async function readRecentFiles(): Promise<string[]> {
 }
 
 async function writeRecentFiles(files: string[]): Promise<void> {
-  await fs.writeFile(getRecentFilesPath(), JSON.stringify(files), 'utf-8');
+  await fs.writeFile(getRecentFilesPath(), JSON.stringify(files), "utf-8");
 }
 
 async function addRecentFile(filePath: string): Promise<string[]> {
   const existing = await readRecentFiles();
   // Normalize path for comparison
-  const normalized = filePath.replace(/\\/g, '/');
-  const filtered = existing.filter(p => p.replace(/\\/g, '/') !== normalized);
+  const normalized = filePath.replace(/\\/g, "/");
+  const filtered = existing.filter((p) => p.replace(/\\/g, "/") !== normalized);
   const updated = [filePath, ...filtered].slice(0, RECENT_FILES_MAX);
   await writeRecentFiles(updated);
   return updated;
@@ -185,14 +215,18 @@ async function clearRecentFiles(): Promise<void> {
 
 // --- Toolbar config persistence ---
 function getToolbarConfigPath(): string {
-  return path.join(app.getPath('userData'), 'toolbar-config.json');
+  return path.join(app.getPath("userData"), "toolbar-config.json");
 }
 
 async function readToolbarConfig(): Promise<string[] | null> {
   try {
-    const data = await fs.readFile(getToolbarConfigPath(), 'utf-8');
+    const data = await fs.readFile(getToolbarConfigPath(), "utf-8");
     const parsed = JSON.parse(data);
-    if (Array.isArray(parsed) && parsed.every((s): s is string => typeof s === 'string')) return parsed;
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((s): s is string => typeof s === "string")
+    )
+      return parsed;
   } catch {
     // File doesn't exist or is corrupt — return null so renderer uses defaults
   }
@@ -200,21 +234,21 @@ async function readToolbarConfig(): Promise<string[] | null> {
 }
 
 async function writeToolbarConfig(actions: string[]): Promise<void> {
-  await fs.writeFile(getToolbarConfigPath(), JSON.stringify(actions), 'utf-8');
+  await fs.writeFile(getToolbarConfigPath(), JSON.stringify(actions), "utf-8");
 }
 
 // --- Sidebar folder persistence ---
-const SIDEBAR_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
+const SIDEBAR_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
 
 function getSidebarFolderPath(): string {
-  return path.join(app.getPath('userData'), 'sidebar-folder.json');
+  return path.join(app.getPath("userData"), "sidebar-folder.json");
 }
 
 async function readSidebarFolder(): Promise<string | null> {
   try {
-    const data = await fs.readFile(getSidebarFolderPath(), 'utf-8');
+    const data = await fs.readFile(getSidebarFolderPath(), "utf-8");
     const parsed = JSON.parse(data);
-    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === "string") return parsed;
   } catch {
     // File doesn't exist
   }
@@ -222,13 +256,17 @@ async function readSidebarFolder(): Promise<string | null> {
 }
 
 async function writeSidebarFolder(folderPath: string | null): Promise<void> {
-  await fs.writeFile(getSidebarFolderPath(), JSON.stringify(folderPath), 'utf-8');
+  await fs.writeFile(
+    getSidebarFolderPath(),
+    JSON.stringify(folderPath),
+    "utf-8",
+  );
 }
 
 interface FileTreeEntry {
   name: string;
   path: string;
-  type: 'file' | 'folder';
+  type: "file" | "folder";
   children?: FileTreeEntry[];
 }
 
@@ -245,27 +283,32 @@ async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
   items.sort((a, b) => {
     if (a.isDirectory() && !b.isDirectory()) return -1;
     if (!a.isDirectory() && b.isDirectory()) return 1;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   });
 
   for (const item of items) {
     // Skip hidden files/folders
-    if (item.name.startsWith('.')) continue;
+    if (item.name.startsWith(".")) continue;
     // Skip node_modules, etc.
-    if (item.name === 'node_modules') continue;
+    if (item.name === "node_modules") continue;
 
-    const fullPath = path.join(dirPath, item.name).replace(/\\/g, '/');
+    const fullPath = path.join(dirPath, item.name).replace(/\\/g, "/");
 
     if (item.isDirectory()) {
       const children = await readDirectoryTree(path.join(dirPath, item.name));
       // Only include folders that contain matching files (directly or nested)
       if (children.length > 0) {
-        entries.push({ name: item.name, path: fullPath, type: 'folder', children });
+        entries.push({
+          name: item.name,
+          path: fullPath,
+          type: "folder",
+          children,
+        });
       }
     } else {
       const ext = path.extname(item.name).toLowerCase();
       if (SIDEBAR_EXTENSIONS.has(ext)) {
-        entries.push({ name: item.name, path: fullPath, type: 'file' });
+        entries.push({ name: item.name, path: fullPath, type: "file" });
       }
     }
   }
@@ -276,14 +319,18 @@ async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
 function startFolderWatcher(folderPath: string) {
   stopFolderWatcher();
   try {
-    folderWatcher = watch(folderPath, { recursive: true }, (_eventType, filename) => {
-      if (!filename) return;
-      const ext = path.extname(filename).toLowerCase();
-      // Only notify for relevant file changes
-      if (SIDEBAR_EXTENSIONS.has(ext) || ext === '') {
-        mainWindow?.webContents.send('sidebar:folder-changed');
-      }
-    });
+    folderWatcher = watch(
+      folderPath,
+      { recursive: true },
+      (_eventType, filename) => {
+        if (!filename) return;
+        const ext = path.extname(filename).toLowerCase();
+        // Only notify for relevant file changes
+        if (SIDEBAR_EXTENSIONS.has(ext) || ext === "") {
+          mainWindow?.webContents.send("sidebar:folder-changed");
+        }
+      },
+    );
   } catch {
     // Watching may fail on some filesystems
   }
@@ -298,17 +345,29 @@ function stopFolderWatcher() {
 
 function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
   // Convert pennivo-file:// protocol URLs to file:// for standalone HTML
-  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, 'file:///');
+  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///");
   // Override dark-mode fill colors in mermaid SVG <style> blocks for light export background
-  html = html.replace(/(<style>[^<]*?{[^}]*?)fill:#[Ee][0-9A-Fa-f]{5};/g, '$1fill:#1A1A18;');
+  html = html.replace(
+    /(<style>[^<]*?{[^}]*?)fill:#[Ee][0-9A-Fa-f]{5};/g,
+    "$1fill:#1A1A18;",
+  );
   // Fix bare domain hrefs — add https:// if no protocol
   html = html.replace(/href="([^"]+)"/g, (match, href) => {
-    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) || href.startsWith('#') || href.startsWith('/') || href.startsWith('./') || href.startsWith('../')) {
+    if (
+      /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||
+      href.startsWith("#") ||
+      href.startsWith("/") ||
+      href.startsWith("./") ||
+      href.startsWith("../")
+    ) {
       return match;
     }
     return `href="https://${href}"`;
   });
-  const safeTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeTitle = title
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -483,12 +542,12 @@ function createWindow() {
     height: savedState.height,
     minWidth: 600,
     minHeight: 400,
-    title: 'Pennivo',
-    icon: path.join(__dirname, '../../resources/icon.png'),
+    title: "Pennivo",
+    icon: path.join(__dirname, "../../resources/icon.png"),
     frame: false,
-    backgroundColor: '#FAFAF8',
+    backgroundColor: "#FAFAF8",
     webPreferences: {
-      preload: path.join(__dirname, '../preload/preload.js'),
+      preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -511,20 +570,25 @@ function createWindow() {
   }
 
   // Prevent Electron from navigating when files are dragged onto the window
-  mainWindow.webContents.on('will-navigate', (e) => {
+  mainWindow.webContents.on("will-navigate", (e) => {
     e.preventDefault();
   });
 
-  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-    const levels = ['verbose', 'info', 'warning', 'error'];
-    console.log(`[renderer:${levels[level] ?? level}] ${message} (${sourceId}:${line})`);
-  });
+  mainWindow.webContents.on(
+    "console-message",
+    (_e, level, message, line, sourceId) => {
+      const levels = ["verbose", "info", "warning", "error"];
+      console.log(
+        `[renderer:${levels[level] ?? level}] ${message} (${sourceId}:${line})`,
+      );
+    },
+  );
 
   // Set default spellchecker languages
-  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+  mainWindow.webContents.session.setSpellCheckerLanguages(["en-US"]);
 
   // Right-click context menu with spell check suggestions
-  mainWindow.webContents.on('context-menu', (_event, params) => {
+  mainWindow.webContents.on("context-menu", (_event, params) => {
     if (!params.misspelledWord) return;
 
     const menuItems: Electron.MenuItemConstructorOptions[] = [];
@@ -538,14 +602,16 @@ function createWindow() {
     }
 
     if (menuItems.length > 0) {
-      menuItems.push({ type: 'separator' });
+      menuItems.push({ type: "separator" });
     }
 
     // Add to dictionary
     menuItems.push({
       label: `Add "${params.misspelledWord}" to dictionary`,
       click: () => {
-        mainWindow?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord);
+        mainWindow?.webContents.session.addWordToSpellCheckerDictionary(
+          params.misspelledWord,
+        );
       },
     });
 
@@ -556,26 +622,26 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
 
   // Save window state before close
-  mainWindow.on('close', async (e) => {
+  mainWindow.on("close", async (e) => {
     saveWindowState();
     if (forceClose || !isDirty) return;
 
     e.preventDefault();
     const { response } = await dialog.showMessageBox(mainWindow!, {
-      type: 'warning',
-      buttons: ['Save', "Don't Save", 'Cancel'],
+      type: "warning",
+      buttons: ["Save", "Don't Save", "Cancel"],
       defaultId: 0,
       cancelId: 2,
-      title: 'Unsaved Changes',
-      message: 'You have unsaved changes. Do you want to save before closing?',
+      title: "Unsaved Changes",
+      message: "You have unsaved changes. Do you want to save before closing?",
     });
 
     if (response === 0) {
-      mainWindow!.webContents.send('menu:save-and-close');
+      mainWindow!.webContents.send("menu:save-and-close");
     } else if (response === 1) {
       forceClose = true;
       mainWindow!.close();
@@ -583,23 +649,30 @@ function createWindow() {
   });
 
   // Handle renderer crash — reload so draft recovery can kick in
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[main] Renderer process gone:', details.reason, details.exitCode);
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(
+      "[main] Renderer process gone:",
+      details.reason,
+      details.exitCode,
+    );
     if (mainWindow && !mainWindow.isDestroyed()) {
-      dialog.showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'Renderer Crashed',
-        message: 'The editor crashed unexpectedly. Reloading now — any unsaved drafts will be recovered.',
-        buttons: ['Reload'],
-      }).then(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.reload();
-        }
-      });
+      dialog
+        .showMessageBox(mainWindow, {
+          type: "error",
+          title: "Renderer Crashed",
+          message:
+            "The editor crashed unexpectedly. Reloading now — any unsaved drafts will be recovered.",
+          buttons: ["Reload"],
+        })
+        .then(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.reload();
+          }
+        });
     }
   });
 
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
@@ -607,78 +680,78 @@ function createWindow() {
 function createMenu() {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: 'File',
+      label: "File",
       submenu: [
         {
-          label: 'New File',
-          accelerator: 'CmdOrCtrl+N',
-          click: () => mainWindow?.webContents.send('menu:new-file'),
+          label: "New File",
+          accelerator: "CmdOrCtrl+N",
+          click: () => mainWindow?.webContents.send("menu:new-file"),
         },
         {
-          label: 'Open\u2026',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => mainWindow?.webContents.send('menu:open'),
+          label: "Open\u2026",
+          accelerator: "CmdOrCtrl+O",
+          click: () => mainWindow?.webContents.send("menu:open"),
         },
         {
-          label: 'Save',
-          accelerator: 'CmdOrCtrl+S',
-          click: () => mainWindow?.webContents.send('menu:save'),
+          label: "Save",
+          accelerator: "CmdOrCtrl+S",
+          click: () => mainWindow?.webContents.send("menu:save"),
         },
         {
-          label: 'Save As\u2026',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => mainWindow?.webContents.send('menu:save-as'),
+          label: "Save As\u2026",
+          accelerator: "CmdOrCtrl+Shift+S",
+          click: () => mainWindow?.webContents.send("menu:save-as"),
         },
-        { type: 'separator' },
+        { type: "separator" },
         {
-          label: 'Export as HTML',
-          accelerator: 'CmdOrCtrl+Shift+E',
-          click: () => mainWindow?.webContents.send('menu:export-html'),
+          label: "Export as HTML",
+          accelerator: "CmdOrCtrl+Shift+E",
+          click: () => mainWindow?.webContents.send("menu:export-html"),
         },
         {
-          label: 'Export as PDF',
-          click: () => mainWindow?.webContents.send('menu:export-pdf'),
+          label: "Export as PDF",
+          click: () => mainWindow?.webContents.send("menu:export-pdf"),
         },
-        { type: 'separator' },
-        { role: 'quit' },
+        { type: "separator" },
+        { role: "quit" },
       ],
     },
     {
-      label: 'Edit',
+      label: "Edit",
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
         {
-          label: 'Paste',
-          accelerator: 'CmdOrCtrl+V',
+          label: "Paste",
+          accelerator: "CmdOrCtrl+V",
           click: () => {
             // Use document.execCommand('paste') via the renderer so ProseMirror's
             // handlePaste fires and can intercept clipboard images.
             // The built-in { role: 'paste' } bypasses the DOM paste event entirely.
-            mainWindow?.webContents.send('menu:paste');
+            mainWindow?.webContents.send("menu:paste");
           },
         },
-        { role: 'selectAll' },
+        { role: "selectAll" },
       ],
     },
     {
-      label: 'View',
+      label: "View",
       submenu: [
         {
-          label: 'Focus Mode',
-          accelerator: 'CmdOrCtrl+Shift+F',
-          click: () => mainWindow?.webContents.send('menu:toggle-focus-mode'),
+          label: "Focus Mode",
+          accelerator: "CmdOrCtrl+Shift+F",
+          click: () => mainWindow?.webContents.send("menu:toggle-focus-mode"),
         },
-        { type: 'separator' },
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { role: 'resetZoom' },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { role: "resetZoom" },
       ],
     },
   ];
@@ -688,62 +761,68 @@ function createMenu() {
 
 function registerIpcHandlers() {
   // Window controls
-  ipcMain.on('window:minimize', () => mainWindow?.minimize());
-  ipcMain.on('window:maximize', () => {
+  ipcMain.on("window:minimize", () => mainWindow?.minimize());
+  ipcMain.on("window:maximize", () => {
     if (mainWindow?.isMaximized()) mainWindow.unmaximize();
     else mainWindow?.maximize();
   });
-  ipcMain.on('window:close', () => mainWindow?.close());
+  ipcMain.on("window:close", () => mainWindow?.close());
 
   // Fullscreen (for focus mode)
-  ipcMain.on('window:set-fullscreen', (_e, flag: boolean) => {
+  ipcMain.on("window:set-fullscreen", (_e, flag: boolean) => {
     mainWindow?.setFullScreen(flag);
   });
-  ipcMain.handle('window:is-fullscreen', () => mainWindow?.isFullScreen() ?? false);
+  ipcMain.handle(
+    "window:is-fullscreen",
+    () => mainWindow?.isFullScreen() ?? false,
+  );
 
   // Edit commands (paste needs native Electron support)
-  ipcMain.on('edit:paste', () => mainWindow?.webContents.paste());
+  ipcMain.on("edit:paste", () => mainWindow?.webContents.paste());
 
   // Zoom
-  ipcMain.on('window:zoom-in', () => {
+  ipcMain.on("window:zoom-in", () => {
     const wc = mainWindow?.webContents;
     if (wc) wc.zoomLevel = wc.zoomLevel + 0.5;
   });
-  ipcMain.on('window:zoom-out', () => {
+  ipcMain.on("window:zoom-out", () => {
     const wc = mainWindow?.webContents;
     if (wc) wc.zoomLevel = wc.zoomLevel - 0.5;
   });
-  ipcMain.on('window:zoom-reset', () => {
+  ipcMain.on("window:zoom-reset", () => {
     const wc = mainWindow?.webContents;
     if (wc) wc.zoomLevel = 0;
   });
 
   // Open external URL in default browser
-  ipcMain.on('shell:open-external', (_e, url: string) => {
-    if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+  ipcMain.on("shell:open-external", (_e, url: string) => {
+    if (
+      typeof url === "string" &&
+      (url.startsWith("https://") || url.startsWith("http://"))
+    ) {
       shell.openExternal(url);
     }
   });
 
   // Dirty state tracking (renderer tells main)
-  ipcMain.on('file:set-dirty', (_e, dirty: boolean) => {
+  ipcMain.on("file:set-dirty", (_e, dirty: boolean) => {
     isDirty = dirty;
   });
 
   // After renderer saves, it signals to force-close
-  ipcMain.on('file:close-after-save', () => {
+  ipcMain.on("file:close-after-save", () => {
     forceClose = true;
     mainWindow?.close();
   });
 
   // Open file dialog + read
-  ipcMain.handle('file:open', async () => {
+  ipcMain.handle("file:open", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
       filters: [
-        { name: 'Markdown', extensions: ['md', 'markdown', 'txt'] },
-        { name: 'All Files', extensions: ['*'] },
+        { name: "Markdown", extensions: ["md", "markdown", "txt"] },
+        { name: "All Files", extensions: ["*"] },
       ],
-      properties: ['openFile'],
+      properties: ["openFile"],
     });
 
     if (canceled || filePaths.length === 0) return null;
@@ -752,7 +831,7 @@ function registerIpcHandlers() {
       const filePath = filePaths[0];
       const stat = await fs.stat(filePath);
       const fileSize = stat.size;
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, "utf-8");
       await addRecentFile(filePath);
       return { filePath, content, fileSize };
     } catch {
@@ -761,76 +840,91 @@ function registerIpcHandlers() {
   });
 
   // Save to existing path
-  ipcMain.handle('file:save', async (_e, args: { filePath: string; content: string }) => {
-    await fs.writeFile(args.filePath, args.content, 'utf-8');
-    return true;
-  });
+  ipcMain.handle(
+    "file:save",
+    async (_e, args: { filePath: string; content: string }) => {
+      await fs.writeFile(args.filePath, args.content, "utf-8");
+      return true;
+    },
+  );
 
   // Save As dialog + write
-  ipcMain.handle('file:save-as', async (_e, args: { content: string; defaultPath?: string }) => {
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
-      filters: [
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-      defaultPath: args.defaultPath || 'untitled.md',
-    });
+  ipcMain.handle(
+    "file:save-as",
+    async (_e, args: { content: string; defaultPath?: string }) => {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
+        filters: [
+          { name: "Markdown", extensions: ["md"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+        defaultPath: args.defaultPath || "untitled.md",
+      });
 
-    if (canceled || !filePath) return null;
+      if (canceled || !filePath) return null;
 
-    await fs.writeFile(filePath, args.content, 'utf-8');
-    await addRecentFile(filePath);
-    return filePath;
-  });
+      await fs.writeFile(filePath, args.content, "utf-8");
+      await addRecentFile(filePath);
+      return filePath;
+    },
+  );
 
   // Build the per-file images folder name: "mynotes-md-images" for "mynotes.md"
   function imagesDirName(filePath: string): string {
     const base = path.basename(filePath); // e.g. "mynotes.md"
-    return base.replace(/\./g, '-') + '-images'; // "mynotes-md-images"
+    return base.replace(/\./g, "-") + "-images"; // "mynotes-md-images"
   }
 
   // Save image to per-file images subfolder next to the current .md file
-  ipcMain.handle('file:save-image', async (_e, args: { filePath: string; buffer: number[]; mimeType: string }) => {
-    const dir = path.dirname(args.filePath);
-    const imgFolder = imagesDirName(args.filePath);
-    const imagesDir = path.join(dir, imgFolder);
-    await fs.mkdir(imagesDir, { recursive: true });
+  ipcMain.handle(
+    "file:save-image",
+    async (
+      _e,
+      args: { filePath: string; buffer: number[]; mimeType: string },
+    ) => {
+      const dir = path.dirname(args.filePath);
+      const imgFolder = imagesDirName(args.filePath);
+      const imagesDir = path.join(dir, imgFolder);
+      await fs.mkdir(imagesDir, { recursive: true });
 
-    const ext = args.mimeType === 'image/jpeg' ? 'jpg' : 'png';
-    const now = new Date();
-    const stamp = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-      '-',
-      String(now.getHours()).padStart(2, '0'),
-      String(now.getMinutes()).padStart(2, '0'),
-      String(now.getSeconds()).padStart(2, '0'),
-    ].join('');
-    const filename = `paste-${stamp}.${ext}`;
+      const ext = args.mimeType === "image/jpeg" ? "jpg" : "png";
+      const now = new Date();
+      const stamp = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+        "-",
+        String(now.getHours()).padStart(2, "0"),
+        String(now.getMinutes()).padStart(2, "0"),
+        String(now.getSeconds()).padStart(2, "0"),
+      ].join("");
+      const filename = `paste-${stamp}.${ext}`;
 
-    const absolutePath = path.join(imagesDir, filename);
-    await fs.writeFile(absolutePath, Buffer.from(args.buffer));
-    return {
-      relativePath: `./${imgFolder}/${filename}`,
-      absolutePath: absolutePath.replace(/\\/g, '/'),
-    };
-  });
+      const absolutePath = path.join(imagesDir, filename);
+      await fs.writeFile(absolutePath, Buffer.from(args.buffer));
+      return {
+        relativePath: `./${imgFolder}/${filename}`,
+        absolutePath: absolutePath.replace(/\\/g, "/"),
+      };
+    },
+  );
 
   // Pick an image via file dialog, copy it to per-file images subfolder, return paths
-  ipcMain.handle('file:pick-image', async (_e, args: { filePath: string }) => {
+  ipcMain.handle("file:pick-image", async (_e, args: { filePath: string }) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
       filters: [
-        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] },
-        { name: 'All Files', extensions: ['*'] },
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg"],
+        },
+        { name: "All Files", extensions: ["*"] },
       ],
-      properties: ['openFile'],
+      properties: ["openFile"],
     });
 
     if (canceled || filePaths.length === 0) return null;
 
     const srcPath = filePaths[0];
-    const ext = path.extname(srcPath).toLowerCase() || '.png';
+    const ext = path.extname(srcPath).toLowerCase() || ".png";
     const dir = path.dirname(args.filePath);
     const imgFolder = imagesDirName(args.filePath);
     const imagesDir = path.join(dir, imgFolder);
@@ -839,43 +933,43 @@ function registerIpcHandlers() {
     const now = new Date();
     const stamp = [
       now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-      '-',
-      String(now.getHours()).padStart(2, '0'),
-      String(now.getMinutes()).padStart(2, '0'),
-      String(now.getSeconds()).padStart(2, '0'),
-    ].join('');
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+      "-",
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0"),
+      String(now.getSeconds()).padStart(2, "0"),
+    ].join("");
     const filename = `image-${stamp}${ext}`;
     const absolutePath = path.join(imagesDir, filename);
 
     await fs.copyFile(srcPath, absolutePath);
     return {
       relativePath: `./${imgFolder}/${filename}`,
-      absolutePath: absolutePath.replace(/\\/g, '/'),
+      absolutePath: absolutePath.replace(/\\/g, "/"),
     };
   });
 
   // --- Recent files ---
-  ipcMain.handle('recent-files:get', async () => {
+  ipcMain.handle("recent-files:get", async () => {
     return readRecentFiles();
   });
 
-  ipcMain.handle('recent-files:add', async (_e, filePath: string) => {
+  ipcMain.handle("recent-files:add", async (_e, filePath: string) => {
     return addRecentFile(filePath);
   });
 
-  ipcMain.handle('recent-files:clear', async () => {
+  ipcMain.handle("recent-files:clear", async () => {
     await clearRecentFiles();
     return [];
   });
 
   // Open a specific file by path (used by Recent Files)
-  ipcMain.handle('file:open-path', async (_e, filePath: string) => {
+  ipcMain.handle("file:open-path", async (_e, filePath: string) => {
     try {
       const stat = await fs.stat(filePath);
       const fileSize = stat.size;
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, "utf-8");
       await addRecentFile(filePath);
       return { filePath, content, fileSize };
     } catch {
@@ -884,58 +978,64 @@ function registerIpcHandlers() {
   });
 
   // Confirm-discard dialog (used before opening a file when dirty)
-  ipcMain.handle('file:confirm-discard', async () => {
+  ipcMain.handle("file:confirm-discard", async () => {
     const { response } = await dialog.showMessageBox(mainWindow!, {
-      type: 'warning',
-      buttons: ['Save', "Don't Save", 'Cancel'],
+      type: "warning",
+      buttons: ["Save", "Don't Save", "Cancel"],
       defaultId: 0,
       cancelId: 2,
-      title: 'Unsaved Changes',
-      message: 'You have unsaved changes. Do you want to save them first?',
+      title: "Unsaved Changes",
+      message: "You have unsaved changes. Do you want to save them first?",
     });
     // 0 = save, 1 = discard, 2 = cancel
     return response;
   });
 
   // Window title (for taskbar)
-  ipcMain.on('window:set-title', (_e, title: string) => {
+  ipcMain.on("window:set-title", (_e, title: string) => {
     if (mainWindow) mainWindow.setTitle(title);
   });
 
   // --- Export ---
-  ipcMain.handle('export:html', async (_e, args: { html: string; title: string }) => {
-    const styledHtml = wrapHtmlWithStyles(args.html, args.title);
-    const defaultName = args.title.replace(/\.md$/i, '') + '.html';
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
-      filters: [
-        { name: 'HTML', extensions: ['html'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-      defaultPath: defaultName,
-    });
-    if (canceled || !filePath) return null;
-    await fs.writeFile(filePath, styledHtml, 'utf-8');
-    return filePath;
-  });
+  ipcMain.handle(
+    "export:html",
+    async (_e, args: { html: string; title: string }) => {
+      const styledHtml = wrapHtmlWithStyles(args.html, args.title);
+      const defaultName = args.title.replace(/\.md$/i, "") + ".html";
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
+        filters: [
+          { name: "HTML", extensions: ["html"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+        defaultPath: defaultName,
+      });
+      if (canceled || !filePath) return null;
+      await fs.writeFile(filePath, styledHtml, "utf-8");
+      return filePath;
+    },
+  );
 
   // --- Sidebar ---
-  ipcMain.handle('sidebar:get-folder', async () => {
+  ipcMain.handle("sidebar:get-folder", async () => {
     return readSidebarFolder();
   });
 
-  ipcMain.handle('sidebar:set-folder', async (_e, folderPath: string | null) => {
-    await writeSidebarFolder(folderPath);
-    if (folderPath) {
-      startFolderWatcher(folderPath);
-    } else {
-      stopFolderWatcher();
-    }
-  });
+  ipcMain.handle(
+    "sidebar:set-folder",
+    async (_e, folderPath: string | null) => {
+      await writeSidebarFolder(folderPath);
+      if (folderPath) {
+        startFolderWatcher(folderPath);
+      } else {
+        stopFolderWatcher();
+      }
+    },
+  );
 
-  ipcMain.handle('sidebar:choose-folder', async () => {
+  ipcMain.handle("sidebar:choose-folder", async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow!, {
-      properties: ['openDirectory'],
-      title: 'Choose Folder',
+      properties: ["openDirectory"],
+      title: "Choose Folder",
     });
     if (canceled || filePaths.length === 0) return null;
     const folderPath = filePaths[0];
@@ -944,47 +1044,47 @@ function registerIpcHandlers() {
     return folderPath;
   });
 
-  ipcMain.handle('sidebar:read-directory', async (_e, folderPath: string) => {
+  ipcMain.handle("sidebar:read-directory", async (_e, folderPath: string) => {
     return readDirectoryTree(folderPath);
   });
 
   // --- Toolbar config ---
-  ipcMain.handle('toolbar-config:get', async () => {
+  ipcMain.handle("toolbar-config:get", async () => {
     return readToolbarConfig();
   });
 
-  ipcMain.handle('toolbar-config:set', async (_e, actions: string[]) => {
+  ipcMain.handle("toolbar-config:set", async (_e, actions: string[]) => {
     await writeToolbarConfig(actions);
   });
 
   // --- Spellcheck ---
-  ipcMain.handle('spellcheck:get-languages', () => {
+  ipcMain.handle("spellcheck:get-languages", () => {
     return mainWindow?.webContents.session.getSpellCheckerLanguages() ?? [];
   });
 
-  ipcMain.handle('spellcheck:get-available-languages', () => {
+  ipcMain.handle("spellcheck:get-available-languages", () => {
     return mainWindow?.webContents.session.availableSpellCheckerLanguages ?? [];
   });
 
-  ipcMain.handle('spellcheck:set-languages', (_e, languages: string[]) => {
+  ipcMain.handle("spellcheck:set-languages", (_e, languages: string[]) => {
     mainWindow?.webContents.session.setSpellCheckerLanguages(languages);
   });
 
-  ipcMain.handle('spellcheck:add-word', (_e, word: string) => {
+  ipcMain.handle("spellcheck:add-word", (_e, word: string) => {
     mainWindow?.webContents.session.addWordToSpellCheckerDictionary(word);
   });
 
   // --- Settings ---
-  ipcMain.handle('settings:get', () => {
+  ipcMain.handle("settings:get", () => {
     return readSettings();
   });
 
-  ipcMain.handle('settings:set', async (_e, settings: AppSettings) => {
+  ipcMain.handle("settings:set", async (_e, settings: AppSettings) => {
     await writeSettings(settings);
   });
 
   // --- App info ---
-  ipcMain.handle('app:get-info', () => {
+  ipcMain.handle("app:get-info", () => {
     return {
       version: app.getVersion(),
       name: app.getName(),
@@ -993,71 +1093,84 @@ function registerIpcHandlers() {
 
   // Pulled by the renderer on mount to pick up a file passed via OS launch
   // (e.g. double-clicking a .md in Explorer). One-shot — clears after read.
-  ipcMain.handle('app:get-pending-file', () => {
+  ipcMain.handle("app:get-pending-file", () => {
     const p = pendingFilePath;
     pendingFilePath = null;
     return p;
   });
 
-  ipcMain.handle('export:pdf', async (_e, args: { html: string; title: string }) => {
-    const styledHtml = wrapHtmlWithStyles(args.html, args.title);
-    const defaultName = args.title.replace(/\.md$/i, '') + '.pdf';
+  ipcMain.handle(
+    "export:pdf",
+    async (_e, args: { html: string; title: string }) => {
+      const styledHtml = wrapHtmlWithStyles(args.html, args.title);
+      const defaultName = args.title.replace(/\.md$/i, "") + ".pdf";
 
-    // Write to temp file so the hidden window can load it
-    const tempPath = path.join(app.getPath('temp'), `pennivo-export-${Date.now()}.html`);
-    await fs.writeFile(tempPath, styledHtml, 'utf-8');
+      // Write to temp file so the hidden window can load it
+      const tempPath = path.join(
+        app.getPath("temp"),
+        `pennivo-export-${Date.now()}.html`,
+      );
+      await fs.writeFile(tempPath, styledHtml, "utf-8");
 
-    const pdfWindow = new BrowserWindow({
-      show: false,
-      width: 800,
-      height: 600,
-      webPreferences: {
-        offscreen: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    try {
-      await pdfWindow.loadFile(tempPath);
-      const pdfBuffer = await pdfWindow.webContents.printToPDF({
-        pageSize: 'A4',
-        printBackground: true,
+      const pdfWindow = new BrowserWindow({
+        show: false,
+        width: 800,
+        height: 600,
+        webPreferences: {
+          offscreen: true,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
       });
-      pdfWindow.destroy();
-      await fs.unlink(tempPath).catch(() => {});
 
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
-        filters: [
-          { name: 'PDF', extensions: ['pdf'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
-        defaultPath: defaultName,
-      });
-      if (canceled || !filePath) return null;
-      await fs.writeFile(filePath, pdfBuffer);
-      return filePath;
-    } catch (err) {
-      pdfWindow.destroy();
-      await fs.unlink(tempPath).catch(() => {});
-      throw err;
-    }
-  });
+      try {
+        await pdfWindow.loadFile(tempPath);
+        const pdfBuffer = await pdfWindow.webContents.printToPDF({
+          pageSize: "A4",
+          printBackground: true,
+        });
+        pdfWindow.destroy();
+        await fs.unlink(tempPath).catch(() => {});
+
+        const { canceled, filePath } = await dialog.showSaveDialog(
+          mainWindow!,
+          {
+            filters: [
+              { name: "PDF", extensions: ["pdf"] },
+              { name: "All Files", extensions: ["*"] },
+            ],
+            defaultPath: defaultName,
+          },
+        );
+        if (canceled || !filePath) return null;
+        await fs.writeFile(filePath, pdfBuffer);
+        return filePath;
+      } catch (err) {
+        pdfWindow.destroy();
+        await fs.unlink(tempPath).catch(() => {});
+        throw err;
+      }
+    },
+  );
 }
 
 // Register custom protocol to serve local image files in the editor.
 // file:// URLs are blocked when the page is served from http://localhost (dev mode).
-protocol.registerSchemesAsPrivileged([{
-  scheme: 'pennivo-file',
-  privileges: { standard: false, supportFetchAPI: true, stream: true },
-}]);
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "pennivo-file",
+    privileges: { standard: false, supportFetchAPI: true, stream: true },
+  },
+]);
 
 app.whenReady().then(() => {
   // Handle pennivo-file:// protocol — serves local files by absolute path
-  protocol.handle('pennivo-file', (request) => {
+  protocol.handle("pennivo-file", (request) => {
     // URL format: pennivo-file:///C:/path/to/image.png
-    const filePath = decodeURIComponent(request.url.replace('pennivo-file:///', ''));
+    const filePath = decodeURIComponent(
+      request.url.replace("pennivo-file:///", ""),
+    );
     return net.fetch(pathToFileURL(filePath).href);
   });
 
@@ -1066,25 +1179,25 @@ app.whenReady().then(() => {
   const csp = [
     "default-src 'none'",
     isDev
-      ? "script-src 'self' 'unsafe-inline'"   // Vite HMR injects inline module scripts
+      ? "script-src 'self' 'unsafe-inline'" // Vite HMR injects inline module scripts
       : "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",        // ProseMirror + Mermaid SVG inline styles
+    "style-src 'self' 'unsafe-inline'", // ProseMirror + Mermaid SVG inline styles
     "img-src 'self' data: pennivo-file: file:",
     "font-src 'self' data:",
     isDev
-      ? "connect-src 'self' ws:"               // Vite HMR WebSocket
+      ? "connect-src 'self' ws:" // Vite HMR WebSocket
       : "connect-src 'self' pennivo-file:",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
-  ].join('; ');
+  ].join("; ");
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [csp],
+        "Content-Security-Policy": [csp],
       },
     });
   });
@@ -1103,29 +1216,32 @@ app.whenReady().then(() => {
   // logged but never surfaced as dialogs — network failures and missing
   // releases are common and must fail silently.
   if (!process.env.VITE_DEV_SERVER_URL) {
-    autoUpdater.on('update-downloaded', (info) => {
-      mainWindow?.webContents.send('update:available', info.version);
+    autoUpdater.on("update-downloaded", (info) => {
+      mainWindow?.webContents.send("update:available", info.version);
     });
-    autoUpdater.on('error', (err) => {
-      console.error('[autoUpdater]', err);
+    autoUpdater.on("error", (err) => {
+      console.error("[autoUpdater]", err);
     });
 
-    ipcMain.on('update:install', () => {
+    ipcMain.on("update:install", () => {
       autoUpdater.quitAndInstall();
     });
 
     autoUpdater.checkForUpdates();
-    setInterval(() => {
-      autoUpdater.checkForUpdates();
-    }, 24 * 60 * 60 * 1000);
+    setInterval(
+      () => {
+        autoUpdater.checkForUpdates();
+      },
+      24 * 60 * 60 * 1000,
+    );
   }
 });
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   stopFolderWatcher();
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== "darwin") app.quit();
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

@@ -14,8 +14,14 @@
 }
 
 @keyframes kanban-editor-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* --- Header --- */
@@ -48,7 +54,9 @@
   border-radius: var(--radius-sm);
   color: var(--text-faint);
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-editor-close:hover {
@@ -153,7 +161,9 @@
   font-weight: 600;
   outline: none;
   min-width: 0;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-col-title:focus {
@@ -208,7 +218,9 @@
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   cursor: grab;
-  transition: border-color var(--transition-fast), box-shadow 0.15s ease;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow 0.15s ease;
   position: relative;
 }
 
@@ -249,7 +261,10 @@
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.1s ease, color var(--transition-fast), background var(--transition-fast);
+  transition:
+    opacity 0.1s ease,
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-card:hover .kanban-card-remove {
@@ -347,7 +362,10 @@
   font-size: 11px;
   cursor: pointer;
   margin: 4px 6px 6px;
-  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-add-card:hover {
@@ -370,7 +388,9 @@
   color: var(--text-faint);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-col-remove:hover {
@@ -405,7 +425,10 @@
   font-family: var(--font-ui);
   font-size: 11px;
   cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .kanban-add-col:hover {

@@ -1,31 +1,38 @@
-import { $prose } from '@milkdown/utils';
-import { Plugin, PluginKey } from '@milkdown/prose/state';
-import { Decoration, DecorationSet } from '@milkdown/prose/view';
-import type { Node } from '@milkdown/prose/model';
-import DOMPurify from 'dompurify';
-import { parseKanbanMarkdown } from '@pennivo/core';
+import { $prose } from "@milkdown/utils";
+import { Plugin, PluginKey } from "@milkdown/prose/state";
+import { Decoration, DecorationSet } from "@milkdown/prose/view";
+import type { Node } from "@milkdown/prose/model";
+import DOMPurify from "dompurify";
+import { parseKanbanMarkdown } from "@pennivo/core";
 
 // Allow SVG + HTML elements (mermaid uses <foreignObject> with nested HTML for labels)
 const svgPurifyConfig = {
   USE_PROFILES: { html: true, svg: true, svgFilters: true },
-  ADD_TAGS: ['foreignObject', 'style'],
-  ADD_ATTR: ['dominant-baseline', 'text-anchor', 'transform', 'marker-end', 'marker-start', 'clip-path'],
+  ADD_TAGS: ["foreignObject", "style"],
+  ADD_ATTR: [
+    "dominant-baseline",
+    "text-anchor",
+    "transform",
+    "marker-end",
+    "marker-start",
+    "clip-path",
+  ],
 };
 
 function isDarkMode(): boolean {
-  return document.documentElement.getAttribute('data-theme') === 'dark';
+  return document.documentElement.getAttribute("data-theme") === "dark";
 }
 
 // Lazy-load mermaid — it's ~150-200 KB and only needed when a document
 // contains mermaid code blocks.  Deferred import keeps it out of the
 // critical startup path.
-let mermaidLib: typeof import('mermaid').default | null = null;
-let mermaidLoading: Promise<typeof import('mermaid').default> | null = null;
+let mermaidLib: typeof import("mermaid").default | null = null;
+let mermaidLoading: Promise<typeof import("mermaid").default> | null = null;
 
 async function getMermaid() {
   if (mermaidLib) return mermaidLib;
   if (!mermaidLoading) {
-    mermaidLoading = import('mermaid').then(m => {
+    mermaidLoading = import("mermaid").then((m) => {
       mermaidLib = m.default;
       return mermaidLib;
     });
@@ -35,73 +42,77 @@ async function getMermaid() {
 
 let lastInitDark: boolean | null = null;
 
-function initMermaid(mermaid: typeof import('mermaid').default) {
+function initMermaid(mermaid: typeof import("mermaid").default) {
   const dark = isDarkMode();
   if (lastInitDark === dark) return; // skip if theme unchanged
   lastInitDark = dark;
   mermaid.initialize({
     startOnLoad: false,
-    theme: 'base',
-    securityLevel: 'strict',
+    theme: "base",
+    securityLevel: "strict",
     fontFamily: '"Segoe UI", system-ui, sans-serif',
     themeVariables: {
       // Background
-      primaryColor: 'transparent',
-      primaryBorderColor: dark ? '#7a7872' : '#8A8880',
-      primaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      secondaryColor: 'transparent',
-      secondaryBorderColor: dark ? '#5A5852' : '#AEACA6',
-      secondaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      tertiaryColor: 'transparent',
-      tertiaryBorderColor: dark ? '#5A5852' : '#AEACA6',
-      tertiaryTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      lineColor: dark ? '#7a7872' : '#8A8880',
-      textColor: dark ? '#E8E6E1' : '#1A1A18',
-      mainBkg: 'transparent',
-      nodeBorder: dark ? '#7a7872' : '#8A8880',
-      clusterBkg: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-      titleColor: dark ? '#E8E6E1' : '#1A1A18',
-      edgeLabelBackground: dark ? '#1C1C1C' : '#FAFAF8',
-      nodeTextColor: dark ? '#E8E6E1' : '#1A1A18',
+      primaryColor: "transparent",
+      primaryBorderColor: dark ? "#7a7872" : "#8A8880",
+      primaryTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      secondaryColor: "transparent",
+      secondaryBorderColor: dark ? "#5A5852" : "#AEACA6",
+      secondaryTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      tertiaryColor: "transparent",
+      tertiaryBorderColor: dark ? "#5A5852" : "#AEACA6",
+      tertiaryTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      lineColor: dark ? "#7a7872" : "#8A8880",
+      textColor: dark ? "#E8E6E1" : "#1A1A18",
+      mainBkg: "transparent",
+      nodeBorder: dark ? "#7a7872" : "#8A8880",
+      clusterBkg: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
+      titleColor: dark ? "#E8E6E1" : "#1A1A18",
+      edgeLabelBackground: dark ? "#1C1C1C" : "#FAFAF8",
+      nodeTextColor: dark ? "#E8E6E1" : "#1A1A18",
 
       // Gantt
-      sectionBkgColor: dark ? '#1a1a1a' : 'transparent',
-      altSectionBkgColor: dark ? '#222222' : 'rgba(0,0,0,0.03)',
-      excludeBkgColor: dark ? '#2a2a2a' : 'rgba(0,0,0,0.05)',
-      gridColor: dark ? '#333333' : '#e0e0e0',
-      taskTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      taskTextDarkColor: dark ? '#E8E6E1' : '#1A1A18',
-      taskTextOutsideColor: dark ? '#E8E6E1' : '#1A1A18',
-      taskBorderColor: dark ? '#7a7872' : '#8A8880',
-      taskBkgColor: dark ? 'rgba(94,158,116,0.25)' : 'rgba(74,124,89,0.2)',
-      activeTaskBorderColor: dark ? '#5E9E74' : '#4A7C59',
-      activeTaskBkgColor: dark ? 'rgba(94,158,116,0.3)' : 'rgba(74,124,89,0.25)',
-      doneTaskBorderColor: dark ? '#5A5852' : '#AEACA6',
-      doneTaskBkgColor: dark ? 'rgba(90,88,82,0.2)' : 'rgba(174,172,166,0.15)',
-      critBorderColor: dark ? '#D49872' : '#B06040',
-      critBkgColor: dark ? 'rgba(212,152,114,0.3)' : 'rgba(176,96,64,0.2)',
-      todayLineColor: dark ? '#5E9E74' : '#4A7C59',
+      sectionBkgColor: dark ? "#1a1a1a" : "transparent",
+      altSectionBkgColor: dark ? "#222222" : "rgba(0,0,0,0.03)",
+      excludeBkgColor: dark ? "#2a2a2a" : "rgba(0,0,0,0.05)",
+      gridColor: dark ? "#333333" : "#e0e0e0",
+      taskTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      taskTextDarkColor: dark ? "#E8E6E1" : "#1A1A18",
+      taskTextOutsideColor: dark ? "#E8E6E1" : "#1A1A18",
+      taskBorderColor: dark ? "#7a7872" : "#8A8880",
+      taskBkgColor: dark ? "rgba(94,158,116,0.25)" : "rgba(74,124,89,0.2)",
+      activeTaskBorderColor: dark ? "#5E9E74" : "#4A7C59",
+      activeTaskBkgColor: dark
+        ? "rgba(94,158,116,0.3)"
+        : "rgba(74,124,89,0.25)",
+      doneTaskBorderColor: dark ? "#5A5852" : "#AEACA6",
+      doneTaskBkgColor: dark ? "rgba(90,88,82,0.2)" : "rgba(174,172,166,0.15)",
+      critBorderColor: dark ? "#D49872" : "#B06040",
+      critBkgColor: dark ? "rgba(212,152,114,0.3)" : "rgba(176,96,64,0.2)",
+      todayLineColor: dark ? "#5E9E74" : "#4A7C59",
 
       // Sequence
-      actorTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      actorBorder: dark ? '#7a7872' : '#8A8880',
-      actorBkg: 'transparent',
-      signalColor: dark ? '#E8E6E1' : '#1A1A18',
-      labelTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      noteBkgColor: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
-      noteTextColor: dark ? '#E8E6E1' : '#1A1A18',
-      noteBorderColor: dark ? '#5A5852' : '#AEACA6',
+      actorTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      actorBorder: dark ? "#7a7872" : "#8A8880",
+      actorBkg: "transparent",
+      signalColor: dark ? "#E8E6E1" : "#1A1A18",
+      labelTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      noteBkgColor: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
+      noteTextColor: dark ? "#E8E6E1" : "#1A1A18",
+      noteBorderColor: dark ? "#5A5852" : "#AEACA6",
     },
   });
 }
 
-const mermaidKey = new PluginKey('mermaid-preview');
+const mermaidKey = new PluginKey("mermaid-preview");
 
 const svgCache = new Map<string, string>();
 let renderCounter = 0;
 
-async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: string }> {
-  if (!code.trim()) return { svg: '' };
+async function renderMermaidSvg(
+  code: string,
+): Promise<{ svg: string; error?: string }> {
+  if (!code.trim()) return { svg: "" };
 
   const dark = isDarkMode();
   const cacheKey = `${dark}:${code}`;
@@ -114,7 +125,7 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
   const id = `mermaid-${++renderCounter}`;
   try {
     let { svg } = await mermaid.render(id, code);
-    const isGantt = code.trim().startsWith('gantt');
+    const isGantt = code.trim().startsWith("gantt");
 
     // --- SVG post-processing ---
     // Mermaid's internal <style> block and inline attributes can produce wrong
@@ -125,20 +136,26 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
       // For gantt charts: strip fill declarations from gantt-specific CSS rules
       // (exclude-range, section, task, done, active, crit, sectionTitle, grid)
       // so our external CSS has full control over these elements.
-      svg = svg.replace(/<style[^>]*>([\s\S]*?)<\/style>/, (_match, css: string) => {
-        const cleaned = css.replace(
-          /(\.(?:exclude-range|section\d*|task\d*|done\d*|active\d*|crit\d*|doneCrit\d*|activeCrit\d*|sectionTitle\d*|taskText\S*|doneText\S*|activeText\S*|critText\S*|doneCritText\S*|activeCritText\S*|taskTextOutside\S*|today|grid\b)[^{]*\{[^}]*?)fill:\s*[^;]+;?/g,
-          '$1'
-        );
-        return `<style>${cleaned}</style>`;
-      });
+      svg = svg.replace(
+        /<style[^>]*>([\s\S]*?)<\/style>/,
+        (_match, css: string) => {
+          const cleaned = css.replace(
+            /(\.(?:exclude-range|section\d*|task\d*|done\d*|active\d*|crit\d*|doneCrit\d*|activeCrit\d*|sectionTitle\d*|taskText\S*|doneText\S*|activeText\S*|critText\S*|doneCritText\S*|activeCritText\S*|taskTextOutside\S*|today|grid\b)[^{]*\{[^}]*?)fill:\s*[^;]+;?/g,
+            "$1",
+          );
+          return `<style>${cleaned}</style>`;
+        },
+      );
     }
 
     // Strip inline fill from text/tspan (all diagram types) so CSS controls text color.
     // Also strip fill="..." attribute set by D3 on grid tick text (.attr("fill", "#000")).
     svg = svg.replace(/<(text|tspan)\b[^>]*>/g, (match) => {
-      let cleaned = match.replace(/(\bstyle="[^"]*?)fill:\s*[^";]+;?\s*/g, '$1');
-      cleaned = cleaned.replace(/\bfill="[^"]*"/g, '');
+      let cleaned = match.replace(
+        /(\bstyle="[^"]*?)fill:\s*[^";]+;?\s*/g,
+        "$1",
+      );
+      cleaned = cleaned.replace(/\bfill="[^"]*"/g, "");
       return cleaned;
     });
 
@@ -148,9 +165,9 @@ async function renderMermaidSvg(code: string): Promise<{ svg: string; error?: st
     svgCache.set(cacheKey, svg);
     return { svg };
   } catch (err) {
-    document.getElementById('d' + id)?.remove();
-    const msg = err instanceof Error ? err.message : 'Could not render diagram';
-    return { svg: '', error: msg };
+    document.getElementById("d" + id)?.remove();
+    const msg = err instanceof Error ? err.message : "Could not render diagram";
+    return { svg: "", error: msg };
   }
 }
 
@@ -160,46 +177,58 @@ export const mermaidPlugin = $prose(() => {
   let generation = 0; // incremented on each buildDecorations to discard stale async renders
 
   function createPreviewWidget(pos: number, code: string): HTMLElement {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'mermaid-preview-widget';
-    wrapper.contentEditable = 'false';
+    const wrapper = document.createElement("div");
+    wrapper.className = "mermaid-preview-widget";
+    wrapper.contentEditable = "false";
 
-    const isGantt = code.trim().startsWith('gantt');
+    const isGantt = code.trim().startsWith("gantt");
     const gen = generation; // capture current generation
 
     if (!code.trim()) {
-      wrapper.innerHTML = '<span class="mermaid-preview-hint">Enter mermaid syntax below...</span>';
+      wrapper.innerHTML =
+        '<span class="mermaid-preview-hint">Enter mermaid syntax below...</span>';
     } else {
-      wrapper.innerHTML = '<span class="mermaid-preview-loading">Rendering...</span>';
+      wrapper.innerHTML =
+        '<span class="mermaid-preview-loading">Rendering...</span>';
       renderMermaidSvg(code).then(({ svg, error }) => {
         // Discard result if decorations were rebuilt while we were rendering
         if (gen !== generation) return;
         if (svg) {
           wrapper.innerHTML = svg;
         } else {
-          const errorEl = document.createElement('span');
-          errorEl.className = 'mermaid-preview-error';
-          errorEl.textContent = error || 'Could not render diagram';
-          errorEl.title = error || '';
-          wrapper.innerHTML = '';
+          const errorEl = document.createElement("span");
+          errorEl.className = "mermaid-preview-error";
+          errorEl.textContent = error || "Could not render diagram";
+          errorEl.title = error || "";
+          wrapper.innerHTML = "";
           wrapper.appendChild(errorEl);
         }
 
         // For gantt diagrams, add "Edit Chart" button and dispatch auto-open event
         if (isGantt) {
-          wrapper.style.position = 'relative';
+          wrapper.style.position = "relative";
 
-          const editBtn = document.createElement('button');
-          editBtn.className = 'mermaid-gantt-edit-btn';
-          editBtn.textContent = 'Edit Chart';
-          editBtn.contentEditable = 'false';
-          editBtn.addEventListener('mousedown', (e) => {
+          const editBtn = document.createElement("button");
+          editBtn.className = "mermaid-gantt-edit-btn";
+          editBtn.textContent = "Edit Chart";
+          editBtn.contentEditable = "false";
+          editBtn.addEventListener("mousedown", (e) => {
             e.preventDefault();
             e.stopPropagation();
             const rect = wrapper.getBoundingClientRect();
-            document.dispatchEvent(new CustomEvent('gantt-edit-request', {
-              detail: { pos, code, rect: { top: rect.bottom, left: rect.left, width: rect.width } },
-            }));
+            document.dispatchEvent(
+              new CustomEvent("gantt-edit-request", {
+                detail: {
+                  pos,
+                  code,
+                  rect: {
+                    top: rect.bottom,
+                    left: rect.left,
+                    width: rect.width,
+                  },
+                },
+              }),
+            );
           });
           wrapper.appendChild(editBtn);
         }
@@ -212,55 +241,56 @@ export const mermaidPlugin = $prose(() => {
   }
 
   function createKanbanPreview(pos: number, code: string): HTMLElement {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'kanban-preview-widget';
-    wrapper.contentEditable = 'false';
+    const wrapper = document.createElement("div");
+    wrapper.className = "kanban-preview-widget";
+    wrapper.contentEditable = "false";
 
     const parsed = parseKanbanMarkdown(code);
     if (!parsed) {
-      wrapper.innerHTML = '<span class="mermaid-preview-hint">Invalid kanban data</span>';
+      wrapper.innerHTML =
+        '<span class="mermaid-preview-hint">Invalid kanban data</span>';
       return wrapper;
     }
 
     // Board title
     if (parsed.title) {
-      const titleEl = document.createElement('div');
-      titleEl.className = 'kanban-preview-title';
+      const titleEl = document.createElement("div");
+      titleEl.className = "kanban-preview-title";
       titleEl.textContent = parsed.title;
       wrapper.appendChild(titleEl);
     }
 
     // Columns container
-    const columnsEl = document.createElement('div');
-    columnsEl.className = 'kanban-preview-columns';
+    const columnsEl = document.createElement("div");
+    columnsEl.className = "kanban-preview-columns";
 
     for (const col of parsed.columns) {
-      const colEl = document.createElement('div');
-      colEl.className = 'kanban-preview-column';
+      const colEl = document.createElement("div");
+      colEl.className = "kanban-preview-column";
 
-      const colHeader = document.createElement('div');
-      colHeader.className = 'kanban-preview-column-header';
+      const colHeader = document.createElement("div");
+      colHeader.className = "kanban-preview-column-header";
       colHeader.textContent = col.title;
-      const countSpan = document.createElement('span');
-      countSpan.className = 'kanban-preview-count';
+      const countSpan = document.createElement("span");
+      countSpan.className = "kanban-preview-count";
       countSpan.textContent = String(col.cards.length);
       colHeader.appendChild(countSpan);
       colEl.appendChild(colHeader);
 
       for (const card of col.cards) {
-        const cardEl = document.createElement('div');
-        cardEl.className = 'kanban-preview-card';
-        const cardTitle = document.createElement('span');
-        cardTitle.className = 'kanban-preview-card-title';
+        const cardEl = document.createElement("div");
+        cardEl.className = "kanban-preview-card";
+        const cardTitle = document.createElement("span");
+        cardTitle.className = "kanban-preview-card-title";
         cardTitle.textContent = card.title;
         cardEl.appendChild(cardTitle);
 
         if (card.labels && card.labels.length > 0) {
-          const labelsRow = document.createElement('div');
-          labelsRow.className = 'kanban-preview-labels';
+          const labelsRow = document.createElement("div");
+          labelsRow.className = "kanban-preview-labels";
           for (const label of card.labels) {
-            const tag = document.createElement('span');
-            tag.className = 'kanban-preview-label';
+            const tag = document.createElement("span");
+            tag.className = "kanban-preview-label";
             tag.textContent = label;
             labelsRow.appendChild(tag);
           }
@@ -276,18 +306,24 @@ export const mermaidPlugin = $prose(() => {
     wrapper.appendChild(columnsEl);
 
     // Edit Board button
-    wrapper.style.position = 'relative';
-    const editBtn = document.createElement('button');
-    editBtn.className = 'mermaid-gantt-edit-btn';
-    editBtn.textContent = 'Edit Board';
-    editBtn.contentEditable = 'false';
-    editBtn.addEventListener('mousedown', (e) => {
+    wrapper.style.position = "relative";
+    const editBtn = document.createElement("button");
+    editBtn.className = "mermaid-gantt-edit-btn";
+    editBtn.textContent = "Edit Board";
+    editBtn.contentEditable = "false";
+    editBtn.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
       const rect = wrapper.getBoundingClientRect();
-      document.dispatchEvent(new CustomEvent('kanban-edit-request', {
-        detail: { pos, code, rect: { top: rect.bottom, left: rect.left, width: rect.width } },
-      }));
+      document.dispatchEvent(
+        new CustomEvent("kanban-edit-request", {
+          detail: {
+            pos,
+            code,
+            rect: { top: rect.bottom, left: rect.left, width: rect.width },
+          },
+        }),
+      );
     });
     wrapper.appendChild(editBtn);
 
@@ -303,41 +339,47 @@ export const mermaidPlugin = $prose(() => {
     renderedContent.clear();
 
     doc.descendants((node, pos) => {
-      if (node.type.name !== 'code_block') return;
+      if (node.type.name !== "code_block") return;
 
-      const lang = node.attrs['language'];
+      const lang = node.attrs["language"];
 
       // Kanban code blocks
-      if (lang === 'kanban') {
+      if (lang === "kanban") {
         const code = node.textContent;
         decorations.push(
-          Decoration.widget(pos, () => createKanbanPreview(pos, code), { side: -1 })
+          Decoration.widget(pos, () => createKanbanPreview(pos, code), {
+            side: -1,
+          }),
         );
         decorations.push(
           Decoration.node(pos, pos + node.nodeSize, {
-            class: 'mermaid-gantt-hidden-code',
-          })
+            class: "mermaid-gantt-hidden-code",
+          }),
         );
         return;
       }
 
-      if (lang !== 'mermaid') return;
+      if (lang !== "mermaid") return;
 
       const code = node.textContent;
-      const isGantt = code.trim().startsWith('gantt');
+      const isGantt = code.trim().startsWith("gantt");
 
       decorations.push(
-        Decoration.widget(pos, () => {
-          return createPreviewWidget(pos, code);
-        }, { side: -1 })
+        Decoration.widget(
+          pos,
+          () => {
+            return createPreviewWidget(pos, code);
+          },
+          { side: -1 },
+        ),
       );
 
       // Hide the raw code block for gantt charts — the table editor replaces it
       if (isGantt) {
         decorations.push(
           Decoration.node(pos, pos + node.nodeSize, {
-            class: 'mermaid-gantt-hidden-code',
-          })
+            class: "mermaid-gantt-hidden-code",
+          }),
         );
       }
     });

@@ -1,4 +1,4 @@
-const DRAFT_STORAGE_KEY = 'pennivo-draft';
+const DRAFT_STORAGE_KEY = "pennivo-draft";
 
 export interface DraftData {
   content: string;
@@ -20,7 +20,11 @@ export function loadDraft(): DraftData | null {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (!raw) return null;
     const draft = JSON.parse(raw) as DraftData;
-    if (draft && typeof draft.content === 'string' && typeof draft.timestamp === 'number') {
+    if (
+      draft &&
+      typeof draft.content === "string" &&
+      typeof draft.timestamp === "number"
+    ) {
       return draft;
     }
   } catch {

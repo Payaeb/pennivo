@@ -1,9 +1,9 @@
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 export function createMockPennivoAPI() {
   return {
-    platform: 'test',
-    getPathForFile: vi.fn(() => '/mock/path'),
+    platform: "test",
+    getPathForFile: vi.fn(() => "/mock/path"),
     minimize: vi.fn(),
     maximize: vi.fn(),
     close: vi.fn(),
@@ -16,7 +16,10 @@ export function createMockPennivoAPI() {
     openExternal: vi.fn(),
 
     // File I/O
-    saveImage: vi.fn(async () => ({ relativePath: 'img.png', absolutePath: '/img.png' })),
+    saveImage: vi.fn(async () => ({
+      relativePath: "img.png",
+      absolutePath: "/img.png",
+    })),
     pickImage: vi.fn(async () => null),
     openFile: vi.fn(async () => null),
     saveFile: vi.fn(async () => true),
@@ -69,7 +72,7 @@ export function createMockPennivoAPI() {
 }
 
 export function createMockEditorView() {
-  const dom = document.createElement('div');
+  const dom = document.createElement("div");
   return {
     state: {
       doc: { content: { size: 0 } },

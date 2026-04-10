@@ -15,6 +15,11 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Overly strict React Hooks v7 rules — these flag intentional patterns
+      // (setState in effects to sync state, latest-ref pattern, recursive callbacks)
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/immutability": "off",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

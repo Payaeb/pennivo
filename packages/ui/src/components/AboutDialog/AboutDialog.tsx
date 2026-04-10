@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import logo from '../../assets/logo-32.png';
-import './AboutDialog.css';
+import { useEffect, useRef, useState } from "react";
+import logo from "../../assets/logo-32.png";
+import "./AboutDialog.css";
 
 interface AboutDialogProps {
   visible: boolean;
@@ -9,7 +9,7 @@ interface AboutDialogProps {
 
 export function AboutDialog({ visible, onClose }: AboutDialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [version, setVersion] = useState('1.0.0');
+  const [version, setVersion] = useState("1.0.0");
 
   useEffect(() => {
     window.pennivo?.getAppInfo?.().then((info) => {
@@ -20,10 +20,10 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
   useEffect(() => {
     if (!visible) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [visible, onClose]);
 
   if (!visible) return null;
@@ -38,7 +38,11 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
   };
 
   return (
-    <div className="about-overlay" ref={overlayRef} onClick={handleOverlayClick}>
+    <div
+      className="about-overlay"
+      ref={overlayRef}
+      onClick={handleOverlayClick}
+    >
       <div className="about-card" role="dialog" aria-label="About Pennivo">
         <img src={logo} alt="Pennivo" className="about-logo" />
         <div className="about-name">Pennivo</div>
@@ -52,13 +56,15 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
             <a
               className="about-link"
               href="https://github.com/payaeb/pennivo"
-              onClick={handleLinkClick('https://github.com/payaeb/pennivo')}
+              onClick={handleLinkClick("https://github.com/payaeb/pennivo")}
             >
               GitHub
             </a>
           </div>
         </div>
-        <button className="about-close" onClick={onClose}>Close</button>
+        <button className="about-close" onClick={onClose}>
+          Close
+        </button>
       </div>
     </div>
   );

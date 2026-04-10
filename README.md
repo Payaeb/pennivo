@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Payaeb/pennivo/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/Payaeb/pennivo/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Payaeb/pennivo/releases/latest">Download</a> ·
   <a href="https://www.pennivo.app/">Website</a> ·
   <a href="https://github.com/Payaeb/pennivo/issues">Issues</a>

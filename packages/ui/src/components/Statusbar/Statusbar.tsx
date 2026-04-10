@@ -1,6 +1,6 @@
-import './Statusbar.css';
+import "./Statusbar.css";
 
-export type SaveStatus = 'saved' | 'saving' | 'unsaved';
+export type SaveStatus = "saved" | "saving" | "unsaved";
 
 interface StatusbarProps {
   wordCount: number;
@@ -9,9 +9,15 @@ interface StatusbarProps {
   showWordCount?: boolean;
 }
 
-export function Statusbar({ wordCount, charCount, saveStatus, showWordCount = true }: StatusbarProps) {
+export function Statusbar({
+  wordCount,
+  charCount,
+  saveStatus,
+  showWordCount = true,
+}: StatusbarProps) {
   const rawMinutes = wordCount / 238;
-  const readingLabel = rawMinutes < 1 ? '< 1 min read' : `${Math.ceil(rawMinutes)} min read`;
+  const readingLabel =
+    rawMinutes < 1 ? "< 1 min read" : `${Math.ceil(rawMinutes)} min read`;
 
   return (
     <div className="statusbar" role="status">
@@ -19,9 +25,13 @@ export function Statusbar({ wordCount, charCount, saveStatus, showWordCount = tr
       {showWordCount && (
         <>
           <span className="status-sep">·</span>
-          <span className="status-item">{wordCount.toLocaleString()} words</span>
+          <span className="status-item">
+            {wordCount.toLocaleString()} words
+          </span>
           <span className="status-sep">·</span>
-          <span className="status-item">{charCount.toLocaleString()} characters</span>
+          <span className="status-item">
+            {charCount.toLocaleString()} characters
+          </span>
           <span className="status-sep">·</span>
           <span className="status-item">{readingLabel}</span>
         </>
@@ -32,9 +42,16 @@ export function Statusbar({ wordCount, charCount, saveStatus, showWordCount = tr
 
 function StatusSave({ status }: { status: SaveStatus }) {
   return (
-    <span className={`status-item status-save status-save--${status}`} aria-live="polite">
+    <span
+      className={`status-item status-save status-save--${status}`}
+      aria-live="polite"
+    >
       <span className="status-save-dot" />
-      {status === 'saving' ? 'Saving…' : status === 'unsaved' ? 'Unsaved' : 'Saved'}
+      {status === "saving"
+        ? "Saving…"
+        : status === "unsaved"
+          ? "Unsaved"
+          : "Saved"}
     </span>
   );
 }

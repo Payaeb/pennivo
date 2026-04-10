@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import './ShortcutsSheet.css';
+import { useEffect, useRef } from "react";
+import "./ShortcutsSheet.css";
 
 interface ShortcutsSheetProps {
   visible: boolean;
@@ -18,52 +18,52 @@ interface ShortcutGroup {
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: 'Formatting',
+    title: "Formatting",
     items: [
-      { action: 'Bold', keys: 'Ctrl+B' },
-      { action: 'Italic', keys: 'Ctrl+I' },
-      { action: 'Insert Link', keys: 'Ctrl+K' },
+      { action: "Bold", keys: "Ctrl+B" },
+      { action: "Italic", keys: "Ctrl+I" },
+      { action: "Insert Link", keys: "Ctrl+K" },
     ],
   },
   {
-    title: 'File',
+    title: "File",
     items: [
-      { action: 'New File', keys: 'Ctrl+N' },
-      { action: 'Open File', keys: 'Ctrl+O' },
-      { action: 'Save', keys: 'Ctrl+S' },
-      { action: 'Save As', keys: 'Ctrl+Shift+S' },
+      { action: "New File", keys: "Ctrl+N" },
+      { action: "Open File", keys: "Ctrl+O" },
+      { action: "Save", keys: "Ctrl+S" },
+      { action: "Save As", keys: "Ctrl+Shift+S" },
     ],
   },
   {
-    title: 'Navigation',
+    title: "Navigation",
     items: [
-      { action: 'Command Palette', keys: 'Ctrl+Shift+P' },
-      { action: 'Outline Panel', keys: 'Ctrl+Shift+O' },
-      { action: 'Find & Replace', keys: 'Ctrl+F' },
-      { action: 'Toggle Sidebar', keys: 'Ctrl+B' },
+      { action: "Command Palette", keys: "Ctrl+Shift+P" },
+      { action: "Outline Panel", keys: "Ctrl+Shift+O" },
+      { action: "Find & Replace", keys: "Ctrl+F" },
+      { action: "Toggle Sidebar", keys: "Ctrl+B" },
     ],
   },
   {
-    title: 'View',
+    title: "View",
     items: [
-      { action: 'Focus Mode', keys: 'Ctrl+Shift+F' },
-      { action: 'Shortcuts', keys: 'Ctrl+/' },
+      { action: "Focus Mode", keys: "Ctrl+Shift+F" },
+      { action: "Shortcuts", keys: "Ctrl+/" },
     ],
   },
   {
-    title: 'Export',
-    items: [
-      { action: 'Export HTML', keys: 'Ctrl+Shift+E' },
-    ],
+    title: "Export",
+    items: [{ action: "Export HTML", keys: "Ctrl+Shift+E" }],
   },
 ];
 
 function renderKeys(keys: string) {
-  const parts = keys.split('+');
+  const parts = keys.split("+");
   return (
     <span className="shortcuts-keys">
       {parts.map((part, i) => (
-        <kbd key={i} className="shortcuts-kbd">{part}</kbd>
+        <kbd key={i} className="shortcuts-kbd">
+          {part}
+        </kbd>
       ))}
     </span>
   );
@@ -75,10 +75,10 @@ export function ShortcutsSheet({ visible, onClose }: ShortcutsSheetProps) {
   useEffect(() => {
     if (!visible) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [visible, onClose]);
 
   if (!visible) return null;
@@ -88,12 +88,32 @@ export function ShortcutsSheet({ visible, onClose }: ShortcutsSheetProps) {
   };
 
   return (
-    <div className="shortcuts-overlay" ref={overlayRef} onClick={handleOverlayClick}>
-      <div className="shortcuts-card" role="dialog" aria-label="Keyboard Shortcuts">
+    <div
+      className="shortcuts-overlay"
+      ref={overlayRef}
+      onClick={handleOverlayClick}
+    >
+      <div
+        className="shortcuts-card"
+        role="dialog"
+        aria-label="Keyboard Shortcuts"
+      >
         <div className="shortcuts-header">
           <span className="shortcuts-title">Keyboard Shortcuts</span>
-          <button className="shortcuts-close-btn" onClick={onClose} aria-label="Close">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <button
+            className="shortcuts-close-btn"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
               <line x1="4" y1="4" x2="12" y2="12" />
               <line x1="12" y1="4" x2="4" y2="12" />
             </svg>

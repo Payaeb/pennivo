@@ -101,9 +101,16 @@
 }
 
 /* ── Inline emphasis ── */
-.ProseMirror strong { font-weight: 700; }
-.ProseMirror em     { font-style: italic; }
-.ProseMirror s      { text-decoration: line-through; color: var(--text-muted); }
+.ProseMirror strong {
+  font-weight: 700;
+}
+.ProseMirror em {
+  font-style: italic;
+}
+.ProseMirror s {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
 
 /* ── Inline code ── */
 .ProseMirror code {
@@ -309,7 +316,7 @@
 }
 
 .ProseMirror li[data-checked]::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 7px;
@@ -319,7 +326,9 @@
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .ProseMirror li[data-checked="true"]::before {
@@ -385,7 +394,7 @@
 
 /* ── Placeholder (empty first block) ── */
 .ProseMirror > p:first-child:only-child:empty::before {
-  content: 'Start writing…';
+  content: "Start writing…";
   color: var(--text-faint);
   pointer-events: none;
 }
@@ -411,7 +420,10 @@
   cursor: pointer;
   color: var(--text-faint);
   border-radius: 3px;
-  transition: color var(--transition-fast), background var(--transition-fast), transform 0.15s ease;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    transform 0.15s ease;
   transform: rotate(90deg);
   user-select: none;
   z-index: 1;
@@ -505,7 +517,10 @@
   font-weight: 500;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, background var(--transition-fast), color var(--transition-fast);
+  transition:
+    opacity 0.15s ease,
+    background var(--transition-fast),
+    color var(--transition-fast);
   z-index: 2;
 }
 
@@ -606,7 +621,7 @@
 [data-theme="dark"] .mermaid-preview-widget .done2,
 [data-theme="dark"] .mermaid-preview-widget .done3 {
   fill: rgba(90, 88, 82, 0.2) !important;
-  stroke: #5A5852 !important;
+  stroke: #5a5852 !important;
 }
 
 /* Critical tasks */
@@ -615,14 +630,14 @@
 .mermaid-preview-widget .crit2,
 .mermaid-preview-widget .crit3 {
   fill: rgba(176, 96, 64, 0.2) !important;
-  stroke: #B06040 !important;
+  stroke: #b06040 !important;
 }
 [data-theme="dark"] .mermaid-preview-widget .crit0,
 [data-theme="dark"] .mermaid-preview-widget .crit1,
 [data-theme="dark"] .mermaid-preview-widget .crit2,
 [data-theme="dark"] .mermaid-preview-widget .crit3 {
   fill: rgba(212, 152, 114, 0.3) !important;
-  stroke: #D49872 !important;
+  stroke: #d49872 !important;
 }
 
 /* Active-critical */
@@ -631,14 +646,14 @@
 .mermaid-preview-widget .activeCrit2,
 .mermaid-preview-widget .activeCrit3 {
   fill: rgba(74, 124, 89, 0.25) !important;
-  stroke: #B06040 !important;
+  stroke: #b06040 !important;
 }
 [data-theme="dark"] .mermaid-preview-widget .activeCrit0,
 [data-theme="dark"] .mermaid-preview-widget .activeCrit1,
 [data-theme="dark"] .mermaid-preview-widget .activeCrit2,
 [data-theme="dark"] .mermaid-preview-widget .activeCrit3 {
   fill: rgba(94, 158, 116, 0.3) !important;
-  stroke: #D49872 !important;
+  stroke: #d49872 !important;
 }
 
 /* Done-critical */
@@ -647,14 +662,14 @@
 .mermaid-preview-widget .doneCrit2,
 .mermaid-preview-widget .doneCrit3 {
   fill: rgba(174, 172, 166, 0.15) !important;
-  stroke: #B06040 !important;
+  stroke: #b06040 !important;
 }
 [data-theme="dark"] .mermaid-preview-widget .doneCrit0,
 [data-theme="dark"] .mermaid-preview-widget .doneCrit1,
 [data-theme="dark"] .mermaid-preview-widget .doneCrit2,
 [data-theme="dark"] .mermaid-preview-widget .doneCrit3 {
   fill: rgba(90, 88, 82, 0.2) !important;
-  stroke: #D49872 !important;
+  stroke: #d49872 !important;
 }
 
 /* --- Gantt: section title text --- */

@@ -1,17 +1,19 @@
-import { $prose } from '@milkdown/utils';
-import { Plugin, PluginKey, Selection } from '@milkdown/prose/state';
-import type { EditorView } from '@milkdown/prose/view';
-import type { Node } from '@milkdown/prose/model';
-import { goToNextCell, addRowAfter } from 'prosemirror-tables';
+import { $prose } from "@milkdown/utils";
+import { Plugin, PluginKey, Selection } from "@milkdown/prose/state";
+import type { EditorView } from "@milkdown/prose/view";
+import type { Node } from "@milkdown/prose/model";
+import { goToNextCell, addRowAfter } from "prosemirror-tables";
 
-const tablePluginKey = new PluginKey('table-controls');
+const tablePluginKey = new PluginKey("table-controls");
 
 // Custom isInTable — prosemirror-tables' version doesn't recognise
 // Milkdown's table_header_row, causing the toolbar to miss first clicks.
-function isInTable(state: import('@milkdown/prose/state').EditorState): boolean {
+function isInTable(
+  state: import("@milkdown/prose/state").EditorState,
+): boolean {
   const { $from } = state.selection;
   for (let d = $from.depth; d >= 0; d--) {
-    if ($from.node(d).type.name === 'table') return true;
+    if ($from.node(d).type.name === "table") return true;
   }
   return false;
 }
@@ -24,19 +26,19 @@ export function getActiveTableElement(): HTMLElement | null {
 }
 
 export type TableAction =
-  | 'addRowAbove'
-  | 'addRowBelow'
-  | 'addColLeft'
-  | 'addColRight'
-  | 'deleteRow'
-  | 'deleteCol'
-  | 'alignLeft'
-  | 'alignCenter'
-  | 'alignRight'
-  | 'deleteTable';
+  | "addRowAbove"
+  | "addRowBelow"
+  | "addColLeft"
+  | "addColRight"
+  | "deleteRow"
+  | "deleteCol"
+  | "alignLeft"
+  | "alignCenter"
+  | "alignRight"
+  | "deleteTable";
 
 // Find table info from cursor position
-function findTableContext(state: import('@milkdown/prose/state').EditorState) {
+function findTableContext(state: import("@milkdown/prose/state").EditorState) {
   const { $from } = state.selection;
   let tableDepth = -1;
   let rowDepth = -1;
@@ -44,9 +46,9 @@ function findTableContext(state: import('@milkdown/prose/state').EditorState) {
 
   for (let d = $from.depth; d >= 0; d--) {
     const name = $from.node(d).type.name;
-    if (name === 'table') tableDepth = d;
-    if (name === 'table_row' || name === 'table_header_row') rowDepth = d;
-    if (name === 'table_cell' || name === 'table_header') cellDepth = d;
+    if (name === "table") tableDepth = d;
+    if (name === "table_row" || name === "table_header_row") rowDepth = d;
+    if (name === "table_cell" || name === "table_header") cellDepth = d;
   }
 
   if (tableDepth < 0) return null;
@@ -69,24 +71,27 @@ function findTableContext(state: import('@milkdown/prose/state').EditorState) {
   return { table, tablePos, tableDepth, rowDepth, cellDepth, colIndex };
 }
 
-export function executeTableAction(view: EditorView, action: TableAction): void {
+export function executeTableAction(
+  view: EditorView,
+  action: TableAction,
+): void {
   const { state, dispatch } = view;
 
   switch (action) {
     // Row add operations are handled via Milkdown commands in App.tsx
-    case 'addRowAbove':
-    case 'addRowBelow':
+    case "addRowAbove":
+    case "addRowBelow":
       break;
 
     // Custom column add — prosemirror-tables & Milkdown commands fail
     // on 1-column tables because of the table_header_row schema.
-    case 'addColRight':
-    case 'addColLeft': {
+    case "addColRight":
+    case "addColLeft": {
       const ctx = findTableContext(state);
       if (!ctx || ctx.colIndex < 0) break;
 
       const { table, tablePos, colIndex } = ctx;
-      const insertAfter = action === 'addColRight';
+      const insertAfter = action === "addColRight";
 
       let tr = state.tr;
       const rows: { node: Node; pos: number }[] = [];
@@ -97,10 +102,10 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       // Process in reverse so inserts don't shift later positions
       for (let i = rows.length - 1; i >= 0; i--) {
         const row = rows[i];
-        const isHeaderRow = row.node.type.name === 'table_header_row';
+        const isHeaderRow = row.node.type.name === "table_header_row";
         const cellType = isHeaderRow
-          ? state.schema.nodes['table_header']
-          : state.schema.nodes['table_cell'];
+          ? state.schema.nodes["table_header"]
+          : state.schema.nodes["table_cell"];
 
         // Find the target cell position
         let insertPos = -1;
@@ -112,7 +117,7 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
         });
 
         if (insertPos >= 0 && cellType) {
-          const emptyPara = state.schema.nodes['paragraph'].create();
+          const emptyPara = state.schema.nodes["paragraph"].create();
           const newCell = cellType.create(null, emptyPara);
           tr = tr.insert(insertPos, newCell);
         }
@@ -123,7 +128,7 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       break;
     }
 
-    case 'deleteRow': {
+    case "deleteRow": {
       const ctx = findTableContext(state);
       if (!ctx || ctx.rowDepth < 0) break;
 
@@ -135,15 +140,16 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       const dataRowCount = table.childCount - 1;
 
       // If cursor is in header row, target the last data row instead
-      if (rowNode.type.name === 'table_header_row') {
-        const confirmMsg = dataRowCount <= 1 ? 'Delete this table?' : 'Delete last row?';
+      if (rowNode.type.name === "table_header_row") {
+        const confirmMsg =
+          dataRowCount <= 1 ? "Delete this table?" : "Delete last row?";
         if (!window.confirm(confirmMsg)) {
           view.focus();
           return;
         }
         if (dataRowCount <= 1) {
           const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
-          const para = state.schema.nodes['paragraph'].create();
+          const para = state.schema.nodes["paragraph"].create();
           tr.insert(tablePos, para);
           tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
           dispatch(tr);
@@ -151,7 +157,7 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
           let lastRowPos = tablePos + 1;
           let lastRowSize = 0;
           table.forEach((row, offset) => {
-            if (row.type.name !== 'table_header_row') {
+            if (row.type.name !== "table_header_row") {
               lastRowPos = tablePos + 1 + offset;
               lastRowSize = row.nodeSize;
             }
@@ -164,12 +170,12 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
 
       // If this is the last data row, confirm before deleting the entire table
       if (dataRowCount <= 1) {
-        if (!window.confirm('Delete this table?')) {
+        if (!window.confirm("Delete this table?")) {
           view.focus();
           return;
         }
         const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
-        const para = state.schema.nodes['paragraph'].create();
+        const para = state.schema.nodes["paragraph"].create();
         tr.insert(tablePos, para);
         tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
         dispatch(tr);
@@ -179,12 +185,16 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       // Delete the current data row
       const rowPos = $from.before(rowDepth);
       const tr = state.tr.delete(rowPos, rowPos + rowNode.nodeSize);
-      tr.setSelection(Selection.near(tr.doc.resolve(Math.min(rowPos, tr.doc.content.size - 1))));
+      tr.setSelection(
+        Selection.near(
+          tr.doc.resolve(Math.min(rowPos, tr.doc.content.size - 1)),
+        ),
+      );
       dispatch(tr);
       break;
     }
 
-    case 'deleteCol': {
+    case "deleteCol": {
       const ctx = findTableContext(state);
       if (!ctx || ctx.colIndex < 0) break;
 
@@ -196,7 +206,7 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       // If only one column, delete the entire table
       if (colCount <= 1) {
         const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
-        const para = state.schema.nodes['paragraph'].create();
+        const para = state.schema.nodes["paragraph"].create();
         tr.insert(tablePos, para);
         tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
         dispatch(tr);
@@ -228,18 +238,20 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
       }
 
       tr.setSelection(
-        Selection.near(tr.doc.resolve(Math.min(tablePos + 2, tr.doc.content.size - 1))),
+        Selection.near(
+          tr.doc.resolve(Math.min(tablePos + 2, tr.doc.content.size - 1)),
+        ),
       );
       dispatch(tr);
       break;
     }
 
-    case 'deleteTable': {
+    case "deleteTable": {
       const ctx = findTableContext(state);
       if (!ctx) break;
       const { tablePos, table } = ctx;
       const tr = state.tr.delete(tablePos, tablePos + table.nodeSize);
-      const para = state.schema.nodes['paragraph'].create();
+      const para = state.schema.nodes["paragraph"].create();
       tr.insert(tablePos, para);
       tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
       dispatch(tr);
@@ -247,9 +259,9 @@ export function executeTableAction(view: EditorView, action: TableAction): void 
     }
 
     // Alignment is handled via Milkdown's setAlignCommand in App.tsx
-    case 'alignLeft':
-    case 'alignCenter':
-    case 'alignRight':
+    case "alignLeft":
+    case "alignCenter":
+    case "alignRight":
       break;
   }
   view.focus();
@@ -260,7 +272,7 @@ export const tablePlugin = $prose(() => {
 
   function dispatchToolbarUpdate(visible: boolean) {
     document.dispatchEvent(
-      new CustomEvent('table-toolbar-update', {
+      new CustomEvent("table-toolbar-update", {
         detail: { visible },
       }),
     );
@@ -272,7 +284,7 @@ export const tablePlugin = $prose(() => {
     if (inTable) {
       const { $from } = view.state.selection;
       for (let d = $from.depth; d >= 0; d--) {
-        if ($from.node(d).type.name === 'table') {
+        if ($from.node(d).type.name === "table") {
           const tablePos = $from.before(d);
           const dom = view.nodeDOM(tablePos) as HTMLElement | null;
           if (dom) {
@@ -294,7 +306,7 @@ export const tablePlugin = $prose(() => {
     key: tablePluginKey,
     props: {
       handleKeyDown: (view, event) => {
-        if (event.key !== 'Tab') return false;
+        if (event.key !== "Tab") return false;
         if (!isInTable(view.state)) return false;
         event.preventDefault();
 
@@ -318,8 +330,8 @@ export const tablePlugin = $prose(() => {
       handleDOMEvents: {
         mousedown: (_view, event) => {
           const target = event.target as HTMLElement;
-          const tableEl = target.closest('table');
-          if (tableEl && tableEl.closest('.ProseMirror')) {
+          const tableEl = target.closest("table");
+          if (tableEl && tableEl.closest(".ProseMirror")) {
             activeTableEl = tableEl as HTMLElement;
             dispatchToolbarUpdate(true);
             wasInTable = true;

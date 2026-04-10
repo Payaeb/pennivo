@@ -84,7 +84,9 @@
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  transition: max-height 0.35s ease, opacity 0.25s ease;
+  transition:
+    max-height 0.35s ease,
+    opacity 0.25s ease;
 }
 
 .app-shell--focus .app-editor-area {
@@ -98,7 +100,9 @@
 /* Chrome header (titlebar + toolbar) auto-hides together */
 .app-shell--focus .titlebar,
 .app-shell--focus .app-toolbar-row {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 .app-shell--chrome-hidden .titlebar,

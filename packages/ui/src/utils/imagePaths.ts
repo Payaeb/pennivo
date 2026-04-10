@@ -7,14 +7,22 @@ const MD_IMAGE_REGEX = /(!\[[^\]]*]\()(\S+?)((?:\s+"[^"]*")?\))/g;
  * `pennivo-file:///` URLs for display in the editor.
  */
 export function resolveImagePaths(markdown: string, filePath: string): string {
-  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+  const fileDir = filePath.replace(/\\/g, "/").replace(/\/[^/]+$/, "");
   return markdown.replace(MD_IMAGE_REGEX, (_match, prefix, src, suffix) => {
     // Already absolute — leave as-is
-    if (src.startsWith('pennivo-file://') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+    if (
+      src.startsWith("pennivo-file://") ||
+      src.startsWith("http://") ||
+      src.startsWith("https://") ||
+      src.startsWith("data:")
+    ) {
       return `${prefix}${src}${suffix}`;
     }
     // Relative path — resolve against file directory.
-    const resolved = `${fileDir}/${src.replace(/^\.\//, '')}`.replace(/ /g, '%20');
+    const resolved = `${fileDir}/${src.replace(/^\.\//, "")}`.replace(
+      / /g,
+      "%20",
+    );
     return `${prefix}pennivo-file:///${resolved}${suffix}`;
   });
 }
@@ -23,10 +31,13 @@ export function resolveImagePaths(markdown: string, filePath: string): string {
  * Convert absolute `pennivo-file:///` image URLs back to relative paths
  * for portable markdown storage.
  */
-export function relativizeImagePaths(markdown: string, filePath: string): string {
-  const fileDir = filePath.replace(/\\/g, '/').replace(/\/[^/]+$/, '');
+export function relativizeImagePaths(
+  markdown: string,
+  filePath: string,
+): string {
+  const fileDir = filePath.replace(/\\/g, "/").replace(/\/[^/]+$/, "");
   const prefix = `pennivo-file:///${fileDir}/`;
-  const encodedPrefix = prefix.replace(/ /g, '%20');
+  const encodedPrefix = prefix.replace(/ /g, "%20");
   return markdown.replace(MD_IMAGE_REGEX, (_match, mdPrefix, src, suffix) => {
     if (src.startsWith(prefix)) {
       const relative = `./${src.slice(prefix.length)}`;

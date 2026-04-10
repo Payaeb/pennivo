@@ -1,5 +1,5 @@
-import { Component, type ReactNode, type ErrorInfo, createRef } from 'react';
-import './ErrorBoundary.css';
+import { Component, type ReactNode, type ErrorInfo, createRef } from "react";
+import "./ErrorBoundary.css";
 
 interface Props {
   children: ReactNode;
@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught rendering error:', error, errorInfo);
+    console.error("[ErrorBoundary] Caught rendering error:", error, errorInfo);
     this.props.onError?.(error, errorInfo);
   }
 
@@ -44,7 +44,16 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="error-boundary" role="alert">
         <div className="error-boundary-content">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -54,10 +63,16 @@ export class ErrorBoundary extends Component<Props, State> {
             The editor encountered an error. Your work has been auto-saved.
           </p>
           {this.state.error && (
-            <pre className="error-boundary-detail">{this.state.error.message}</pre>
+            <pre className="error-boundary-detail">
+              {this.state.error.message}
+            </pre>
           )}
           <div className="error-boundary-actions">
-            <button ref={this.recoverBtnRef} className="error-boundary-btn error-boundary-btn--primary" onClick={this.handleRecover}>
+            <button
+              ref={this.recoverBtnRef}
+              className="error-boundary-btn error-boundary-btn--primary"
+              onClick={this.handleRecover}
+            >
               Try to recover
             </button>
             <button className="error-boundary-btn" onClick={this.handleReload}>

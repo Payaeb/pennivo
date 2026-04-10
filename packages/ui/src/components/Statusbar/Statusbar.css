@@ -7,7 +7,9 @@
   padding: 0 16px;
   gap: 10px;
   flex-shrink: 0;
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .status-item {
@@ -34,6 +36,12 @@
   flex-shrink: 0;
 }
 
-.status-save--saved .status-save-dot    { background: var(--accent); }
-.status-save--saving .status-save-dot   { background: var(--text-faint); }
-.status-save--unsaved .status-save-dot  { background: #C97A2A; }
+.status-save--saved .status-save-dot {
+  background: var(--accent);
+}
+.status-save--saving .status-save-dot {
+  background: var(--text-faint);
+}
+.status-save--unsaved .status-save-dot {
+  background: #c97a2a;
+}

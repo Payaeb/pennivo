@@ -19,8 +19,15 @@ By submitting a pull request, you agree that:
 5. Make your changes
 6. Run type checks: `pnpm typecheck`
 7. Run tests: `pnpm test`
-8. Commit and push
-9. Open a pull request
+8. Run lint and format checks: `pnpm lint && pnpm format:check`
+9. Commit and push
+10. Open a pull request
+
+Before pushing, you can run the full CI sequence locally:
+
+```bash
+pnpm preflight
+```
 
 ## Code Style
 
@@ -28,8 +35,8 @@ By submitting a pull request, you agree that:
 - Functional React components with hooks
 - CSS custom properties for theming
 - Named exports preferred over default exports
-
-> **Note:** ESLint and Prettier wiring is planned for a follow-up release. The repository ships with `eslint.config.js` and `pnpm lint` / `pnpm format` script entries, but the underlying packages are not yet installed. Until they are, please match the style of the surrounding code.
+- Formatting is enforced by Prettier (`pnpm format` to auto-fix)
+- Linting is enforced by ESLint (`pnpm lint:fix` to auto-fix)
 
 ## Reporting Issues
 

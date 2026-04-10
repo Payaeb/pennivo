@@ -7,7 +7,9 @@
   padding: 0 12px;
   gap: 2px;
   flex-shrink: 0;
-  transition: background var(--transition-base), border-color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .toolbar-group {
@@ -50,7 +52,9 @@
   font-size: 13.5px;
   font-weight: 600;
   font-family: var(--font-ui);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
   flex-shrink: 0;
 }
 
@@ -105,7 +109,7 @@
 }
 
 .toolbar-tooltip::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 100%;
   left: 50%;

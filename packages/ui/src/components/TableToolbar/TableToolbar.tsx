@@ -1,6 +1,6 @@
-import { useRef, useEffect, useReducer, useState, useCallback } from 'react';
-import { getActiveTableElement, type TableAction } from '../Editor/tablePlugin';
-import './TableToolbar.css';
+import { useRef, useEffect, useReducer, useState, useCallback } from "react";
+import { getActiveTableElement, type TableAction } from "../Editor/tablePlugin";
+import "./TableToolbar.css";
 
 interface TableToolbarProps {
   onAction: (action: TableAction) => void;
@@ -20,10 +20,8 @@ export function TableToolbar({ onAction }: TableToolbarProps) {
     const toolbarH = el.offsetHeight || 34;
 
     // Minimum top = below the app titlebar + toolbar
-    const editorArea = document.querySelector('.app-editor-area');
-    const minTop = editorArea
-      ? editorArea.getBoundingClientRect().top + 4
-      : 80;
+    const editorArea = document.querySelector(".app-editor-area");
+    const minTop = editorArea ? editorArea.getBoundingClientRect().top + 4 : 80;
 
     let top = rect.top - toolbarH - 6;
 
@@ -48,36 +46,54 @@ export function TableToolbar({ onAction }: TableToolbarProps) {
   })();
 
   useEffect(() => {
-    const scrollEl = document.querySelector('.app-editor-area');
+    const scrollEl = document.querySelector(".app-editor-area");
     const handler = () => forceUpdate();
-    scrollEl?.addEventListener('scroll', handler, { passive: true });
-    window.addEventListener('resize', handler, { passive: true });
+    scrollEl?.addEventListener("scroll", handler, { passive: true });
+    window.addEventListener("resize", handler, { passive: true });
     return () => {
-      scrollEl?.removeEventListener('scroll', handler);
-      window.removeEventListener('resize', handler);
+      scrollEl?.removeEventListener("scroll", handler);
+      window.removeEventListener("resize", handler);
     };
   }, []);
 
   const [rovingIdx, setRovingIdx] = useState(0);
   let btnCounter = 0;
 
-  const handleToolbarKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const toolbar = ref.current;
-    if (!toolbar) return;
-    const buttons = Array.from(toolbar.querySelectorAll<HTMLElement>('.table-tb-btn'));
-    if (buttons.length === 0) return;
+  const handleToolbarKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const toolbar = ref.current;
+      if (!toolbar) return;
+      const buttons = Array.from(
+        toolbar.querySelectorAll<HTMLElement>(".table-tb-btn"),
+      );
+      if (buttons.length === 0) return;
 
-    let newIdx = rovingIdx;
-    if (e.key === 'ArrowRight') { e.preventDefault(); newIdx = (rovingIdx + 1) % buttons.length; }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); newIdx = (rovingIdx - 1 + buttons.length) % buttons.length; }
-    else if (e.key === 'Home') { e.preventDefault(); newIdx = 0; }
-    else if (e.key === 'End') { e.preventDefault(); newIdx = buttons.length - 1; }
-    else return;
-    setRovingIdx(newIdx);
-    buttons[newIdx]?.focus();
-  }, [rovingIdx]);
+      let newIdx: number;
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        newIdx = (rovingIdx + 1) % buttons.length;
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        newIdx = (rovingIdx - 1 + buttons.length) % buttons.length;
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        newIdx = 0;
+      } else if (e.key === "End") {
+        e.preventDefault();
+        newIdx = buttons.length - 1;
+      } else return;
+      setRovingIdx(newIdx);
+      buttons[newIdx]?.focus();
+    },
+    [rovingIdx],
+  );
 
-  const btn = (action: TableAction, title: string, icon: React.ReactNode, className = '') => {
+  const btn = (
+    action: TableAction,
+    title: string,
+    icon: React.ReactNode,
+    className = "",
+  ) => {
     const idx = btnCounter++;
     return (
       <button
@@ -101,27 +117,46 @@ export function TableToolbar({ onAction }: TableToolbarProps) {
       role="toolbar"
       aria-label="Table actions"
       onKeyDown={handleToolbarKeyDown}
-      style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { top: -9999, left: 0, opacity: 0 }}
+      style={
+        pos
+          ? { top: pos.top, left: pos.left, opacity: 1 }
+          : { top: -9999, left: 0, opacity: 0 }
+      }
     >
       <div className="table-tb-group">
-        {btn('addRowAbove', 'Add row above', <RowAboveIcon />)}
-        {btn('addRowBelow', 'Add row below', <RowBelowIcon />)}
-        {btn('addColLeft', 'Add column left', <ColLeftIcon />)}
-        {btn('addColRight', 'Add column right', <ColRightIcon />)}
+        {btn("addRowAbove", "Add row above", <RowAboveIcon />)}
+        {btn("addRowBelow", "Add row below", <RowBelowIcon />)}
+        {btn("addColLeft", "Add column left", <ColLeftIcon />)}
+        {btn("addColRight", "Add column right", <ColRightIcon />)}
       </div>
       <div className="table-tb-sep" />
       <div className="table-tb-group">
-        {btn('deleteRow', 'Delete row', <DeleteRowIcon />, 'table-tb-btn--danger')}
-        {btn('deleteCol', 'Delete column', <DeleteColIcon />, 'table-tb-btn--danger')}
+        {btn(
+          "deleteRow",
+          "Delete row",
+          <DeleteRowIcon />,
+          "table-tb-btn--danger",
+        )}
+        {btn(
+          "deleteCol",
+          "Delete column",
+          <DeleteColIcon />,
+          "table-tb-btn--danger",
+        )}
       </div>
       <div className="table-tb-sep" />
       <div className="table-tb-group">
-        {btn('alignLeft', 'Align left', <AlignLeftIcon />)}
-        {btn('alignCenter', 'Align center', <AlignCenterIcon />)}
-        {btn('alignRight', 'Align right', <AlignRightIcon />)}
+        {btn("alignLeft", "Align left", <AlignLeftIcon />)}
+        {btn("alignCenter", "Align center", <AlignCenterIcon />)}
+        {btn("alignRight", "Align right", <AlignRightIcon />)}
       </div>
       <div className="table-tb-sep" />
-      {btn('deleteTable', 'Delete table', <TrashIcon />, 'table-tb-btn--danger')}
+      {btn(
+        "deleteTable",
+        "Delete table",
+        <TrashIcon />,
+        "table-tb-btn--danger",
+      )}
     </div>
   );
 }
@@ -130,7 +165,13 @@ export function TableToolbar({ onAction }: TableToolbarProps) {
 
 function RowAboveIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="2" y="8" width="12" height="5" rx="1" />
       <line x1="8" y1="8" x2="8" y2="13" />
       <line x1="8" y1="2" x2="8" y2="5.5" />
@@ -142,7 +183,13 @@ function RowAboveIcon() {
 
 function RowBelowIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="2" y="3" width="12" height="5" rx="1" />
       <line x1="8" y1="3" x2="8" y2="8" />
       <line x1="8" y1="10.5" x2="8" y2="14" />
@@ -154,7 +201,13 @@ function RowBelowIcon() {
 
 function ColLeftIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="6" y="2" width="8" height="12" rx="1" />
       <line x1="6" y1="8" x2="14" y2="8" />
       <line x1="1" y1="8" x2="4" y2="8" />
@@ -166,7 +219,13 @@ function ColLeftIcon() {
 
 function ColRightIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="2" y="2" width="8" height="12" rx="1" />
       <line x1="2" y1="8" x2="10" y2="8" />
       <line x1="12" y1="8" x2="15" y2="8" />
@@ -178,7 +237,13 @@ function ColRightIcon() {
 
 function DeleteRowIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="2" y="5" width="12" height="6" rx="1" />
       <line x1="6" y1="7" x2="10" y2="11" />
       <line x1="10" y1="7" x2="6" y2="11" />
@@ -188,7 +253,13 @@ function DeleteRowIcon() {
 
 function DeleteColIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <rect x="5" y="2" width="6" height="12" rx="1" />
       <line x1="6.5" y1="6" x2="9.5" y2="10" />
       <line x1="9.5" y1="6" x2="6.5" y2="10" />
@@ -198,7 +269,13 @@ function DeleteColIcon() {
 
 function AlignLeftIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <line x1="2" y1="4" x2="14" y2="4" />
       <line x1="2" y1="8" x2="10" y2="8" />
       <line x1="2" y1="12" x2="12" y2="12" />
@@ -208,7 +285,13 @@ function AlignLeftIcon() {
 
 function AlignCenterIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <line x1="2" y1="4" x2="14" y2="4" />
       <line x1="4" y1="8" x2="12" y2="8" />
       <line x1="3" y1="12" x2="13" y2="12" />
@@ -218,7 +301,13 @@ function AlignCenterIcon() {
 
 function AlignRightIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <line x1="2" y1="4" x2="14" y2="4" />
       <line x1="6" y1="8" x2="14" y2="8" />
       <line x1="4" y1="12" x2="14" y2="12" />
@@ -228,7 +317,14 @@ function AlignRightIcon() {
 
 function TrashIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="3" y1="4.5" x2="13" y2="4.5" />
       <path d="M5.5 4.5V3.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1" />
       <path d="M4.5 4.5l.7 8a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-8" />

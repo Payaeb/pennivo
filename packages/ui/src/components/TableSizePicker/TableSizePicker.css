@@ -12,8 +12,14 @@
 }
 
 @keyframes table-picker-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .table-size-grid {
@@ -33,7 +39,9 @@
   border: 1px solid var(--border-mid);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 0.06s, border-color 0.06s;
+  transition:
+    background 0.06s,
+    border-color 0.06s;
 }
 
 .table-size-cell:hover {

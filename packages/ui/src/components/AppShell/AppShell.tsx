@@ -1,7 +1,17 @@
-import { type ReactNode, useState, useCallback, useRef, useEffect } from 'react';
-import { Titlebar, type MenuAction, type RecentFileEntry } from '../Titlebar/Titlebar';
-import { Statusbar, type SaveStatus } from '../Statusbar/Statusbar';
-import './AppShell.css';
+import {
+  type ReactNode,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
+import {
+  Titlebar,
+  type MenuAction,
+  type RecentFileEntry,
+} from "../Titlebar/Titlebar";
+import { Statusbar, type SaveStatus } from "../Statusbar/Statusbar";
+import "./AppShell.css";
 
 interface AppShellProps {
   filename?: string;
@@ -24,11 +34,11 @@ interface AppShellProps {
 }
 
 export function AppShell({
-  filename = 'untitled.md',
+  filename = "untitled.md",
   isDirty = false,
   wordCount = 0,
   charCount = 0,
-  saveStatus = 'saved',
+  saveStatus = "saved",
   showWordCount = true,
   focusMode = false,
   sourceMode = false,
@@ -44,7 +54,9 @@ export function AppShell({
 }: AppShellProps) {
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeVisibleRef = useRef(true);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   const setChromeState = useCallback((visible: boolean) => {
     chromeVisibleRef.current = visible;
@@ -65,7 +77,7 @@ export function AppShell({
       } else if (e.clientY > 80) {
         clearTimeout(hideTimerRef.current);
         // Don't auto-hide while a menu dropdown is open
-        if (document.querySelector('.titlebar-menu-dropdown')) return;
+        if (document.querySelector(".titlebar-menu-dropdown")) return;
         hideTimerRef.current = setTimeout(() => setChromeState(false), 500);
       }
     },
@@ -76,43 +88,62 @@ export function AppShell({
     if (focusMode) {
       // Start hidden after a short delay
       hideTimerRef.current = setTimeout(() => setChromeState(false), 600);
-      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener("mousemove", handleMouseMove);
     } else {
       clearTimeout(hideTimerRef.current);
       setChromeState(true);
     }
     return () => {
       clearTimeout(hideTimerRef.current);
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener("mousemove", handleMouseMove);
     };
   }, [focusMode, handleMouseMove, setChromeState]);
 
   const shellClass = [
-    'app-shell',
-    focusMode ? 'app-shell--focus' : '',
-    focusMode && !chromeVisible ? 'app-shell--chrome-hidden' : '',
-    sourceMode ? 'app-shell--source' : '',
-    typewriterMode ? 'app-shell--typewriter' : '',
+    "app-shell",
+    focusMode ? "app-shell--focus" : "",
+    focusMode && !chromeVisible ? "app-shell--chrome-hidden" : "",
+    sourceMode ? "app-shell--source" : "",
+    typewriterMode ? "app-shell--typewriter" : "",
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 
   return (
     <div className={shellClass}>
       <header role="banner">
-        <Titlebar filename={filename} isDirty={isDirty} onMenuAction={onMenuAction} recentFiles={recentFiles} onOpenRecentFile={onOpenRecentFile} />
+        <Titlebar
+          filename={filename}
+          isDirty={isDirty}
+          onMenuAction={onMenuAction}
+          recentFiles={recentFiles}
+          onOpenRecentFile={onOpenRecentFile}
+        />
       </header>
       <div className="app-toolbar-row">{toolbar}</div>
       {findReplace}
       <div className="app-body">
-        {sidebar && <aside role="complementary" aria-label="File browser">{sidebar}</aside>}
+        {sidebar && (
+          <aside role="complementary" aria-label="File browser">
+            {sidebar}
+          </aside>
+        )}
         <main className="app-editor-area">
           <div className="app-editor-column">{children}</div>
         </main>
-        {outline && <aside role="complementary" aria-label="Document outline">{outline}</aside>}
+        {outline && (
+          <aside role="complementary" aria-label="Document outline">
+            {outline}
+          </aside>
+        )}
       </div>
       <footer role="contentinfo">
-        <Statusbar wordCount={wordCount} charCount={charCount} saveStatus={saveStatus} showWordCount={showWordCount} />
+        <Statusbar
+          wordCount={wordCount}
+          charCount={charCount}
+          saveStatus={saveStatus}
+          showWordCount={showWordCount}
+        />
       </footer>
     </div>
   );

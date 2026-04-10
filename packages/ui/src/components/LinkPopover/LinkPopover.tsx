@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import './LinkPopover.css';
+import { useState, useRef, useEffect, useCallback } from "react";
+import "./LinkPopover.css";
 
 interface LinkPopoverProps {
   hasSelection: boolean;
@@ -12,8 +12,8 @@ interface LinkPopoverProps {
 
 export function LinkPopover({
   hasSelection,
-  initialUrl = '',
-  initialText = '',
+  initialUrl = "",
+  initialText = "",
   anchorRect,
   onConfirm,
   onCancel,
@@ -33,34 +33,36 @@ export function LinkPopover({
   // Close on outside click
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         onCancel();
       }
     };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [onCancel]);
 
   const handleSubmit = useCallback(() => {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
-    const label = hasSelection ? '' : (text.trim() || trimmedUrl);
+    const label = hasSelection ? "" : text.trim() || trimmedUrl;
     onConfirm(trimmedUrl, label);
   }, [url, text, hasSelection, onConfirm]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === "Enter") {
         e.preventDefault();
         handleSubmit();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
-      } else if (e.key === 'Tab') {
+      } else if (e.key === "Tab") {
         // Focus trap: cycle between inputs and buttons within popover
-        const focusable = popoverRef.current?.querySelectorAll<HTMLElement>(
-          'input, button'
-        );
+        const focusable =
+          popoverRef.current?.querySelectorAll<HTMLElement>("input, button");
         if (!focusable || focusable.length === 0) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -85,10 +87,18 @@ export function LinkPopover({
   };
 
   return (
-    <div className="link-popover" ref={popoverRef} style={style} role="dialog" aria-label="Insert link">
+    <div
+      className="link-popover"
+      ref={popoverRef}
+      style={style}
+      role="dialog"
+      aria-label="Insert link"
+    >
       {!hasSelection && (
         <>
-          <label htmlFor="link-popover-text" className="sr-only">Link text</label>
+          <label htmlFor="link-popover-text" className="sr-only">
+            Link text
+          </label>
           <input
             id="link-popover-text"
             className="link-popover-input"
@@ -100,7 +110,9 @@ export function LinkPopover({
           />
         </>
       )}
-      <label htmlFor="link-popover-url" className="sr-only">URL</label>
+      <label htmlFor="link-popover-url" className="sr-only">
+        URL
+      </label>
       <input
         id="link-popover-url"
         ref={urlRef}
@@ -112,13 +124,21 @@ export function LinkPopover({
         onKeyDown={handleKeyDown}
       />
       <div className="link-popover-actions">
-        <button className="link-popover-btn link-popover-btn--confirm" onClick={handleSubmit}>
+        <button
+          className="link-popover-btn link-popover-btn--confirm"
+          onClick={handleSubmit}
+        >
           Insert
         </button>
-        <button className="link-popover-btn link-popover-btn--cancel" onClick={onCancel}>
+        <button
+          className="link-popover-btn link-popover-btn--cancel"
+          onClick={onCancel}
+        >
           Cancel
         </button>
-        <span className="link-popover-hint">Enter to confirm, Esc to cancel</span>
+        <span className="link-popover-hint">
+          Enter to confirm, Esc to cancel
+        </span>
       </div>
     </div>
   );

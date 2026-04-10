@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import { AppShell } from '../AppShell/AppShell';
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect } from "vitest";
+import { AppShell } from "../AppShell/AppShell";
 
 function renderShell(overrides: Partial<Parameters<typeof AppShell>[0]> = {}) {
   const defaultProps = {
@@ -11,73 +11,75 @@ function renderShell(overrides: Partial<Parameters<typeof AppShell>[0]> = {}) {
   return render(<AppShell {...defaultProps} />);
 }
 
-describe('AppShell', () => {
-  it('renders titlebar with filename', () => {
-    renderShell({ filename: 'notes.md' });
-    expect(screen.getByText('notes.md')).toBeInTheDocument();
+describe("AppShell", () => {
+  it("renders titlebar with filename", () => {
+    renderShell({ filename: "notes.md" });
+    expect(screen.getByText("notes.md")).toBeInTheDocument();
   });
 
-  it('renders toolbar region', () => {
+  it("renders toolbar region", () => {
     renderShell();
-    expect(screen.getByTestId('toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId("toolbar")).toBeInTheDocument();
   });
 
-  it('renders editor area with children', () => {
+  it("renders editor area with children", () => {
     renderShell();
-    expect(screen.getByTestId('editor')).toBeInTheDocument();
+    expect(screen.getByTestId("editor")).toBeInTheDocument();
   });
 
-  it('renders statusbar with word/char counts', () => {
+  it("renders statusbar with word/char counts", () => {
     renderShell({ wordCount: 42, charCount: 250 });
-    expect(screen.getByText('42 words')).toBeInTheDocument();
-    expect(screen.getByText('250 characters')).toBeInTheDocument();
+    expect(screen.getByText("42 words")).toBeInTheDocument();
+    expect(screen.getByText("250 characters")).toBeInTheDocument();
   });
 
-  it('renders sidebar when provided', () => {
+  it("renders sidebar when provided", () => {
     renderShell({
       sidebar: <div data-testid="sidebar">Sidebar</div>,
     });
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
   });
 
-  it('renders outline when provided', () => {
+  it("renders outline when provided", () => {
     renderShell({
       outline: <div data-testid="outline">Outline</div>,
     });
-    expect(screen.getByTestId('outline')).toBeInTheDocument();
+    expect(screen.getByTestId("outline")).toBeInTheDocument();
   });
 
-  it('renders findReplace when provided', () => {
+  it("renders findReplace when provided", () => {
     renderShell({
       findReplace: <div data-testid="find-replace">Find Replace</div>,
     });
-    expect(screen.getByTestId('find-replace')).toBeInTheDocument();
+    expect(screen.getByTestId("find-replace")).toBeInTheDocument();
   });
 
-  it('applies focus mode class', () => {
+  it("applies focus mode class", () => {
     const { container } = renderShell({ focusMode: true });
-    expect(container.querySelector('.app-shell--focus')).toBeInTheDocument();
+    expect(container.querySelector(".app-shell--focus")).toBeInTheDocument();
   });
 
-  it('applies source mode class', () => {
+  it("applies source mode class", () => {
     const { container } = renderShell({ sourceMode: true });
-    expect(container.querySelector('.app-shell--source')).toBeInTheDocument();
+    expect(container.querySelector(".app-shell--source")).toBeInTheDocument();
   });
 
-  it('applies typewriter mode class', () => {
+  it("applies typewriter mode class", () => {
     const { container } = renderShell({ typewriterMode: true });
-    expect(container.querySelector('.app-shell--typewriter')).toBeInTheDocument();
+    expect(
+      container.querySelector(".app-shell--typewriter"),
+    ).toBeInTheDocument();
   });
 
   it('shows default filename "untitled" when no filename', () => {
     renderShell();
-    expect(screen.getByText('untitled')).toBeInTheDocument();
+    expect(screen.getByText("untitled")).toBeInTheDocument();
   });
 
-  it('renders window control buttons', () => {
+  it("renders window control buttons", () => {
     renderShell();
-    expect(screen.getByTitle('Minimize')).toBeInTheDocument();
-    expect(screen.getByTitle('Maximize')).toBeInTheDocument();
-    expect(screen.getByTitle('Close')).toBeInTheDocument();
+    expect(screen.getByTitle("Minimize")).toBeInTheDocument();
+    expect(screen.getByTitle("Maximize")).toBeInTheDocument();
+    expect(screen.getByTitle("Close")).toBeInTheDocument();
   });
 });

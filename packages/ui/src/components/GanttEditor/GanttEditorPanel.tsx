@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import type { GanttData, GanttSection, GanttTask } from '@pennivo/core';
-import { generateTaskId } from '@pennivo/core';
-import './GanttEditorPanel.css';
+import { useState, useRef, useEffect, useCallback } from "react";
+import type { GanttData, GanttSection, GanttTask } from "@pennivo/core";
+import { generateTaskId } from "@pennivo/core";
+import "./GanttEditorPanel.css";
 
 interface GanttEditorPanelProps {
   data: GanttData;
@@ -32,17 +32,17 @@ export function GanttEditorPanel({
         onClose();
       }
     };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [onClose]);
 
   // Escape to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   // --- Helpers to produce updated GanttData ---
@@ -65,19 +65,19 @@ export function GanttEditorPanel({
   }, [data]);
 
   const setTitle = useCallback(
-    (title: string) => updateData(d => ({ ...d, title })),
+    (title: string) => updateData((d) => ({ ...d, title })),
     [updateData],
   );
 
   const setExcludes = useCallback(
     (excludes: string) =>
-      updateData(d => ({ ...d, excludes: excludes || undefined })),
+      updateData((d) => ({ ...d, excludes: excludes || undefined })),
     [updateData],
   );
 
   const updateSection = useCallback(
     (sIdx: number, updater: (s: GanttSection) => GanttSection) =>
-      updateData(d => ({
+      updateData((d) => ({
         ...d,
         sections: d.sections.map((s, i) => (i === sIdx ? updater(s) : s)),
       })),
@@ -86,7 +86,7 @@ export function GanttEditorPanel({
 
   const updateTask = useCallback(
     (sIdx: number, tIdx: number, updater: (t: GanttTask) => GanttTask) =>
-      updateSection(sIdx, s => ({
+      updateSection(sIdx, (s) => ({
         ...s,
         tasks: s.tasks.map((t, i) => (i === tIdx ? updater(t) : t)),
       })),
@@ -94,13 +94,19 @@ export function GanttEditorPanel({
   );
 
   const addSection = useCallback(() => {
-    updateData(d => ({
+    updateData((d) => ({
       ...d,
       sections: [
         ...d.sections,
         {
           title: `Section ${d.sections.length + 1}`,
-          tasks: [{ id: generateTaskId(getAllTaskIds()), title: 'New task', duration: '5d' }],
+          tasks: [
+            {
+              id: generateTaskId(getAllTaskIds()),
+              title: "New task",
+              duration: "5d",
+            },
+          ],
         },
       ],
     }));
@@ -108,7 +114,7 @@ export function GanttEditorPanel({
 
   const removeSection = useCallback(
     (sIdx: number) =>
-      updateData(d => ({
+      updateData((d) => ({
         ...d,
         sections: d.sections.filter((_, i) => i !== sIdx),
       })),
@@ -117,11 +123,15 @@ export function GanttEditorPanel({
 
   const addTask = useCallback(
     (sIdx: number) =>
-      updateSection(sIdx, s => ({
+      updateSection(sIdx, (s) => ({
         ...s,
         tasks: [
           ...s.tasks,
-          { id: generateTaskId(getAllTaskIds()), title: 'New task', duration: '5d' },
+          {
+            id: generateTaskId(getAllTaskIds()),
+            title: "New task",
+            duration: "5d",
+          },
         ],
       })),
     [updateSection, getAllTaskIds],
@@ -129,7 +139,7 @@ export function GanttEditorPanel({
 
   const removeTask = useCallback(
     (sIdx: number, tIdx: number) =>
-      updateSection(sIdx, s => ({
+      updateSection(sIdx, (s) => ({
         ...s,
         tasks: s.tasks.filter((_, i) => i !== tIdx),
       })),
@@ -137,9 +147,11 @@ export function GanttEditorPanel({
   );
 
   // Collapsed sections
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(
+    new Set(),
+  );
   const toggleSection = useCallback((idx: number) => {
-    setCollapsedSections(prev => {
+    setCollapsedSections((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
       else next.add(idx);
@@ -148,7 +160,7 @@ export function GanttEditorPanel({
   }, []);
 
   // Build list of all task IDs for dependency picker
-  const allTasks = data.sections.flatMap(s => s.tasks);
+  const allTasks = data.sections.flatMap((s) => s.tasks);
 
   // Position the panel — clamp to viewport
   const style: React.CSSProperties = (() => {
@@ -178,8 +190,15 @@ export function GanttEditorPanel({
       <div className="gantt-editor-header">
         <span className="gantt-editor-label">Gantt Chart</span>
         <button className="gantt-editor-close" onClick={onClose} title="Close">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <line x1="4" y1="4" x2="12" y2="12" />
+            <line x1="12" y1="4" x2="4" y2="12" />
           </svg>
         </button>
       </div>
@@ -192,15 +211,15 @@ export function GanttEditorPanel({
           type="text"
           placeholder="Chart title"
           value={data.title}
-          onChange={e => setTitle(e.target.value)}
+          onChange={(e) => setTitle(e.target.value)}
         />
       </div>
       <div className="gantt-editor-row gantt-editor-settings">
         <label className="gantt-checkbox">
           <input
             type="checkbox"
-            checked={data.excludes === 'weekends'}
-            onChange={e => setExcludes(e.target.checked ? 'weekends' : '')}
+            checked={data.excludes === "weekends"}
+            onChange={(e) => setExcludes(e.target.checked ? "weekends" : "")}
           />
           <span>Exclude weekends</span>
         </label>
@@ -221,7 +240,11 @@ export function GanttEditorPanel({
                   stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
-                  style={{ transform: collapsedSections.has(sIdx) ? 'rotate(-90deg)' : undefined }}
+                  style={{
+                    transform: collapsedSections.has(sIdx)
+                      ? "rotate(-90deg)"
+                      : undefined,
+                  }}
                 >
                   <polyline points="4,6 8,10 12,6" />
                 </svg>
@@ -230,7 +253,9 @@ export function GanttEditorPanel({
                 className="gantt-input gantt-input--section"
                 type="text"
                 value={section.title}
-                onChange={e => updateSection(sIdx, s => ({ ...s, title: e.target.value }))}
+                onChange={(e) =>
+                  updateSection(sIdx, (s) => ({ ...s, title: e.target.value }))
+                }
                 placeholder="Section title"
               />
               {data.sections.length > 1 && (
@@ -239,8 +264,15 @@ export function GanttEditorPanel({
                   onClick={() => removeSection(sIdx)}
                   title="Remove section"
                 >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  >
+                    <line x1="4" y1="4" x2="12" y2="12" />
+                    <line x1="12" y1="4" x2="4" y2="12" />
                   </svg>
                 </button>
               )}
@@ -263,8 +295,11 @@ export function GanttEditorPanel({
                       className="gantt-input"
                       type="text"
                       value={task.title}
-                      onChange={e =>
-                        updateTask(sIdx, tIdx, t => ({ ...t, title: e.target.value }))
+                      onChange={(e) =>
+                        updateTask(sIdx, tIdx, (t) => ({
+                          ...t,
+                          title: e.target.value,
+                        }))
                       }
                       placeholder="Task name"
                     />
@@ -275,16 +310,18 @@ export function GanttEditorPanel({
                         <select
                           className="gantt-select"
                           value={task.afterDeps[0]}
-                          onChange={e => {
+                          onChange={(e) => {
                             const dep = e.target.value;
-                            if (dep === '__date__') {
-                              updateTask(sIdx, tIdx, t => ({
+                            if (dep === "__date__") {
+                              updateTask(sIdx, tIdx, (t) => ({
                                 ...t,
                                 afterDeps: undefined,
-                                startDate: new Date().toISOString().slice(0, 10),
+                                startDate: new Date()
+                                  .toISOString()
+                                  .slice(0, 10),
                               }));
                             } else {
-                              updateTask(sIdx, tIdx, t => ({
+                              updateTask(sIdx, tIdx, (t) => ({
                                 ...t,
                                 afterDeps: [dep],
                                 startDate: undefined,
@@ -293,8 +330,8 @@ export function GanttEditorPanel({
                           }}
                         >
                           {allTasks
-                            .filter(at => at.id !== task.id)
-                            .map(at => (
+                            .filter((at) => at.id !== task.id)
+                            .map((at) => (
                               <option key={at.id} value={at.id}>
                                 After: {at.title || at.id}
                               </option>
@@ -306,22 +343,25 @@ export function GanttEditorPanel({
                           <input
                             className="gantt-input gantt-input--date"
                             type="date"
-                            value={task.startDate || ''}
-                            onChange={e =>
-                              updateTask(sIdx, tIdx, t => ({
+                            value={task.startDate || ""}
+                            onChange={(e) =>
+                              updateTask(sIdx, tIdx, (t) => ({
                                 ...t,
                                 startDate: e.target.value,
                               }))
                             }
                           />
-                          {allTasks.filter(at => at.id !== task.id).length > 0 && (
+                          {allTasks.filter((at) => at.id !== task.id).length >
+                            0 && (
                             <button
                               className="gantt-dep-btn"
                               title="Use dependency instead"
                               onClick={() => {
-                                const firstOther = allTasks.find(at => at.id !== task.id);
+                                const firstOther = allTasks.find(
+                                  (at) => at.id !== task.id,
+                                );
                                 if (firstOther) {
-                                  updateTask(sIdx, tIdx, t => ({
+                                  updateTask(sIdx, tIdx, (t) => ({
                                     ...t,
                                     afterDeps: [firstOther.id],
                                     startDate: undefined,
@@ -339,16 +379,19 @@ export function GanttEditorPanel({
                     <input
                       className="gantt-input gantt-input--duration"
                       type="text"
-                      value={task.duration || ''}
-                      onChange={e => {
+                      value={task.duration || ""}
+                      onChange={(e) => {
                         const dur = e.target.value;
-                        updateTask(sIdx, tIdx, t => ({
+                        updateTask(sIdx, tIdx, (t) => ({
                           ...t,
                           duration: dur,
                           // Auto-set milestone when duration is 0 or 0d
-                          status: (dur === '0d' || dur === '0') ? 'milestone'
-                            : t.status === 'milestone' ? undefined
-                            : t.status,
+                          status:
+                            dur === "0d" || dur === "0"
+                              ? "milestone"
+                              : t.status === "milestone"
+                                ? undefined
+                                : t.status,
                         }));
                       }}
                       placeholder="5d"
@@ -356,14 +399,20 @@ export function GanttEditorPanel({
 
                     <select
                       className="gantt-select gantt-select--status"
-                      value={task.status || ''}
-                      onChange={e => {
-                        const status = (e.target.value || undefined) as GanttTask['status'];
-                        updateTask(sIdx, tIdx, t => ({
+                      value={task.status || ""}
+                      onChange={(e) => {
+                        const status = (e.target.value ||
+                          undefined) as GanttTask["status"];
+                        updateTask(sIdx, tIdx, (t) => ({
                           ...t,
                           status,
                           // Auto-set 0d duration for milestones
-                          duration: status === 'milestone' ? '0d' : (t.duration === '0d' ? '5d' : t.duration),
+                          duration:
+                            status === "milestone"
+                              ? "0d"
+                              : t.duration === "0d"
+                                ? "5d"
+                                : t.duration,
                         }));
                       }}
                     >
@@ -379,8 +428,15 @@ export function GanttEditorPanel({
                       onClick={() => removeTask(sIdx, tIdx)}
                       title="Remove task"
                     >
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                        <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+                      <svg
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      >
+                        <line x1="4" y1="4" x2="12" y2="12" />
+                        <line x1="12" y1="4" x2="4" y2="12" />
                       </svg>
                     </button>
                   </div>

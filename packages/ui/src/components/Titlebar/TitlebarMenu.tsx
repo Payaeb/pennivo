@@ -1,17 +1,47 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import './TitlebarMenu.css';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
+import "./TitlebarMenu.css";
 
 export type MenuAction =
-  | 'newFile' | 'open' | 'save' | 'saveAs' | 'quit'
-  | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
-  | 'focusMode' | 'sourceMode' | 'toggleTheme' | 'toggleSidebar' | 'toggleOutline' | 'setFolder'
-  | 'zoomIn' | 'zoomOut' | 'resetZoom'
-  | 'findReplace' | 'clearRecentFiles'
-  | 'exportHtml' | 'exportPdf'
-  | 'spellcheckSettings'
-  | 'cycleTheme' | 'themeDefault' | 'themeSepia' | 'themeNord' | 'themeRosepine'
-  | 'customizeToolbar'
-  | 'openSettings' | 'showShortcuts' | 'showAbout';
+  | "newFile"
+  | "open"
+  | "save"
+  | "saveAs"
+  | "quit"
+  | "undo"
+  | "redo"
+  | "cut"
+  | "copy"
+  | "paste"
+  | "selectAll"
+  | "focusMode"
+  | "sourceMode"
+  | "toggleTheme"
+  | "toggleSidebar"
+  | "toggleOutline"
+  | "setFolder"
+  | "zoomIn"
+  | "zoomOut"
+  | "resetZoom"
+  | "findReplace"
+  | "clearRecentFiles"
+  | "exportHtml"
+  | "exportPdf"
+  | "spellcheckSettings"
+  | "cycleTheme"
+  | "themeDefault"
+  | "themeSepia"
+  | "themeNord"
+  | "themeRosepine"
+  | "customizeToolbar"
+  | "openSettings"
+  | "showShortcuts"
+  | "showAbout";
 
 export interface RecentFileEntry {
   filePath: string;
@@ -39,70 +69,91 @@ interface MenuSection {
 
 const MENU_SECTIONS: MenuSection[] = [
   {
-    label: 'File',
+    label: "File",
     items: [
-      { label: 'New File',      action: 'newFile', shortcut: 'Ctrl+N' },
-      { label: 'Open\u2026',   action: 'open',   shortcut: 'Ctrl+O' },
-      { label: 'Save',         action: 'save',   shortcut: 'Ctrl+S' },
-      { label: 'Save As\u2026', action: 'saveAs', shortcut: 'Ctrl+Shift+S' },
-      { separator: true, label: '' },
-      { label: 'Export as HTML', action: 'exportHtml', shortcut: 'Ctrl+Shift+E' },
-      { label: 'Export as PDF',  action: 'exportPdf' },
-      { separator: true, label: '' },
-      { label: 'Quit',         action: 'quit',   shortcut: 'Alt+F4' },
+      { label: "New File", action: "newFile", shortcut: "Ctrl+N" },
+      { label: "Open\u2026", action: "open", shortcut: "Ctrl+O" },
+      { label: "Save", action: "save", shortcut: "Ctrl+S" },
+      { label: "Save As\u2026", action: "saveAs", shortcut: "Ctrl+Shift+S" },
+      { separator: true, label: "" },
+      {
+        label: "Export as HTML",
+        action: "exportHtml",
+        shortcut: "Ctrl+Shift+E",
+      },
+      { label: "Export as PDF", action: "exportPdf" },
+      { separator: true, label: "" },
+      { label: "Quit", action: "quit", shortcut: "Alt+F4" },
     ],
   },
   {
-    label: 'Edit',
+    label: "Edit",
     items: [
-      { label: 'Undo',       action: 'undo',      shortcut: 'Ctrl+Z' },
-      { label: 'Redo',       action: 'redo',       shortcut: 'Ctrl+Y' },
-      { separator: true, label: '' },
-      { label: 'Cut',        action: 'cut',        shortcut: 'Ctrl+X' },
-      { label: 'Copy',       action: 'copy',       shortcut: 'Ctrl+C' },
-      { label: 'Paste',      action: 'paste',      shortcut: 'Ctrl+V' },
-      { separator: true, label: '' },
-      { label: 'Select All', action: 'selectAll',  shortcut: 'Ctrl+A' },
-      { separator: true, label: '' },
-      { label: 'Find & Replace', action: 'findReplace', shortcut: 'Ctrl+F' },
+      { label: "Undo", action: "undo", shortcut: "Ctrl+Z" },
+      { label: "Redo", action: "redo", shortcut: "Ctrl+Y" },
+      { separator: true, label: "" },
+      { label: "Cut", action: "cut", shortcut: "Ctrl+X" },
+      { label: "Copy", action: "copy", shortcut: "Ctrl+C" },
+      { label: "Paste", action: "paste", shortcut: "Ctrl+V" },
+      { separator: true, label: "" },
+      { label: "Select All", action: "selectAll", shortcut: "Ctrl+A" },
+      { separator: true, label: "" },
+      { label: "Find & Replace", action: "findReplace", shortcut: "Ctrl+F" },
     ],
   },
   {
-    label: 'View',
+    label: "View",
     items: [
-      { label: 'Toggle Sidebar', action: 'toggleSidebar', shortcut: 'Ctrl+B' },
-      { label: 'Toggle Outline', action: 'toggleOutline', shortcut: 'Ctrl+Shift+O' },
-      { label: 'Set Folder\u2026', action: 'setFolder' },
-      { separator: true, label: '' },
-      { label: 'Focus Mode',   action: 'focusMode',   shortcut: 'Ctrl+Shift+F' },
-      { label: 'Toggle Theme', action: 'toggleTheme' },
-      { separator: true, label: '' },
-      { label: 'Customize Toolbar\u2026', action: 'customizeToolbar' },
-      { label: 'Settings\u2026', action: 'openSettings', shortcut: 'Ctrl+,' },
-      { separator: true, label: '' },
-      { label: 'Zoom In',      action: 'zoomIn',      shortcut: 'Ctrl+=' },
-      { label: 'Zoom Out',     action: 'zoomOut',     shortcut: 'Ctrl+\u2013' },
-      { label: 'Reset Zoom',   action: 'resetZoom',   shortcut: 'Ctrl+0' },
+      { label: "Toggle Sidebar", action: "toggleSidebar", shortcut: "Ctrl+B" },
+      {
+        label: "Toggle Outline",
+        action: "toggleOutline",
+        shortcut: "Ctrl+Shift+O",
+      },
+      { label: "Set Folder\u2026", action: "setFolder" },
+      { separator: true, label: "" },
+      { label: "Focus Mode", action: "focusMode", shortcut: "Ctrl+Shift+F" },
+      { label: "Toggle Theme", action: "toggleTheme" },
+      { separator: true, label: "" },
+      { label: "Customize Toolbar\u2026", action: "customizeToolbar" },
+      { label: "Settings\u2026", action: "openSettings", shortcut: "Ctrl+," },
+      { separator: true, label: "" },
+      { label: "Zoom In", action: "zoomIn", shortcut: "Ctrl+=" },
+      { label: "Zoom Out", action: "zoomOut", shortcut: "Ctrl+\u2013" },
+      { label: "Reset Zoom", action: "resetZoom", shortcut: "Ctrl+0" },
     ],
   },
   {
-    label: 'Help',
+    label: "Help",
     items: [
-      { label: 'Keyboard Shortcuts', action: 'showShortcuts', shortcut: 'Ctrl+/' },
-      { separator: true, label: '' },
-      { label: 'About Pennivo', action: 'showAbout' },
+      {
+        label: "Keyboard Shortcuts",
+        action: "showShortcuts",
+        shortcut: "Ctrl+/",
+      },
+      { separator: true, label: "" },
+      { label: "About Pennivo", action: "showAbout" },
     ],
   },
 ];
 
-export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: TitlebarMenuProps) {
+export function TitlebarMenu({
+  onAction,
+  recentFiles,
+  onOpenRecentFile,
+}: TitlebarMenuProps) {
   const [open, setOpen] = useState(false);
-  const [expandedSection, setExpandedSection] = useState('File');
+  const [expandedSection, setExpandedSection] = useState("File");
   const [recentSubmenuOpen, setRecentSubmenuOpen] = useState(false);
-  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [submenuPos, setSubmenuPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const recentTriggerRef = useRef<HTMLDivElement>(null);
-  const recentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const recentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const submenuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -115,7 +166,7 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
       }
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (recentSubmenuOpen) {
           setRecentSubmenuOpen(false);
         } else {
@@ -123,11 +174,11 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
         }
       }
     };
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
     };
   }, [open, recentSubmenuOpen]);
 
@@ -138,7 +189,8 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
 
   // Adjust submenu position if it overflows the viewport
   useLayoutEffect(() => {
-    if (!recentSubmenuOpen || !submenuRef.current || !recentTriggerRef.current) return;
+    if (!recentSubmenuOpen || !submenuRef.current || !recentTriggerRef.current)
+      return;
     const el = submenuRef.current;
     const rect = el.getBoundingClientRect();
     const triggerRect = recentTriggerRef.current.getBoundingClientRect();
@@ -151,9 +203,9 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
       el.style.top = `${shifted}px`;
       // If it still doesn't fit after shifting, cap height and scroll
       if (rect.height > window.innerHeight - 16) {
-        el.style.top = '8px';
+        el.style.top = "8px";
         el.style.maxHeight = `${window.innerHeight - 16}px`;
-        el.style.overflowY = 'auto';
+        el.style.overflowY = "auto";
       }
     }
   }, [recentSubmenuOpen]);
@@ -190,28 +242,32 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
 
   // Keyboard navigation for menu items
   const handleMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const dropdown = menuRef.current?.querySelector('.titlebar-menu-dropdown');
+    const dropdown = menuRef.current?.querySelector(".titlebar-menu-dropdown");
     if (!dropdown) return;
 
-    const items = Array.from(dropdown.querySelectorAll<HTMLElement>('.menu-item:not(.menu-item--disabled), .menu-section-header'));
+    const items = Array.from(
+      dropdown.querySelectorAll<HTMLElement>(
+        ".menu-item:not(.menu-item--disabled), .menu-section-header",
+      ),
+    );
     if (items.length === 0) return;
 
     const currentIdx = items.indexOf(document.activeElement as HTMLElement);
 
     switch (e.key) {
-      case 'ArrowDown': {
+      case "ArrowDown": {
         e.preventDefault();
         const nextIdx = currentIdx < items.length - 1 ? currentIdx + 1 : 0;
         items[nextIdx]?.focus();
         break;
       }
-      case 'ArrowUp': {
+      case "ArrowUp": {
         e.preventDefault();
         const prevIdx = currentIdx > 0 ? currentIdx - 1 : items.length - 1;
         items[prevIdx]?.focus();
         break;
       }
-      case 'Tab': {
+      case "Tab": {
         // Focus trap within open menu
         e.preventDefault();
         break;
@@ -222,8 +278,12 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
   return (
     <div className="titlebar-menu" ref={menuRef}>
       <button
-        className={`titlebar-menu-btn${open ? ' titlebar-menu-btn--open' : ''}`}
-        onClick={() => { setOpen(!open); setRecentSubmenuOpen(false); setExpandedSection('File'); }}
+        className={`titlebar-menu-btn${open ? " titlebar-menu-btn--open" : ""}`}
+        onClick={() => {
+          setOpen(!open);
+          setRecentSubmenuOpen(false);
+          setExpandedSection("File");
+        }}
         title="Menu"
         tabIndex={-1}
         aria-label="Application menu"
@@ -233,26 +293,37 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
       </button>
 
       {open && (
-        <div className="titlebar-menu-dropdown" role="menu" onKeyDown={handleMenuKeyDown}>
+        <div
+          className="titlebar-menu-dropdown"
+          role="menu"
+          onKeyDown={handleMenuKeyDown}
+        >
           {MENU_SECTIONS.map((section, sectionIdx) => {
             const isExpanded = expandedSection === section.label;
             return (
               <div key={section.label} className="menu-section">
                 <button
-                  className={`menu-section-header${isExpanded ? ' menu-section-header--expanded' : ''}`}
-                  onClick={() => setExpandedSection(isExpanded ? '' : section.label)}
+                  className={`menu-section-header${isExpanded ? " menu-section-header--expanded" : ""}`}
+                  onClick={() =>
+                    setExpandedSection(isExpanded ? "" : section.label)
+                  }
                   aria-expanded={isExpanded}
                   role="menuitem"
                 >
                   <span className="menu-section-chevron">
                     <ChevronRightIcon />
                   </span>
-                  <span className="menu-section-header-label">{section.label}</span>
+                  <span className="menu-section-header-label">
+                    {section.label}
+                  </span>
                 </button>
-                <div className={`menu-section-body${isExpanded ? ' menu-section-body--open' : ''}`}>
+                <div
+                  className={`menu-section-body${isExpanded ? " menu-section-body--open" : ""}`}
+                >
                   <div className="menu-section-inner">
                     {section.items.map((item, i) => {
-                      const showRecentAfter = sectionIdx === 0 && item.action === 'saveAs';
+                      const showRecentAfter =
+                        sectionIdx === 0 && item.action === "saveAs";
 
                       return (
                         <div key={item.separator ? `sep-${i}` : item.action}>
@@ -264,9 +335,13 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                               onClick={() => handleItemClick(item.action)}
                               role="menuitem"
                             >
-                              <span className="menu-item-label">{item.label}</span>
+                              <span className="menu-item-label">
+                                {item.label}
+                              </span>
                               {item.shortcut && (
-                                <span className="menu-item-shortcut">{item.shortcut}</span>
+                                <span className="menu-item-shortcut">
+                                  {item.shortcut}
+                                </span>
                               )}
                             </button>
                           )}
@@ -280,13 +355,18 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                 onMouseLeave={handleRecentLeave}
                               >
                                 <button
-                                  className={`menu-item${recentSubmenuOpen ? ' menu-item--active' : ''}${!hasRecentFiles ? ' menu-item--disabled' : ''}`}
-                                  onClick={() => hasRecentFiles && setRecentSubmenuOpen(!recentSubmenuOpen)}
+                                  className={`menu-item${recentSubmenuOpen ? " menu-item--active" : ""}${!hasRecentFiles ? " menu-item--disabled" : ""}`}
+                                  onClick={() =>
+                                    hasRecentFiles &&
+                                    setRecentSubmenuOpen(!recentSubmenuOpen)
+                                  }
                                   role="menuitem"
                                   aria-expanded={recentSubmenuOpen}
                                   aria-disabled={!hasRecentFiles}
                                 >
-                                  <span className="menu-item-label">Recent Files</span>
+                                  <span className="menu-item-label">
+                                    Recent Files
+                                  </span>
                                   <span className="menu-item-arrow">
                                     <ChevronRightIcon />
                                   </span>
@@ -297,7 +377,14 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                     className="menu-submenu"
                                     role="menu"
                                     aria-label="Recent files"
-                                    style={submenuPos ? { top: submenuPos.top, left: submenuPos.left } : undefined}
+                                    style={
+                                      submenuPos
+                                        ? {
+                                            top: submenuPos.top,
+                                            left: submenuPos.left,
+                                          }
+                                        : undefined
+                                    }
                                     onMouseEnter={handleSubmenuEnter}
                                     onMouseLeave={handleSubmenuLeave}
                                   >
@@ -313,8 +400,12 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                         }}
                                       >
                                         <span className="menu-item-label">
-                                          <span className="menu-recent-filename">{entry.filename}</span>
-                                          <span className="menu-recent-path">{entry.truncatedPath}</span>
+                                          <span className="menu-recent-filename">
+                                            {entry.filename}
+                                          </span>
+                                          <span className="menu-recent-path">
+                                            {entry.truncatedPath}
+                                          </span>
                                         </span>
                                       </button>
                                     ))}
@@ -322,9 +413,13 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
                                     <button
                                       className="menu-item"
                                       role="menuitem"
-                                      onClick={() => handleItemClick('clearRecentFiles')}
+                                      onClick={() =>
+                                        handleItemClick("clearRecentFiles")
+                                      }
                                     >
-                                      <span className="menu-item-label menu-item-label--muted">Clear Recent</span>
+                                      <span className="menu-item-label menu-item-label--muted">
+                                        Clear Recent
+                                      </span>
                                     </button>
                                   </div>
                                 )}
@@ -347,7 +442,13 @@ export function TitlebarMenu({ onAction, recentFiles, onOpenRecentFile }: Titleb
 
 function HamburgerIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    >
       <line x1="3" y1="4.5" x2="13" y2="4.5" />
       <line x1="3" y1="8" x2="13" y2="8" />
       <line x1="3" y1="11.5" x2="13" y2="11.5" />
@@ -357,7 +458,14 @@ function HamburgerIcon() {
 
 function ChevronRightIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="6,4 10,8 6,12" />
     </svg>
   );

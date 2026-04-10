@@ -3,10 +3,10 @@
 export interface GanttTask {
   id: string;
   title: string;
-  status?: 'done' | 'active' | 'crit' | 'milestone';
-  startDate?: string;       // "YYYY-MM-DD" or empty for auto
-  duration?: string;        // e.g. "3d", "2w"
-  afterDeps?: string[];     // task IDs this depends on (uses "after")
+  status?: "done" | "active" | "crit" | "milestone";
+  startDate?: string; // "YYYY-MM-DD" or empty for auto
+  duration?: string; // e.g. "3d", "2w"
+  afterDeps?: string[]; // task IDs this depends on (uses "after")
 }
 
 export interface GanttSection {
@@ -35,19 +35,19 @@ export function generateTaskId(existingIds: Set<string>): string {
 export function createDefaultGanttData(): GanttData {
   const today = new Date();
   const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
   const todayStr = `${yyyy}-${mm}-${dd}`;
 
   return {
-    title: 'Project Schedule',
-    dateFormat: 'YYYY-MM-DD',
+    title: "Project Schedule",
+    dateFormat: "YYYY-MM-DD",
     sections: [
       {
-        title: 'Phase 1',
+        title: "Phase 1",
         tasks: [
-          { id: 't1', title: 'Task A', startDate: todayStr, duration: '7d' },
-          { id: 't2', title: 'Task B', afterDeps: ['t1'], duration: '5d' },
+          { id: "t1", title: "Task A", startDate: todayStr, duration: "7d" },
+          { id: "t2", title: "Task B", afterDeps: ["t1"], duration: "5d" },
         ],
       },
     ],
@@ -57,14 +57,17 @@ export function createDefaultGanttData(): GanttData {
 // --- Parser: mermaid gantt text → GanttData ---
 
 export function parseMermaidGantt(code: string): GanttData | null {
-  const lines = code.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = code
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 
   // Must start with "gantt"
-  if (lines.length === 0 || lines[0] !== 'gantt') return null;
+  if (lines.length === 0 || lines[0] !== "gantt") return null;
 
   const data: GanttData = {
-    title: '',
-    dateFormat: 'YYYY-MM-DD',
+    title: "",
+    dateFormat: "YYYY-MM-DD",
     sections: [],
   };
 
@@ -75,16 +78,28 @@ export function parseMermaidGantt(code: string): GanttData | null {
 
     // Metadata directives
     const titleMatch = line.match(/^title\s+(.+)/);
-    if (titleMatch) { data.title = titleMatch[1].trim(); continue; }
+    if (titleMatch) {
+      data.title = titleMatch[1].trim();
+      continue;
+    }
 
     const dateFormatMatch = line.match(/^dateFormat\s+(.+)/);
-    if (dateFormatMatch) { data.dateFormat = dateFormatMatch[1].trim(); continue; }
+    if (dateFormatMatch) {
+      data.dateFormat = dateFormatMatch[1].trim();
+      continue;
+    }
 
     const axisFormatMatch = line.match(/^axisFormat\s+(.+)/);
-    if (axisFormatMatch) { data.axisFormat = axisFormatMatch[1].trim(); continue; }
+    if (axisFormatMatch) {
+      data.axisFormat = axisFormatMatch[1].trim();
+      continue;
+    }
 
     const excludesMatch = line.match(/^excludes\s+(.+)/);
-    if (excludesMatch) { data.excludes = excludesMatch[1].trim(); continue; }
+    if (excludesMatch) {
+      data.excludes = excludesMatch[1].trim();
+      continue;
+    }
 
     // Section
     const sectionMatch = line.match(/^section\s+(.+)/);
@@ -100,12 +115,12 @@ export function parseMermaidGantt(code: string): GanttData | null {
     if (taskMatch) {
       // Ensure we have a section
       if (!currentSection) {
-        currentSection = { title: 'Tasks', tasks: [] };
+        currentSection = { title: "Tasks", tasks: [] };
         data.sections.push(currentSection);
       }
 
       const title = taskMatch[1].trim();
-      const parts = taskMatch[2].split(',').map(p => p.trim());
+      const parts = taskMatch[2].split(",").map((p) => p.trim());
       const task = parseTaskParts(title, parts);
       currentSection.tasks.push(task);
     }
@@ -118,15 +133,20 @@ export function parseMermaidGantt(code: string): GanttData | null {
 }
 
 function parseTaskParts(title: string, parts: string[]): GanttTask {
-  const task: GanttTask = { id: '', title };
+  const task: GanttTask = { id: "", title };
 
   const afterDeps: string[] = [];
-  let assignedId = '';
+  let assignedId = "";
   let foundDate = false;
 
   for (const part of parts) {
     // Status keywords
-    if (part === 'done' || part === 'active' || part === 'crit' || part === 'milestone') {
+    if (
+      part === "done" ||
+      part === "active" ||
+      part === "crit" ||
+      part === "milestone"
+    ) {
       task.status = part;
       continue;
     }
@@ -167,7 +187,7 @@ function parseTaskParts(title: string, parts: string[]): GanttTask {
 // --- Serializer: GanttData → mermaid gantt text ---
 
 export function ganttDataToMermaid(data: GanttData): string {
-  const lines: string[] = ['gantt'];
+  const lines: string[] = ["gantt"];
 
   if (data.title) lines.push(`    title ${data.title}`);
   lines.push(`    dateFormat ${data.dateFormat}`);
@@ -184,9 +204,9 @@ export function ganttDataToMermaid(data: GanttData): string {
       const parts: string[] = [];
 
       // 1. Status keywords first
-      const isMilestone = task.duration === '0d' || task.status === 'milestone';
+      const isMilestone = task.duration === "0d" || task.status === "milestone";
       if (isMilestone) {
-        parts.push('milestone');
+        parts.push("milestone");
       } else if (task.status) {
         parts.push(task.status);
       }
@@ -196,19 +216,19 @@ export function ganttDataToMermaid(data: GanttData): string {
 
       // 3. Dependencies or start date
       if (task.afterDeps && task.afterDeps.length > 0) {
-        parts.push(`after ${task.afterDeps.join(' ')}`);
+        parts.push(`after ${task.afterDeps.join(" ")}`);
       } else if (task.startDate) {
         parts.push(task.startDate);
       }
 
       // 4. Duration
       if (task.duration) parts.push(task.duration);
-      else if (isMilestone) parts.push('0d');
+      else if (isMilestone) parts.push("0d");
 
-      const taskTitle = task.title || 'Untitled task';
-      lines.push(`    ${taskTitle} :${parts.join(', ')}`);
+      const taskTitle = task.title || "Untitled task";
+      lines.push(`    ${taskTitle} :${parts.join(", ")}`);
     }
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }

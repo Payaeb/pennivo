@@ -8,7 +8,7 @@ export {
   createDefaultGanttData,
   parseMermaidGantt,
   ganttDataToMermaid,
-} from './gantt';
+} from "./gantt";
 
 export {
   type KanbanCard,
@@ -18,4 +18,4 @@ export {
   createDefaultKanbanData,
   parseKanbanMarkdown,
   kanbanDataToMarkdown,
-} from './kanban';
+} from "./kanban";
