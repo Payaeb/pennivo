@@ -14,6 +14,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Artifact version (e.g. 0.9.0-test). Required for manual runs. Overrides package.json version via electron-builder extraMetadata.'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -45,11 +51,31 @@ jobs:
       - name: Build desktop bundle
         run: pnpm --filter @pennivo/desktop build
 
+      # Compute the artifact version. For tag pushes, strip the leading 'v'
+      # from the tag name (refs/tags/v1.0.0 -> 1.0.0). For manual dispatch,
+      # use the required `version` input. The result is passed to
+      # electron-builder via --config.extraMetadata.version, so the artifact
+      # name + GitHub release tag follow the actual tag/input rather than
+      # whatever package.json happens to say. This makes the v0.9.0-test
+      # validation safe even though package.json is pinned at 1.0.0.
+      - name: Compute artifact version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building artifact for version: $VERSION"
+
       # electron-builder reads build.publish from packages/desktop/package.json
       # (GitHub provider, owner=Payaeb, repo=pennivo) and uploads the installer
       # + latest.yml to the matching draft Release. GH_TOKEN (not GITHUB_TOKEN)
       # is the env var electron-builder looks for.
       - name: Build installer and publish to GitHub Releases
-        run: pnpm --filter @pennivo/desktop exec electron-builder --win --publish always
+        shell: bash
+        run: pnpm --filter @pennivo/desktop exec electron-builder --win --publish always --config.extraMetadata.version=${{ steps.version.outputs.version }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
