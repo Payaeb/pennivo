@@ -2,12 +2,20 @@
   "name": "pennivo",
   "version": "1.0.0",
   "private": true,
-  "description": "A beautiful markdown editor for writers",
+  "description": "A modern markdown editor with WYSIWYG and source mode",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
   "license": "MIT",
+  "homepage": "https://www.pennivo.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Payaeb/pennivo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Payaeb/pennivo/issues"
+  },
   "scripts": {
     "dev": "pnpm --filter @pennivo/desktop dev",
-    "build": "pnpm --filter @pennivo/core build && pnpm --filter @pennivo/ui build && pnpm --filter @pennivo/desktop build",
+    "build": "pnpm --filter @pennivo/core build && pnpm --filter @pennivo/desktop build",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
     "lint:fix": "eslint packages/*/src --ext .ts,.tsx --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css}\"",

@@ -5,6 +5,15 @@
   "description": "Pennivo editor engine - framework-agnostic markdown editing",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
   "license": "MIT",
+  "homepage": "https://www.pennivo.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Payaeb/pennivo.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Payaeb/pennivo/issues"
+  },
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

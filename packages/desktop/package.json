@@ -3,9 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "productName": "Pennivo",
-  "description": "A markdown editor for writers",
+  "description": "A modern markdown editor with WYSIWYG and source mode",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
   "license": "MIT",
+  "homepage": "https://www.pennivo.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Payaeb/pennivo.git",
+    "directory": "packages/desktop"
+  },
+  "bugs": {
+    "url": "https://github.com/Payaeb/pennivo/issues"
+  },
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE vite",
