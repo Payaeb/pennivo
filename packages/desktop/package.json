@@ -20,6 +20,7 @@
     "dev": "env -u ELECTRON_RUN_AS_NODE vite",
     "build": "tsc && vite build",
     "build:icon": "node scripts/build-icon.mjs",
+    "build:file-icon": "node scripts/build-file-icon.mjs",
     "dist": "electron-builder --win --publish never",
     "dist:dir": "electron-builder --dir --win --publish never",
     "typecheck": "tsc --noEmit",
@@ -54,7 +55,7 @@
           "ext": "md",
           "name": "Markdown Document",
           "description": "Markdown Document",
-          "icon": "build/icon.ico",
+          "icon": "build/file-icon.ico",
           "role": "Editor"
         }
       ]

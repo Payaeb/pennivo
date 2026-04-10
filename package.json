@@ -34,7 +34,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "esbuild"
+      "esbuild",
+      "sharp"
     ]
   },
   "devDependencies": {
@@ -43,6 +44,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "prettier": "^3.8.2",
+    "sharp": "^0.34.5",
     "typescript-eslint": "^8.58.1"
   }
 }
