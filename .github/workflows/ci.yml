@@ -7,20 +7,10 @@ on:
     branches: [main]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm format:check
+  # Lint + format:check are intentionally not part of CI yet — eslint and
+  # prettier are referenced by package.json scripts but were never installed.
+  # Restoring them is tracked in the Phase 8 plan (code quality tooling
+  # restoration). Until that ships, CI runs typecheck + test + build only.
 
   typecheck:
     runs-on: ubuntu-latest
@@ -52,7 +42,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [typecheck, test]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

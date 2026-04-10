@@ -17,18 +17,19 @@ By submitting a pull request, you agree that:
 3. Install dependencies: `pnpm install`
 4. Create a branch: `git checkout -b my-feature`
 5. Make your changes
-6. Run tests: `pnpm test`
-7. Run linting: `pnpm lint`
+6. Run type checks: `pnpm typecheck`
+7. Run tests: `pnpm test`
 8. Commit and push
 9. Open a pull request
 
 ## Code Style
 
 - TypeScript with strict mode
-- Prettier for formatting (run `pnpm format`)
-- ESLint for linting (run `pnpm lint`)
 - Functional React components with hooks
 - CSS custom properties for theming
+- Named exports preferred over default exports
+
+> **Note:** ESLint and Prettier wiring is planned for a follow-up release. The repository ships with `eslint.config.js` and `pnpm lint` / `pnpm format` script entries, but the underlying packages are not yet installed. Until they are, please match the style of the surrounding code.
 
 ## Reporting Issues
 
