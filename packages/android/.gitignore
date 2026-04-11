@@ -6,3 +6,4 @@ android/
 
 # Node
 node_modules/
+*.png
