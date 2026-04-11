@@ -1,8 +1,14 @@
 # Build output
 dist/
 
-# Capacitor Android project (generated, can be recreated with `npx cap add android`)
-android/
+# Capacitor Android project — track source, ignore build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/.idea/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
 
 # Node
 node_modules/
