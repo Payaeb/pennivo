@@ -83,6 +83,29 @@ export function createElectronPlatform(): PennivoPlatform {
     onUpdateAvailable: (cb) => api.onUpdateAvailable(cb),
     installUpdate: () => api.installUpdate(),
 
+    // External file import — desktop uses openFile dialog instead
+    pickExternalFile: async () => {
+      // Desktop uses its own openFile dialog; this method is for mobile SAF only
+      const result = await api.openFile();
+      if (!result) return null;
+      const name = result.filePath.split(/[/\\]/).pop() || 'untitled.md';
+      return { filePath: result.filePath, content: result.content, name };
+    },
+
+    // File management — not used on desktop (sidebar handles file management)
+    listFiles: async () => {
+      throw new Error('Not implemented: desktop uses sidebar for file management');
+    },
+    createFile: async () => {
+      throw new Error('Not implemented: desktop uses sidebar for file management');
+    },
+    deleteFile: async () => {
+      throw new Error('Not implemented: desktop uses sidebar for file management');
+    },
+    renameFile: async () => {
+      throw new Error('Not implemented: desktop uses sidebar for file management');
+    },
+
     // Menu events
     onMenuPaste: (cb) => api.onMenuPaste(cb),
     onMenuOpen: (cb) => api.onMenuOpen(cb),

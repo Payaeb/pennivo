@@ -28,6 +28,8 @@ import {
 import { lift } from "@milkdown/prose/commands";
 import { Editor, useTheme, getPlatform } from "@pennivo/ui";
 import { MobileToolbar } from "./components/MobileToolbar/MobileToolbar";
+import { FileBrowser } from "./components/FileBrowser/FileBrowser";
+import { useShareIntent } from "./hooks/useShareIntent";
 
 const LazySourceEditor = lazy(() =>
   import("../../ui/src/components/SourceEditor/SourceEditor").then((m) => ({
@@ -36,26 +38,10 @@ const LazySourceEditor = lazy(() =>
 );
 
 type SaveStatus = "saved" | "saving" | "unsaved";
-
-const WELCOME_CONTENT = `# Welcome to Pennivo
-
-A clean, focused markdown editor.
-
-Start writing, or open a file from your device. Your work is **auto-saved** as you type.
-
-## Quick tips
-
-- Tap the **Source** button to edit raw markdown
-- Tap the theme icon to switch light/dark mode
-- Your changes save automatically after a few seconds
-
----
-
-Happy writing.
-`;
+type Screen = "browser" | "editor";
 
 const AUTO_SAVE_DELAY = 3000;
-const DEFAULT_FILENAME = "welcome.md";
+const DEFAULT_FILENAME = "untitled.md";
 
 /* ------------------------------------------------------------------ */
 /*  Inner component — lives inside MilkdownProvider, uses useInstance  */
@@ -379,7 +365,8 @@ export function MobileApp() {
   const [editorKey, setEditorKey] = useState(0);
   const [fileName, setFileName] = useState("untitled.md");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
-  const [initialContent, setInitialContent] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>("browser");
+  const [editorReady, setEditorReady] = useState(false);
 
   const markdownRef = useRef("");
   const filePathRef = useRef(DEFAULT_FILENAME);
@@ -387,7 +374,37 @@ export function MobileApp() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
 
-  // Load last-opened file or show welcome doc
+  // Handle files shared from other apps (share intent / "Open with")
+  const handleSharedFile = useCallback(
+    async (content: string, sharedFileName: string) => {
+      // Generate a unique filename to avoid collisions
+      const baseName = sharedFileName.replace(/\.(md|markdown)$/i, "");
+      const uniqueName = `${baseName}-${Date.now()}.md`;
+
+      // Save to Documents directory
+      const saved = await platform.saveFile(uniqueName, content);
+      if (!saved) {
+        console.error("[Pennivo] Failed to save shared file");
+        return;
+      }
+
+      // Open in editor
+      markdownRef.current = content;
+      filePathRef.current = uniqueName;
+      setFileName(uniqueName);
+      setEditorKey((k) => k + 1);
+      setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
+      setSaveStatus("saved");
+      setEditorReady(true);
+      setScreen("editor");
+      await platform.addRecentFile(uniqueName);
+    },
+    [platform],
+  );
+
+  useShareIntent(handleSharedFile);
+
+  // On first launch, check if there's a recent file and go straight to editor
   useEffect(() => {
     mountedRef.current = true;
     let cancelled = false;
@@ -407,9 +424,10 @@ export function MobileApp() {
             filePathRef.current = result.filePath;
             const name = result.filePath.split("/").pop() || "untitled.md";
             setFileName(name);
-            setInitialContent(result.content);
             setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
             setSaveStatus("saved");
+            setEditorReady(true);
+            setScreen("editor");
             return;
           }
         }
@@ -419,13 +437,9 @@ export function MobileApp() {
 
       if (cancelled) return;
 
-      // First run or no recent files -- show welcome
-      markdownRef.current = WELCOME_CONTENT;
-      filePathRef.current = DEFAULT_FILENAME;
-      setFileName(DEFAULT_FILENAME);
-      setInitialContent(WELCOME_CONTENT);
-      setWordCount(WELCOME_CONTENT.trim().split(/\s+/).filter(Boolean).length);
-      setSaveStatus("saved");
+      // No recent files — start at file browser
+      setEditorReady(true);
+      setScreen("browser");
     }
 
     loadInitial();
@@ -500,6 +514,15 @@ export function MobileApp() {
     }, AUTO_SAVE_DELAY);
   }, [performSave]);
 
+  const flushSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      await platform.saveFile(filePathRef.current, markdownRef.current);
+      await platform.addRecentFile(filePathRef.current);
+    }
+  }, [platform]);
+
   const handleWordCountChange = useCallback((count: number) => {
     setWordCount(count);
   }, []);
@@ -516,6 +539,52 @@ export function MobileApp() {
     [scheduleSave],
   );
 
+  const openFileFromBrowser = useCallback(
+    async (filePath: string) => {
+      // Save current file first if unsaved
+      await flushSave();
+
+      const result = await platform.openFilePath(filePath);
+      if (result) {
+        markdownRef.current = result.content;
+        filePathRef.current = result.filePath;
+        const name = result.filePath.split("/").pop() || "untitled.md";
+        setFileName(name);
+        setEditorKey((k) => k + 1);
+        setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
+        setSaveStatus("saved");
+        setScreen("editor");
+        await platform.addRecentFile(result.filePath);
+      }
+    },
+    [platform, flushSave],
+  );
+
+  const handleNewFileFromBrowser = useCallback(
+    async (filePath: string) => {
+      // Save current file first if unsaved
+      await flushSave();
+
+      markdownRef.current = "";
+      filePathRef.current = filePath;
+      const name = filePath.split("/").pop() || "untitled.md";
+      setFileName(name);
+      setEditorKey((k) => k + 1);
+      setWordCount(0);
+      setSaveStatus("saved");
+      setScreen("editor");
+      await platform.addRecentFile(filePath);
+    },
+    [platform, flushSave],
+  );
+
+  const handleBackToBrowser = useCallback(async () => {
+    // Save before navigating away
+    await flushSave();
+    setSourceMode(false);
+    setScreen("browser");
+  }, [flushSave]);
+
   const toggleSourceMode = useCallback(() => {
     setSourceMode((prev) => {
       if (prev) {
@@ -527,8 +596,8 @@ export function MobileApp() {
     scrollRef.current?.scrollTo(0, 0);
   }, []);
 
-  // Don't render until initial content is loaded
-  if (initialContent === null) {
+  // Don't render until initial load is complete
+  if (!editorReady) {
     return (
       <div className="mobile-app">
         <div className="mobile-loading">Loading...</div>
@@ -536,10 +605,45 @@ export function MobileApp() {
     );
   }
 
+  // File browser screen
+  if (screen === "browser") {
+    return (
+      <div className="mobile-app">
+        <FileBrowser
+          onOpenFile={openFileFromBrowser}
+          onNewFile={handleNewFileFromBrowser}
+          currentFilePath={filePathRef.current}
+          onToggleTheme={toggleTheme}
+          themeMode={mode}
+        />
+      </div>
+    );
+  }
+
+  // Editor screen
   return (
     <div className="mobile-app">
       <header className="mobile-header">
         <div className="mobile-header-left">
+          <button
+            className="mobile-back-btn"
+            onClick={handleBackToBrowser}
+            aria-label="Back to files"
+            type="button"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="12,4 6,10 12,16" />
+            </svg>
+          </button>
           <span className="mobile-filename">{fileName}</span>
           <span
             className={`save-dot save-dot--${saveStatus}`}
@@ -582,7 +686,6 @@ export function MobileApp() {
           onCharCountChange={handleCharCountChange}
         />
       </MilkdownProvider>
-
     </div>
   );
 }

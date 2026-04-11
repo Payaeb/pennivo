@@ -95,6 +95,25 @@ export interface PennivoPlatform {
   onUpdateAvailable: (cb: (version: string) => void) => () => void;
   installUpdate: () => void;
 
+  // External file import (mobile SAF picker)
+  pickExternalFile: () => Promise<{
+    filePath: string;
+    content: string;
+    name: string;
+  } | null>;
+
+  // File management (mobile)
+  listFiles: (
+    directory?: string,
+  ) => Promise<
+    { name: string; path: string; modified: number; size: number }[]
+  >;
+  createFile: (
+    fileName: string,
+  ) => Promise<{ filePath: string; content: string } | null>;
+  deleteFile: (filePath: string) => Promise<boolean>;
+  renameFile: (oldPath: string, newName: string) => Promise<string | null>;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;

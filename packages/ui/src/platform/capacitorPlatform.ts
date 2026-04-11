@@ -25,6 +25,80 @@ const PREF_SETTINGS = 'pennivo_settings';
 const PREF_TOOLBAR_CONFIG = 'pennivo_toolbar_config';
 const MAX_RECENT_FILES = 10;
 
+/**
+ * Opens the system file picker (SAF on Android) using a hidden <input type="file">.
+ * Capacitor WebViews delegate file inputs to the native picker, so this triggers
+ * the full Android SAF document picker without needing a third-party plugin.
+ */
+function pickFileViaSAF(): Promise<{
+  filePath: string;
+  content: string;
+  name: string;
+} | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md,.markdown,.txt,text/markdown,text/plain';
+    input.style.display = 'none';
+
+    let settled = false;
+
+    const cleanup = () => {
+      input.removeEventListener('change', onChange);
+      input.removeEventListener('cancel', onCancel);
+      window.removeEventListener('focus', onWindowFocus);
+      if (input.parentNode) input.parentNode.removeChild(input);
+    };
+
+    const onChange = async () => {
+      if (settled) return;
+      settled = true;
+      const file = input.files?.[0];
+      if (!file) {
+        cleanup();
+        resolve(null);
+        return;
+      }
+      try {
+        const content = await file.text();
+        const name = file.name || 'imported.md';
+        cleanup();
+        resolve({ filePath: name, content, name });
+      } catch (err) {
+        console.error('[Pennivo] pickFileViaSAF read failed:', err);
+        cleanup();
+        resolve(null);
+      }
+    };
+
+    const onCancel = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(null);
+    };
+
+    // Fallback: if the user dismisses the picker, the window regains focus
+    // but no change event fires. Use a delayed focus handler as backup.
+    const onWindowFocus = () => {
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          resolve(null);
+        }
+      }, 500);
+    };
+
+    input.addEventListener('change', onChange);
+    input.addEventListener('cancel', onCancel);
+    window.addEventListener('focus', onWindowFocus);
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 export function createCapacitorPlatform(): PennivoPlatform {
   return {
     platformName: 'capacitor',
@@ -61,8 +135,14 @@ export function createCapacitorPlatform(): PennivoPlatform {
     },
 
     openFile: async () => {
-      // TODO Phase 11: implement Android SAF document picker
-      return null;
+      // On Android, openFile delegates to the SAF picker
+      const result = await pickFileViaSAF();
+      if (!result) return null;
+      return {
+        filePath: result.filePath,
+        content: result.content,
+        fileSize: result.content.length,
+      };
     },
 
     saveFile: async (filePath, content) => {
@@ -283,6 +363,100 @@ export function createCapacitorPlatform(): PennivoPlatform {
     // Auto-update — no-op on mobile (handled by app stores)
     onUpdateAvailable: (_cb) => noop,
     installUpdate: noop,
+
+    // External file import (mobile SAF picker)
+    pickExternalFile: () => pickFileViaSAF(),
+
+    // File management (mobile)
+    listFiles: async (_directory?: string) => {
+      try {
+        const { Filesystem, Directory } = await getFilesystem();
+        const result = await Filesystem.readdir({
+          path: _directory || '',
+          directory: Directory.Documents,
+        });
+        const mdFiles = result.files.filter(
+          (f) => f.type === 'file' && f.name.endsWith('.md'),
+        );
+        const entries = mdFiles.map((f) => ({
+          name: f.name,
+          path: _directory ? `${_directory}/${f.name}` : f.name,
+          modified: f.mtime ? new Date(f.mtime).getTime() : 0,
+          size: f.size ?? 0,
+        }));
+        entries.sort((a, b) => b.modified - a.modified);
+        return entries;
+      } catch (err) {
+        console.error('[Pennivo] listFiles failed:', err);
+        return [];
+      }
+    },
+
+    createFile: async (fileName) => {
+      try {
+        const { Filesystem, Directory, Encoding } = await getFilesystem();
+        const safeName = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
+        await Filesystem.writeFile({
+          path: safeName,
+          data: '',
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        return { filePath: safeName, content: '' };
+      } catch (err) {
+        console.error('[Pennivo] createFile failed:', err);
+        return null;
+      }
+    },
+
+    deleteFile: async (filePath) => {
+      try {
+        const { Filesystem, Directory } = await getFilesystem();
+        await Filesystem.deleteFile({
+          path: filePath,
+          directory: Directory.Documents,
+        });
+        return true;
+      } catch (err) {
+        console.error('[Pennivo] deleteFile failed:', err);
+        return false;
+      }
+    },
+
+    renameFile: async (oldPath, newName) => {
+      try {
+        const { Filesystem, Directory, Encoding } = await getFilesystem();
+        const safeName = newName.endsWith('.md') ? newName : `${newName}.md`;
+        // Read old file
+        const result = await Filesystem.readFile({
+          path: oldPath,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+        });
+        const data =
+          typeof result.data === 'string'
+            ? result.data
+            : await (result.data as Blob).text();
+        // Write to new path
+        await Filesystem.writeFile({
+          path: safeName,
+          data,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        // Delete old file
+        await Filesystem.deleteFile({
+          path: oldPath,
+          directory: Directory.Documents,
+        });
+        return safeName;
+      } catch (err) {
+        console.error('[Pennivo] renameFile failed:', err);
+        return null;
+      }
+    },
 
     // Menu events — no-op on mobile (no native menu bar)
     onMenuPaste: (_cb) => noop,
