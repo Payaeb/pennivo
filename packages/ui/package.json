@@ -54,7 +54,22 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
+  "peerDependencies": {
+    "@capacitor/filesystem": ">=7.0.0",
+    "@capacitor/preferences": ">=7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@capacitor/filesystem": {
+      "optional": true
+    },
+    "@capacitor/preferences": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@capacitor/core": "^7.6.1",
+    "@capacitor/filesystem": "^7.1.8",
+    "@capacitor/preferences": "^7.0.4",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.0",

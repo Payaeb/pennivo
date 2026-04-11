@@ -4,6 +4,7 @@ import {
   type RecentFileEntry,
 } from "./TitlebarMenu";
 import logoSrc from "../../assets/logo-32.png";
+import { getPlatform } from "../../platform";
 import "./Titlebar.css";
 
 interface TitlebarProps {
@@ -23,9 +24,10 @@ export function Titlebar({
   recentFiles,
   onOpenRecentFile,
 }: TitlebarProps) {
-  const handleMinimize = () => window.pennivo?.minimize();
-  const handleMaximize = () => window.pennivo?.maximize();
-  const handleClose = () => window.pennivo?.close();
+  const platform = getPlatform();
+  const handleMinimize = () => platform.minimize();
+  const handleMaximize = () => platform.maximize();
+  const handleClose = () => platform.close();
 
   return (
     <div className="titlebar">

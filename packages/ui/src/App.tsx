@@ -84,6 +84,7 @@ import {
   clearDraft,
   type DraftData,
 } from "./utils/draftStorage";
+import { getPlatform } from "./platform";
 
 // Lazy-loaded components — deferred until first use to reduce startup bundle
 const LazySourceEditor = lazy(() =>
@@ -195,6 +196,7 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
 }
 
 function AppContent() {
+  const platform = getPlatform();
   const { toggleTheme, colorScheme, cycleColorScheme, setColorScheme } =
     useTheme();
   const [loading, getInstance] = useInstance();
@@ -269,7 +271,7 @@ function AppContent() {
 
   // Load persisted settings on mount
   useEffect(() => {
-    window.pennivo?.getSettings?.().then((saved) => {
+    platform.getSettings().then((saved) => {
       if (saved && typeof saved.showWordCount === "boolean") {
         setShowWordCount(saved.showWordCount);
       }
@@ -289,7 +291,7 @@ function AppContent() {
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
 
   const loadRecentFiles = useCallback(async () => {
-    const files = await window.pennivo?.getRecentFiles();
+    const files = await platform.getRecentFiles();
     if (!files) return;
     setRecentFiles(
       files.map((fp: string) => {
@@ -315,12 +317,12 @@ function AppContent() {
       setSidebarTree([]);
       return;
     }
-    const tree = await window.pennivo?.readDirectory(folder);
+    const tree = await platform.readDirectory(folder);
     if (tree) setSidebarTree(tree);
   }, []);
 
   const handleChooseFolder = useCallback(async () => {
-    const folder = await window.pennivo?.chooseSidebarFolder();
+    const folder = await platform.chooseSidebarFolder();
     if (folder) {
       setSidebarFolder(folder);
       setSidebarVisible(true);
@@ -330,7 +332,7 @@ function AppContent() {
 
   // Load persisted sidebar folder on mount
   useEffect(() => {
-    window.pennivo?.getSidebarFolder().then((folder) => {
+    platform.getSidebarFolder().then((folder) => {
       if (folder) {
         setSidebarFolder(folder);
         refreshSidebarTree(folder);
@@ -340,7 +342,7 @@ function AppContent() {
 
   // Load persisted toolbar config on mount
   useEffect(() => {
-    window.pennivo?.getToolbarConfig().then((saved) => {
+    platform.getToolbarConfig().then((saved) => {
       if (saved) setToolbarConfig(saved as ConfigurableAction[]);
     });
   }, []);
@@ -348,7 +350,7 @@ function AppContent() {
   const handleToolbarConfigUpdate = useCallback(
     (config: ConfigurableAction[]) => {
       setToolbarConfig(config);
-      window.pennivo?.setToolbarConfig(config);
+      platform.setToolbarConfig(config);
     },
     [],
   );
@@ -356,13 +358,13 @@ function AppContent() {
   // Listen for folder changes (file watcher)
   useEffect(() => {
     let debounce: ReturnType<typeof setTimeout> | undefined;
-    const cleanup = window.pennivo?.onSidebarFolderChanged(() => {
+    const cleanup = platform.onSidebarFolderChanged(() => {
       clearTimeout(debounce);
       debounce = setTimeout(() => refreshSidebarTree(sidebarFolder), 300);
     });
     return () => {
       clearTimeout(debounce);
-      cleanup?.();
+      cleanup();
     };
   }, [sidebarFolder, refreshSidebarTree]);
 
@@ -374,7 +376,7 @@ function AppContent() {
   const setIsDirty = (dirty: boolean) => {
     isDirtyRef.current = dirty;
     setIsDirtyState(dirty);
-    window.pennivo?.setDirty(dirty);
+    platform.setDirty(dirty);
   };
 
   const filename = filePath ? extractFilename(filePath) : "untitled.md";
@@ -412,7 +414,7 @@ function AppContent() {
     try {
       // Relativize image paths before writing to disk
       const saveContent = relativizeImagePaths(content, currentPath);
-      await window.pennivo?.saveFile(currentPath, saveContent);
+      await platform.saveFile(currentPath, saveContent);
       savedMarkdownRef.current = content;
       setIsDirty(false);
       setSaveStatus("saved");
@@ -444,7 +446,7 @@ function AppContent() {
       const saveContent = currentPath
         ? relativizeImagePaths(content, currentPath)
         : content;
-      const newPath = await window.pennivo?.saveFileAs(
+      const newPath = await platform.saveFileAs(
         saveContent,
         defaultSavePath,
       );
@@ -540,7 +542,7 @@ function AppContent() {
   const doOpen = useCallback(async () => {
     // Guard unsaved changes
     if (isDirtyRef.current) {
-      const response = await window.pennivo?.confirmDiscard();
+      const response = await platform.confirmDiscard();
       if (response === 2) return; // Cancel
       if (response === 0) {
         const saved = await doSave();
@@ -551,7 +553,7 @@ function AppContent() {
 
     let result;
     try {
-      result = await window.pennivo?.openFile();
+      result = await platform.openFile();
     } catch (err) {
       console.error("[doOpen] Failed to read file:", err);
       showToast("Could not open this file — it may be corrupted or unreadable");
@@ -609,7 +611,7 @@ function AppContent() {
     async (recentPath: string) => {
       // Guard unsaved changes
       if (isDirtyRef.current) {
-        const response = await window.pennivo?.confirmDiscard();
+        const response = await platform.confirmDiscard();
         if (response === 2) return;
         if (response === 0) {
           const saved = await doSave();
@@ -619,7 +621,7 @@ function AppContent() {
 
       let result;
       try {
-        result = await window.pennivo?.openFilePath(recentPath);
+        result = await platform.openFilePath(recentPath);
       } catch (err) {
         console.error("[openRecentFile] Failed to read file:", err);
         showToast("Could not open this file — it may be missing or unreadable");
@@ -672,7 +674,7 @@ function AppContent() {
   const handleSidebarFileClick = useCallback(
     async (clickedPath: string) => {
       if (isDirtyRef.current) {
-        const response = await window.pennivo?.confirmDiscard();
+        const response = await platform.confirmDiscard();
         if (response === 2) return;
         if (response === 0) {
           const saved = await doSave();
@@ -682,7 +684,7 @@ function AppContent() {
 
       let result;
       try {
-        result = await window.pennivo?.openFilePath(clickedPath);
+        result = await platform.openFilePath(clickedPath);
       } catch (err) {
         console.error("[handleSidebarFileClick] Failed to read file:", err);
         showToast("Could not open this file — it may be missing or unreadable");
@@ -734,7 +736,7 @@ function AppContent() {
   // --- New file ---
   const doNewFile = useCallback(async () => {
     if (isDirtyRef.current) {
-      const response = await window.pennivo?.confirmDiscard();
+      const response = await platform.confirmDiscard();
       if (response === 2) return;
       if (response === 0) {
         const saved = await doSave();
@@ -763,7 +765,7 @@ function AppContent() {
           markdownRef.current,
           filePathRef.current,
         );
-        await window.pennivo?.saveFile(filePathRef.current, saveContent);
+        await platform.saveFile(filePathRef.current, saveContent);
         savedMarkdownRef.current = markdownRef.current;
         setIsDirty(false);
         setSaveStatus("saved");
@@ -865,7 +867,7 @@ function AppContent() {
   const toggleFocusMode = useCallback(() => {
     setFocusMode((prev) => {
       const next = !prev;
-      window.pennivo?.setFullScreen(next);
+      platform.setFullScreen(next);
       return next;
     });
   }, []);
@@ -911,14 +913,14 @@ function AppContent() {
   const doExportHtml = useCallback(async () => {
     const html = getEditorHtml();
     if (!html) return;
-    const result = await window.pennivo?.exportHtml(html, filename);
+    const result = await platform.exportHtml(html, filename);
     if (result) showToast("Exported as HTML");
   }, [getEditorHtml, filename, showToast]);
 
   const doExportPdf = useCallback(async () => {
     const html = getEditorHtml();
     if (!html) return;
-    const result = await window.pennivo?.exportPdf(html, filename);
+    const result = await platform.exportPdf(html, filename);
     if (result) showToast("Exported as PDF");
   }, [getEditorHtml, filename, showToast]);
 
@@ -1193,7 +1195,7 @@ function AppContent() {
       if (settingsOpen) return;
       if (document.querySelector(".titlebar-menu-dropdown")) return;
       setFocusMode(false);
-      window.pennivo?.setFullScreen(false);
+      platform.setFullScreen(false);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -1307,7 +1309,7 @@ function AppContent() {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Array.from(new Uint8Array(arrayBuffer));
         const mimeType = file.type || "image/png";
-        const result = await window.pennivo?.saveImage(
+        const result = await platform.saveImage(
           currentPath,
           buffer,
           mimeType,
@@ -1365,28 +1367,28 @@ function AppContent() {
     } catch {
       // Clipboard API not available or no image — fall through to text paste
     }
-    window.pennivo?.paste();
+    platform.paste();
   }, [handleImagePaste, insertImage]);
 
   // --- Menu event listeners ---
   useEffect(() => {
     const cleanups = [
-      window.pennivo?.onMenuPaste(() => doSmartPaste()),
-      window.pennivo?.onMenuOpen(() => doOpen()),
-      window.pennivo?.onMenuSave(() => doSave()),
-      window.pennivo?.onMenuSaveAs(() => doSaveAs()),
-      window.pennivo?.onMenuSaveAndClose(async () => {
+      platform.onMenuPaste(() => doSmartPaste()),
+      platform.onMenuOpen(() => doOpen()),
+      platform.onMenuSave(() => doSave()),
+      platform.onMenuSaveAs(() => doSaveAs()),
+      platform.onMenuSaveAndClose(async () => {
         const saved = await doSave();
         if (saved) {
-          window.pennivo?.closeAfterSave();
+          platform.closeAfterSave();
         }
       }),
-      window.pennivo?.onMenuToggleFocusMode(() => toggleFocusMode()),
-      window.pennivo?.onMenuNewFile(() => doNewFile()),
-      window.pennivo?.onMenuExportHtml(() => doExportHtml()),
-      window.pennivo?.onMenuExportPdf(() => doExportPdf()),
+      platform.onMenuToggleFocusMode(() => toggleFocusMode()),
+      platform.onMenuNewFile(() => doNewFile()),
+      platform.onMenuExportHtml(() => doExportHtml()),
+      platform.onMenuExportPdf(() => doExportPdf()),
     ];
-    return () => cleanups.forEach((cleanup) => cleanup?.());
+    return () => cleanups.forEach((cleanup) => cleanup());
   }, [
     doOpen,
     doSave,
@@ -1405,11 +1407,11 @@ function AppContent() {
   useEffect(() => {
     if (!pendingFileCheckedRef.current) {
       pendingFileCheckedRef.current = true;
-      window.pennivo?.getPendingFilePath().then((filePath) => {
+      platform.getPendingFilePath().then((filePath) => {
         if (filePath) openRecentFile(filePath);
       });
     }
-    return window.pennivo?.onFileOpenFromOS((filePath) =>
+    return platform.onFileOpenFromOS((filePath) =>
       openRecentFile(filePath),
     );
   }, [openRecentFile]);
@@ -1418,7 +1420,7 @@ function AppContent() {
   // Main process only fires this in production after a release has been
   // fully downloaded, so dev runs never see the banner.
   useEffect(() => {
-    return window.pennivo?.onUpdateAvailable((version) =>
+    return platform.onUpdateAvailable((version) =>
       setUpdateAvailable(version),
     );
   }, []);
@@ -1471,7 +1473,7 @@ function AppContent() {
         const ext = file.name.split(".").pop()?.toLowerCase() || "";
         if (DROPPABLE_EXTENSIONS.has(ext)) {
           // Use Electron's webUtils.getPathForFile (File.path is empty with contextIsolation)
-          const filePath = window.pennivo?.getPathForFile(file);
+          const filePath = platform.getPathForFile(file);
           if (filePath) {
             openRecentFile(filePath);
             return;
@@ -1497,7 +1499,7 @@ function AppContent() {
     const title = filePath
       ? `${extractFilename(filePath)} \u2014 Pennivo`
       : "untitled \u2014 Pennivo";
-    window.pennivo?.setTitle(title);
+    platform.setTitle(title);
   }, [filePath]);
 
   // Cleanup timers on unmount
@@ -1596,24 +1598,28 @@ function AppContent() {
             }
           }
 
-          // Restore scroll in the incoming editor after DOM updates
+          // Restore scroll in the incoming editor after DOM updates.
+          // Double-rAF ensures we run after React effects (focus) and
+          // editor-internal scroll adjustments have settled.
           requestAnimationFrame(() => {
-            if (next) {
-              // Apply to CodeMirror scroller
-              const cmScroller = cmViewRef.current?.scrollDOM;
-              if (cmScroller) {
-                const maxScroll =
-                  cmScroller.scrollHeight - cmScroller.clientHeight;
-                cmScroller.scrollTop = scrollFraction * maxScroll;
+            requestAnimationFrame(() => {
+              if (next) {
+                // Apply to CodeMirror scroller
+                const cmScroller = cmViewRef.current?.scrollDOM;
+                if (cmScroller) {
+                  const maxScroll =
+                    cmScroller.scrollHeight - cmScroller.clientHeight;
+                  cmScroller.scrollTop = scrollFraction * maxScroll;
+                }
+              } else {
+                // Apply to .app-editor-area
+                const area = document.querySelector(".app-editor-area");
+                if (area) {
+                  const maxScroll = area.scrollHeight - area.clientHeight;
+                  area.scrollTop = scrollFraction * maxScroll;
+                }
               }
-            } else {
-              // Apply to .app-editor-area
-              const area = document.querySelector(".app-editor-area");
-              if (area) {
-                const maxScroll = area.scrollHeight - area.clientHeight;
-                area.scrollTop = scrollFraction * maxScroll;
-              }
-            }
+            });
           });
 
           return next;
@@ -1725,7 +1731,7 @@ function AppContent() {
             currentPath = filePathRef.current;
             if (!currentPath) return;
           }
-          const result = await window.pennivo?.pickImage(currentPath);
+          const result = await platform.pickImage(currentPath);
           if (!result) return;
           const src = `pennivo-file:///${result.absolutePath.replace(/ /g, "%20")}`;
           insertImage(src);
@@ -2258,7 +2264,7 @@ function AppContent() {
           doSaveAs();
           break;
         case "quit":
-          window.pennivo?.close();
+          platform.close();
           break;
         case "undo":
         case "redo":
@@ -2308,16 +2314,16 @@ function AppContent() {
           doExportPdf();
           break;
         case "clearRecentFiles":
-          window.pennivo?.clearRecentFiles().then(() => loadRecentFiles());
+          platform.clearRecentFiles().then(() => loadRecentFiles());
           break;
         case "zoomIn":
-          window.pennivo?.zoomIn();
+          platform.zoomIn();
           break;
         case "zoomOut":
-          window.pennivo?.zoomOut();
+          platform.zoomOut();
           break;
         case "resetZoom":
-          window.pennivo?.resetZoom();
+          platform.resetZoom();
           break;
         case "cycleTheme":
           cycleColorScheme();
@@ -2357,7 +2363,7 @@ function AppContent() {
           // Cycle through common language presets
           (async () => {
             const current =
-              (await window.pennivo?.getSpellCheckLanguages()) ?? [];
+              (await platform.getSpellCheckLanguages()) ?? [];
             const presets = [
               ["en-US"],
               ["en-US", "en-GB"],
@@ -2370,7 +2376,7 @@ function AppContent() {
               (p) => p.join(",") === currentKey,
             );
             const next = presets[(currentIdx + 1) % presets.length];
-            await window.pennivo?.setSpellCheckLanguages(next);
+            await platform.setSpellCheckLanguages(next);
             showToast(`Spellcheck: ${next.join(", ")}`);
           })();
           break;
@@ -2600,7 +2606,7 @@ function AppContent() {
           <div className="draft-recovery-actions">
             <button
               className="draft-recovery-btn draft-recovery-btn--primary"
-              onClick={() => window.pennivo?.installUpdate()}
+              onClick={() => platform.installUpdate()}
             >
               Restart Now
             </button>

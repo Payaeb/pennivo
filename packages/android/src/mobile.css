@@ -1,0 +1,231 @@
+/* ─── Pennivo Mobile App Styles ─── */
+
+/* Safe area handling for notch/cutout */
+:root {
+  --sai-top: env(safe-area-inset-top, 0px);
+  --sai-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+/* System UI color scheme for selection handles, context menus */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+[data-theme="light"],
+:root {
+  color-scheme: light;
+}
+
+/* ─── Layout ─── */
+
+.mobile-app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  transition:
+    background var(--transition-base),
+    color var(--transition-base);
+  padding-top: var(--sai-top);
+}
+
+/* ─── Header ─── */
+
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-mid);
+  flex-shrink: 0;
+  min-height: 48px;
+  gap: 12px;
+}
+
+.mobile-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-filename {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── Save Status Indicator ─── */
+
+.save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+
+.save-dot--saved {
+  background: var(--accent, #22c55e);
+}
+
+.save-dot--saving {
+  background: #f59e0b;
+  animation: save-pulse 1s ease-in-out infinite;
+}
+
+.save-dot--unsaved {
+  background: #ef4444;
+}
+
+@keyframes save-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ─── Buttons ─── */
+
+.mobile-mode-btn {
+  background: none;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 12px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.mobile-mode-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.mobile-theme-btn {
+  background: none;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+/* ─── Editor Area ─── */
+
+.mobile-editor-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Override editor padding for mobile */
+.mobile-editor-area .milkdown .editor,
+.mobile-editor-area .source-editor-wrapper {
+  padding: 16px;
+}
+
+.mobile-editor-area .ProseMirror {
+  min-height: 60vh;
+}
+
+/* Mobile-friendly tap targets */
+.mobile-editor-area .ProseMirror li {
+  min-height: 36px;
+}
+
+/* Task list checkboxes: enlarge tap target */
+.mobile-editor-area .ProseMirror li[data-checked]::before {
+  width: 22px;
+  height: 22px;
+  top: 5px;
+  padding: 8px;
+  margin: -8px;
+}
+
+/* ─── Status Bar ─── */
+
+.mobile-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 16px;
+  padding-bottom: max(6px, var(--sai-bottom));
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-mid);
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+.mobile-stat {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-ui);
+}
+
+.mobile-stat-sep {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ─── Loading State ─── */
+
+.mobile-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}

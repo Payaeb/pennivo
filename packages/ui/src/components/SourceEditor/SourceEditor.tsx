@@ -192,10 +192,11 @@ export function SourceEditor({
     onCharCountRef.current?.(countCharacters(content));
   }, [content]);
 
-  // Focus the editor when it becomes active
+  // Focus the editor when it becomes active.
+  // Use preventScroll so mode-switch scroll restoration isn't overridden.
   useEffect(() => {
     if (active && viewRef.current) {
-      viewRef.current.focus();
+      viewRef.current.contentDOM.focus({ preventScroll: true });
     }
   }, [active]);
 

@@ -83,7 +83,7 @@
   padding: 7px 12px;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: var(--font-ui);

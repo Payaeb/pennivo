@@ -39,6 +39,6 @@ release/
 coverage/
 
 # Private planning docs
-docs/launch/
+docs/
 feature-planner.html
 mockup.html

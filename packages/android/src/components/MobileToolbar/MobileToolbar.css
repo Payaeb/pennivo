@@ -1,0 +1,99 @@
+/* ------------------------------------------------------------------ */
+/*  MobileToolbar — keyboard accessory bar for Android / mobile       */
+/* ------------------------------------------------------------------ */
+
+.mobile-toolbar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-mid);
+  flex-shrink: 0;
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Row                                                               */
+/* ------------------------------------------------------------------ */
+
+.mobile-toolbar__row {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 2px;
+  padding: 4px 8px;
+}
+
+.mobile-toolbar__row::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-toolbar__row--secondary {
+  border-top: 1px solid var(--border-mid);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Button                                                            */
+/* ------------------------------------------------------------------ */
+
+.mobile-toolbar__btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-ui, system-ui, -apple-system, sans-serif);
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-toolbar__btn:active {
+  background: var(--accent-soft);
+}
+
+.mobile-toolbar__btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mobile-toolbar__btn--active:active {
+  background: var(--accent-hover);
+}
+
+/* SVG icon sizing inside buttons */
+.mobile-toolbar__btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Small text labels (H, H1, H2, 1.) */
+.mobile-toolbar__label-sm {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  font-family: var(--font-ui, system-ui, -apple-system, sans-serif);
+}
+
+/* More button — slightly narrower icon area */
+.mobile-toolbar__btn-more svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Dark theme: tokens (--bg-surface, --text-primary, --accent, etc.)
+   switch automatically via [data-theme="dark"] in tokens.css.
+   No manual overrides needed. */

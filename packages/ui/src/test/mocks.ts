@@ -58,6 +58,21 @@ export function createMockPennivoAPI() {
     setSpellCheckLanguages: vi.fn(async () => undefined),
     addWordToDictionary: vi.fn(async () => undefined),
 
+    // Settings
+    getSettings: vi.fn(async () => ({})),
+    setSettings: vi.fn(async () => undefined),
+
+    // App info
+    getAppInfo: vi.fn(async () => ({ version: "1.0.0", name: "Pennivo" })),
+
+    // File-from-OS
+    getPendingFilePath: vi.fn(async () => null),
+    onFileOpenFromOS: vi.fn(() => () => {}),
+
+    // Auto-update
+    onUpdateAvailable: vi.fn(() => () => {}),
+    installUpdate: vi.fn(),
+
     // Menu events
     onMenuPaste: vi.fn(() => () => {}),
     onMenuOpen: vi.fn(() => () => {}),

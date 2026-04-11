@@ -5,6 +5,8 @@ export { Toolbar } from "./components/Toolbar/Toolbar";
 export { Titlebar } from "./components/Titlebar/Titlebar";
 export { Statusbar } from "./components/Statusbar/Statusbar";
 export { useTheme } from "./hooks/useTheme";
+export { getPlatform } from "./platform";
+export type { PennivoPlatform } from "./platform";
 export type { Theme } from "./hooks/useTheme";
 export type { SaveStatus } from "./components/Statusbar/Statusbar";
 export type { ToolbarAction } from "./components/Toolbar/Toolbar";

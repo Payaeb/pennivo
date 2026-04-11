@@ -22,6 +22,7 @@ import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
 import { tablePlugin } from "./tablePlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace";
+import { getPlatform } from "../../platform";
 import "./Editor.css";
 
 interface EditorProps {
@@ -266,11 +267,33 @@ export function Editor({
         }),
     );
 
-    // Click on task list checkboxes to toggle checked state
+    // Click on task list checkboxes to toggle checked state.
+    // Uses mousedown to save scroll position before focus-induced scroll,
+    // then handleClick restores it after toggling.
+    let savedCheckboxScroll: number | null = null;
     const taskListClick = $prose(
       () =>
         new Plugin({
           props: {
+            handleDOMEvents: {
+              mousedown(view, event) {
+                const target = event.target as HTMLElement;
+                const li = target.closest(
+                  "li[data-checked]",
+                ) as HTMLElement | null;
+                if (!li) return false;
+
+                const rect = li.getBoundingClientRect();
+                if (event.clientX >= rect.left + 28) return false;
+
+                // Save scroll position before focus can change it
+                const area = view.dom.closest(
+                  ".app-editor-area",
+                ) as HTMLElement | null;
+                savedCheckboxScroll = area?.scrollTop ?? null;
+                return false;
+              },
+            },
             handleClick: (view, pos, event) => {
               const { state } = view;
               const $pos = state.doc.resolve(pos);
@@ -300,9 +323,26 @@ export function Editor({
                       checked: !node.attrs["checked"],
                     }),
                   );
+
+                  // Restore scroll position saved during mousedown
+                  // (prevents focus-induced jump to top on first click)
+                  if (savedCheckboxScroll != null) {
+                    const area = view.dom.closest(
+                      ".app-editor-area",
+                    ) as HTMLElement | null;
+                    if (area) {
+                      area.scrollTop = savedCheckboxScroll;
+                      const s = savedCheckboxScroll;
+                      requestAnimationFrame(() => {
+                        area.scrollTop = s;
+                      });
+                    }
+                    savedCheckboxScroll = null;
+                  }
                   return true;
                 }
               }
+              savedCheckboxScroll = null;
               return false;
             },
           },
@@ -323,7 +363,7 @@ export function Editor({
               if (!linkMark) return false;
               const href = linkMark.attrs["href"] as string;
               if (href) {
-                window.pennivo?.openExternal(href);
+                getPlatform().openExternal(href);
               }
               return true;
             },

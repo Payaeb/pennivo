@@ -1,0 +1,8 @@
+# Build output
+dist/
+
+# Capacitor Android project (generated, can be recreated with `npx cap add android`)
+android/
+
+# Node
+node_modules/

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import type { ThemeMode, ColorScheme } from "../../hooks/useTheme";
+import { getPlatform } from "../../platform";
 import "./SettingsPanel.css";
 
 export interface AppSettings {
@@ -38,6 +39,7 @@ export function SettingsPanel({
   onTypewriterModeChange,
   onChange,
 }: SettingsPanelProps) {
+  const platform = getPlatform();
   const overlayRef = useRef<HTMLDivElement>(null);
   const { mode, setMode, colorScheme, setColorScheme } = useTheme();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -46,7 +48,7 @@ export function SettingsPanel({
   // Load settings from disk on open
   useEffect(() => {
     if (!visible) return;
-    window.pennivo?.getSettings?.().then((saved: Record<string, unknown>) => {
+    platform.getSettings().then((saved: Record<string, unknown>) => {
       if (saved && typeof saved === "object") {
         setSettings((prev) => ({ ...prev, ...saved }));
       }
@@ -57,7 +59,7 @@ export function SettingsPanel({
   const persistSettings = useCallback(
     (updated: AppSettings) => {
       setSettings(updated);
-      window.pennivo?.setSettings?.(
+      platform.setSettings(
         updated as unknown as Record<string, unknown>,
       );
       onChange?.(updated as unknown as Record<string, unknown>);
@@ -91,9 +93,9 @@ export function SettingsPanel({
   useEffect(() => {
     if (!loaded) return;
     if (settings.spellcheck) {
-      window.pennivo?.setSpellCheckLanguages?.(["en-US"]);
+      platform.setSpellCheckLanguages(["en-US"]);
     } else {
-      window.pennivo?.setSpellCheckLanguages?.([]);
+      platform.setSpellCheckLanguages([]);
     }
   }, [settings.spellcheck, loaded]);
 

@@ -151,6 +151,17 @@
   opacity: 0.5;
 }
 
+/* Dark mode: keep tooltip dark instead of inverting to light */
+[data-theme="dark"] .toolbar-tooltip {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+}
+
+[data-theme="dark"] .toolbar-tooltip::after {
+  border-top-color: var(--bg-overlay);
+}
+
 /* --- More overflow menu --- */
 
 .toolbar-more-wrap {

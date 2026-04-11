@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import logo from "../../assets/logo-32.png";
+import { getPlatform } from "../../platform";
 import "./AboutDialog.css";
 
 interface AboutDialogProps {
@@ -8,11 +9,12 @@ interface AboutDialogProps {
 }
 
 export function AboutDialog({ visible, onClose }: AboutDialogProps) {
+  const platform = getPlatform();
   const overlayRef = useRef<HTMLDivElement>(null);
   const [version, setVersion] = useState("1.0.0");
 
   useEffect(() => {
-    window.pennivo?.getAppInfo?.().then((info) => {
+    platform.getAppInfo().then((info) => {
       if (info?.version) setVersion(info.version);
     });
   }, [visible]);
@@ -34,7 +36,7 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
 
   const handleLinkClick = (url: string) => (e: React.MouseEvent) => {
     e.preventDefault();
-    window.pennivo?.openExternal(url);
+    platform.openExternal(url);
   };
 
   return (
