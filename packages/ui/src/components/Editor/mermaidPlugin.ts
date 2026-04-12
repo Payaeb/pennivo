@@ -2,8 +2,10 @@ import { $prose } from "@milkdown/utils";
 import { Plugin, PluginKey } from "@milkdown/prose/state";
 import { Decoration, DecorationSet } from "@milkdown/prose/view";
 import type { Node } from "@milkdown/prose/model";
-import DOMPurify from "dompurify";
 import { parseKanbanMarkdown } from "@pennivo/core";
+// `dompurify` is only used for mermaid SVG sanitization. It is lazy-loaded
+// inside `getMermaid()` below so it ships in the mermaid chunk instead of
+// being pulled into the app's initial JS payload.
 
 // Allow SVG + HTML elements (mermaid uses <foreignObject> with nested HTML for labels)
 const svgPurifyConfig = {
@@ -38,6 +40,22 @@ async function getMermaid() {
     });
   }
   return mermaidLoading;
+}
+
+// Lazy-load DOMPurify alongside mermaid so it ships in the mermaid chunk
+// instead of the main app bundle.
+let dompurifyLib: typeof import("dompurify").default | null = null;
+let dompurifyLoading: Promise<typeof import("dompurify").default> | null = null;
+
+async function getDOMPurify() {
+  if (dompurifyLib) return dompurifyLib;
+  if (!dompurifyLoading) {
+    dompurifyLoading = import("dompurify").then((m) => {
+      dompurifyLib = m.default;
+      return dompurifyLib;
+    });
+  }
+  return dompurifyLoading;
 }
 
 let lastInitDark: boolean | null = null;
@@ -119,7 +137,10 @@ async function renderMermaidSvg(
   const cached = svgCache.get(cacheKey);
   if (cached) return { svg: cached };
 
-  const mermaid = await getMermaid();
+  const [mermaid, DOMPurify] = await Promise.all([
+    getMermaid(),
+    getDOMPurify(),
+  ]);
   initMermaid(mermaid);
 
   const id = `mermaid-${++renderCounter}`;

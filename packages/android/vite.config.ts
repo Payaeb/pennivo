@@ -29,14 +29,14 @@ export default defineConfig({
             return "milkdown-vendor";
           }
 
-          // Syntax highlighting (lowlight + highlight.js languages)
-          if (
-            id.includes("node_modules/lowlight") ||
-            id.includes("node_modules/highlight.js") ||
-            id.includes("node_modules/prosemirror-highlight")
-          ) {
-            return "highlight-vendor";
-          }
+          // Syntax highlighting (lowlight + highlight.js languages) is
+          // lazy-loaded on first code-block render — see
+          // `packages/ui/src/components/Editor/syntaxHighlight.ts`.
+          // We deliberately do NOT force it into a manual chunk because
+          // forcing lazy modules into a named chunk defeats rollup's
+          // tree-shaking of the `lowlight/index.js` re-export barrels and
+          // balloons the chunk to ~1 MB. Letting rollup form the chunk
+          // naturally keeps it at ~60 KB.
 
           // Markdown parsing (remark / mdast / micromark / unified ecosystem)
           if (
@@ -49,11 +49,6 @@ export default defineConfig({
             id.includes("node_modules/vfile")
           ) {
             return "remark-vendor";
-          }
-
-          // DOMPurify — used by mermaid plugin, moderate size
-          if (id.includes("node_modules/dompurify")) {
-            return "dompurify-vendor";
           }
 
           // Capacitor / platform bridge

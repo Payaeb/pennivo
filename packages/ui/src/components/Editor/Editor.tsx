@@ -17,6 +17,7 @@ import { countWords, countCharacters } from "../../utils/textStats";
 import {
   syntaxHighlightPlugin,
   highlightRefreshPlugin,
+  highlightViewTrackerPlugin,
 } from "./syntaxHighlight";
 import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
@@ -467,6 +468,7 @@ export function Editor({
       .use(tableEscape)
       .use(syntaxHighlightPlugin)
       .use(highlightRefreshPlugin)
+      .use(highlightViewTrackerPlugin)
       .use(mermaidPlugin)
       .use(collapsibleListPlugin)
       .use(tablePlugin)

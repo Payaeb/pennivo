@@ -1440,6 +1440,14 @@ export function MobileApp() {
                   <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--dark" />
                   Dark
                 </button>
+                <button
+                  className={`mobile-theme-picker__option ${mode === "system" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => setMode("system")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--system" />
+                  System
+                </button>
               </div>
             </div>
             <div className="mobile-theme-picker__section">

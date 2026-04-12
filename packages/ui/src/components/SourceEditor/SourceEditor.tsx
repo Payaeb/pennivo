@@ -3,15 +3,148 @@ import { EditorView, keymap } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { languages } from "@codemirror/language-data";
 import {
   bracketMatching,
   syntaxHighlighting,
   defaultHighlightStyle,
+  LanguageDescription,
+  LanguageSupport,
+  StreamLanguage,
+  type StreamParser,
 } from "@codemirror/language";
 import { cmFindExtension } from "../FindReplace/cmFindReplace";
 import { countWords, countCharacters } from "../../utils/textStats";
 import "./SourceEditor.css";
+
+// Curated CodeMirror language modes — replaces the 110+ language barrel from
+// `@codemirror/language-data` so we don't ship grammars for APL, Brainfuck,
+// Cobol, etc. that a markdown writer will never use. Every language here
+// uses a dynamic `import()` so the grammar chunk is only fetched when a
+// fenced code block with that language is encountered in the document.
+function legacy<State>(parser: StreamParser<State>): LanguageSupport {
+  return new LanguageSupport(StreamLanguage.define(parser));
+}
+
+const languages: LanguageDescription[] = [
+  LanguageDescription.of({
+    name: "Markdown",
+    extensions: ["md", "markdown", "mkd"],
+    load: () =>
+      import("@codemirror/lang-markdown").then((m) => m.markdown()),
+  }),
+  LanguageDescription.of({
+    name: "JavaScript",
+    alias: ["ecmascript", "js", "node"],
+    extensions: ["js", "mjs", "cjs", "jsx"],
+    load: () =>
+      import("@codemirror/lang-javascript").then((m) =>
+        m.javascript({ jsx: true }),
+      ),
+  }),
+  LanguageDescription.of({
+    name: "TypeScript",
+    alias: ["ts"],
+    extensions: ["ts", "mts", "cts"],
+    load: () =>
+      import("@codemirror/lang-javascript").then((m) =>
+        m.javascript({ typescript: true }),
+      ),
+  }),
+  LanguageDescription.of({
+    name: "TSX",
+    alias: ["tsx"],
+    extensions: ["tsx"],
+    load: () =>
+      import("@codemirror/lang-javascript").then((m) =>
+        m.javascript({ jsx: true, typescript: true }),
+      ),
+  }),
+  LanguageDescription.of({
+    name: "Python",
+    alias: ["py"],
+    extensions: ["py", "pyw"],
+    load: () =>
+      import("@codemirror/lang-python").then((m) => m.python()),
+  }),
+  LanguageDescription.of({
+    name: "JSON",
+    extensions: ["json", "map"],
+    load: () => import("@codemirror/lang-json").then((m) => m.json()),
+  }),
+  LanguageDescription.of({
+    name: "YAML",
+    alias: ["yml"],
+    extensions: ["yaml", "yml"],
+    load: () => import("@codemirror/lang-yaml").then((m) => m.yaml()),
+  }),
+  LanguageDescription.of({
+    name: "SQL",
+    extensions: ["sql"],
+    load: () =>
+      import("@codemirror/lang-sql").then((m) =>
+        m.sql({ dialect: m.StandardSQL }),
+      ),
+  }),
+  LanguageDescription.of({
+    name: "HTML",
+    alias: ["xhtml"],
+    extensions: ["html", "htm"],
+    load: () => import("@codemirror/lang-html").then((m) => m.html()),
+  }),
+  LanguageDescription.of({
+    name: "CSS",
+    extensions: ["css"],
+    load: () => import("@codemirror/lang-css").then((m) => m.css()),
+  }),
+  LanguageDescription.of({
+    name: "Go",
+    extensions: ["go"],
+    load: () => import("@codemirror/lang-go").then((m) => m.go()),
+  }),
+  LanguageDescription.of({
+    name: "Rust",
+    alias: ["rs"],
+    extensions: ["rs"],
+    load: () => import("@codemirror/lang-rust").then((m) => m.rust()),
+  }),
+  LanguageDescription.of({
+    name: "Java",
+    extensions: ["java"],
+    load: () => import("@codemirror/lang-java").then((m) => m.java()),
+  }),
+  LanguageDescription.of({
+    name: "C++",
+    alias: ["cpp", "c", "c++"],
+    extensions: [
+      "cpp",
+      "c++",
+      "cc",
+      "cxx",
+      "hpp",
+      "h++",
+      "hh",
+      "hxx",
+      "c",
+      "h",
+      "ino",
+    ],
+    load: () => import("@codemirror/lang-cpp").then((m) => m.cpp()),
+  }),
+  LanguageDescription.of({
+    name: "Shell",
+    alias: ["bash", "sh", "zsh", "shell"],
+    extensions: ["sh", "ksh", "bash", "zsh"],
+    load: () =>
+      import("@codemirror/legacy-modes/mode/shell").then((m) =>
+        legacy(m.shell),
+      ),
+  }),
+  LanguageDescription.of({
+    name: "PHP",
+    extensions: ["php", "php3", "php4", "php5", "php7", "phtml"],
+    load: () => import("@codemirror/lang-php").then((m) => m.php()),
+  }),
+];
 
 interface SourceEditorProps {
   content: string;
