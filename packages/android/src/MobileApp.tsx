@@ -20,6 +20,7 @@ import {
   toggleInlineCodeCommand,
   turnIntoTextCommand,
   liftListItemCommand,
+  insertHrCommand,
 } from "@milkdown/preset-commonmark";
 import {
   toggleStrikethroughCommand,
@@ -38,9 +39,11 @@ import {
 import {
   parseMermaidGantt,
   ganttDataToMermaid,
+  createDefaultGanttData,
   type GanttData,
   parseKanbanMarkdown,
   kanbanDataToMarkdown,
+  createDefaultKanbanData,
   type KanbanData,
 } from "@pennivo/core";
 import { countCharacters } from "../../ui/src/utils/textStats";
@@ -639,6 +642,120 @@ function MobileEditorContent({
             callCommand(insertTableCommand.key, { row: 3, col: 3 }),
           );
           break;
+        case "insertCodeBlock":
+          editor.action(callCommand(createCodeBlockCommand.key));
+          break;
+        case "horizontalRule":
+          editor.action(callCommand(insertHrCommand.key));
+          break;
+        case "link": {
+          // Mobile prompt-based link insertion (desktop uses a popover).
+          const url = window.prompt("Enter URL:");
+          if (!url) break;
+          let href = url.trim();
+          if (href && !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href)) {
+            href = "https://" + href;
+          }
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { state } = view;
+            const { from, to, empty } = state.selection;
+            const linkMarkType = state.schema.marks["link"];
+            if (!linkMarkType) return;
+            if (empty) {
+              // No selection — insert the URL as the link text
+              const linkMark = linkMarkType.create({ href });
+              const textNode = state.schema.text(href, [linkMark]);
+              view.dispatch(state.tr.replaceSelectionWith(textNode, false));
+            } else {
+              const linkMark = linkMarkType.create({ href });
+              view.dispatch(state.tr.addMark(from, to, linkMark));
+            }
+            view.focus();
+          });
+          break;
+        }
+        case "image": {
+          // Mobile: platform.pickImage is not supported, so prompt for a URL.
+          const src = window.prompt("Enter image URL:");
+          if (!src) break;
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const imageNodeType = view.state.schema.nodes["image"];
+            if (!imageNodeType) return;
+            const imageNode = imageNodeType.create({ src: src.trim(), alt: "" });
+            view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+            view.focus();
+          });
+          break;
+        }
+        case "math": {
+          // Insert a math block as a fenced code block with lang="math".
+          // (Mermaid/kanban/gantt all use the code_block pattern; math renders via
+          // a future KaTeX plugin or shows raw LaTeX until then.)
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { state } = view;
+            const codeBlockType = state.schema.nodes["code_block"];
+            if (!codeBlockType) return;
+            const codeBlock = codeBlockType.create(
+              { language: "math" },
+              state.schema.text("E = mc^2"),
+            );
+            view.dispatch(state.tr.replaceSelectionWith(codeBlock));
+            view.focus();
+          });
+          break;
+        }
+        case "mermaid": {
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { state } = view;
+            const codeBlockType = state.schema.nodes["code_block"];
+            if (!codeBlockType) return;
+            const codeBlock = codeBlockType.create(
+              { language: "mermaid" },
+              state.schema.text("graph TD\n    A[Start] --> B[End]"),
+            );
+            view.dispatch(state.tr.replaceSelectionWith(codeBlock));
+            view.focus();
+          });
+          break;
+        }
+        case "kanban": {
+          const defaultData = createDefaultKanbanData();
+          const code = kanbanDataToMarkdown(defaultData);
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { state } = view;
+            const codeBlockType = state.schema.nodes["code_block"];
+            if (!codeBlockType) return;
+            const codeBlock = codeBlockType.create(
+              { language: "kanban" },
+              state.schema.text(code),
+            );
+            view.dispatch(state.tr.replaceSelectionWith(codeBlock));
+            view.focus();
+          });
+          break;
+        }
+        case "gantt": {
+          const defaultData = createDefaultGanttData();
+          const code = ganttDataToMermaid(defaultData);
+          editor.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            const { state } = view;
+            const codeBlockType = state.schema.nodes["code_block"];
+            if (!codeBlockType) return;
+            const codeBlock = codeBlockType.create(
+              { language: "mermaid" },
+              state.schema.text(code),
+            );
+            view.dispatch(state.tr.replaceSelectionWith(codeBlock));
+            view.focus();
+          });
+          break;
+        }
       }
     },
     [sourceMode, getInstance],
@@ -1310,7 +1427,6 @@ export function MobileApp() {
           <span className="sr-only" role="status" aria-live="polite">
             {saveStatus === "saved" ? "Document saved" : saveStatus === "saving" ? "Saving..." : "Unsaved changes"}
           </span>
-          <span className="mobile-stat" aria-label={`${wordCount} words`}>{wordCount}w</span>
         </div>
         <div className="mobile-header-right">
           <button

@@ -11,6 +11,7 @@ export interface MobileCommand {
   label: string;
   category: string;
   keywords?: string;
+  shortcut?: string;
   icon: React.ReactNode;
 }
 
@@ -206,6 +207,11 @@ export function MobileCommandPalette({
                   <span className="mcp-item-category">{cmd.category}</span>
                 )}
               </span>
+              {cmd.shortcut && (
+                <span className="mcp-item-shortcut" aria-hidden="true">
+                  {cmd.shortcut}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -282,34 +288,152 @@ function SettingsIcon() {
   );
 }
 
+function DiagramIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="5" height="3" rx="0.5" />
+      <rect x="9" y="2" width="5" height="3" rx="0.5" />
+      <rect x="5.5" y="11" width="5" height="3" rx="0.5" />
+      <path d="M4.5 5v2.5h7V5" />
+      <path d="M8 7.5V11" />
+    </svg>
+  );
+}
+
+function KanbanIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2" width="4" height="12" rx="0.5" />
+      <rect x="6" y="2" width="4" height="8" rx="0.5" />
+      <rect x="10.5" y="2" width="4" height="5" rx="0.5" />
+    </svg>
+  );
+}
+
+function GanttIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="3" width="6" height="2" rx="0.5" />
+      <rect x="4.5" y="7" width="7" height="2" rx="0.5" />
+      <rect x="7.5" y="11" width="7" height="2" rx="0.5" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="0.5" />
+      <line x1="1.5" y1="6.5" x2="14.5" y2="6.5" />
+      <line x1="1.5" y1="10" x2="14.5" y2="10" />
+      <line x1="6" y1="2.5" x2="6" y2="13.5" />
+      <line x1="10.5" y1="2.5" x2="10.5" y2="13.5" />
+    </svg>
+  );
+}
+
+function CodeBlockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="5.5,4.5 2.5,8 5.5,11.5" />
+      <polyline points="10.5,4.5 13.5,8 10.5,11.5" />
+    </svg>
+  );
+}
+
+function TaskListIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2.5" width="4" height="4" rx="0.5" />
+      <polyline points="2.5,4.5 3.3,5.5 5,3.5" />
+      <rect x="1.5" y="9.5" width="4" height="4" rx="0.5" />
+      <line x1="7.5" y1="4.5" x2="14" y2="4.5" />
+      <line x1="7.5" y1="11.5" x2="14" y2="11.5" />
+    </svg>
+  );
+}
+
+function HorizontalRuleIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="2" y1="8" x2="14" y2="8" />
+      <circle cx="4" cy="4" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="4" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="4" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="12" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 9.5l3-3" />
+      <path d="M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8" />
+      <path d="M9 11.5L7.5 13a2.5 2.5 0 0 1-3.5-3.5L5.5 8" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
+      <circle cx="5.5" cy="6" r="1" />
+      <path d="M2 11l3-3 4 3 2-2 3 3" />
+    </svg>
+  );
+}
+
+function MathIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3.5L5 12l3-7 3 3.5" />
+      <path d="M11 12h3" />
+      <path d="M11 8h2" />
+    </svg>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Default mobile commands list                                       */
 /* ------------------------------------------------------------------ */
 
 export const MOBILE_COMMANDS: MobileCommand[] = [
   // Format
-  { id: "bold", label: "Bold", category: "Format", keywords: "strong", icon: <FormatIcon /> },
-  { id: "italic", label: "Italic", category: "Format", keywords: "emphasis", icon: <FormatIcon /> },
+  { id: "bold", label: "Bold", shortcut: "Ctrl+B", category: "Format", keywords: "strong", icon: <FormatIcon /> },
+  { id: "italic", label: "Italic", shortcut: "Ctrl+I", category: "Format", keywords: "emphasis", icon: <FormatIcon /> },
   { id: "strikethrough", label: "Strikethrough", category: "Format", icon: <FormatIcon /> },
   { id: "h1", label: "Heading 1", category: "Format", keywords: "title header", icon: <FormatIcon /> },
   { id: "h2", label: "Heading 2", category: "Format", keywords: "subtitle header", icon: <FormatIcon /> },
   { id: "bulletList", label: "Bullet List", category: "Format", keywords: "unordered", icon: <FormatIcon /> },
   { id: "orderedList", label: "Ordered List", category: "Format", keywords: "numbered", icon: <FormatIcon /> },
-  { id: "taskList", label: "Task List", category: "Format", keywords: "checkbox todo", icon: <FormatIcon /> },
   { id: "blockquote", label: "Blockquote", category: "Format", keywords: "quote", icon: <FormatIcon /> },
   { id: "code", label: "Code", category: "Format", keywords: "inline block", icon: <FormatIcon /> },
-  { id: "table", label: "Table", category: "Format", icon: <FormatIcon /> },
+  // Insert
+  { id: "table", label: "Insert Table", category: "Insert", keywords: "grid cells rows columns", icon: <TableIcon /> },
+  { id: "taskList", label: "Insert Task List", category: "Insert", keywords: "checkbox todo checklist", icon: <TaskListIcon /> },
+  { id: "insertCodeBlock", label: "Insert Code Block", category: "Insert", keywords: "fenced code snippet", icon: <CodeBlockIcon /> },
+  { id: "link", label: "Insert Link", shortcut: "Ctrl+K", category: "Insert", keywords: "url href hyperlink", icon: <LinkIcon /> },
+  { id: "image", label: "Insert Image", category: "Insert", keywords: "picture photo img", icon: <ImageIcon /> },
+  { id: "mermaid", label: "Insert Mermaid Diagram", category: "Insert", keywords: "diagram chart flowchart sequence graph", icon: <DiagramIcon /> },
+  { id: "kanban", label: "Insert Kanban Board", category: "Insert", keywords: "kanban board column card task todo", icon: <KanbanIcon /> },
+  { id: "gantt", label: "Insert Gantt Chart", category: "Insert", keywords: "gantt timeline project schedule task", icon: <GanttIcon /> },
+  { id: "math", label: "Insert Math Block", category: "Insert", keywords: "katex latex formula equation", icon: <MathIcon /> },
+  { id: "horizontalRule", label: "Insert Horizontal Rule", category: "Insert", keywords: "hr divider separator line break", icon: <HorizontalRuleIcon /> },
   // View
   { id: "sourceMode", label: "Toggle Source Mode", category: "View", keywords: "markdown code raw", icon: <ViewIcon /> },
   { id: "toggleTheme", label: "Toggle Theme", category: "View", keywords: "dark light mode", icon: <ThemeIcon /> },
-  { id: "findReplace", label: "Find & Replace", category: "View", keywords: "search", icon: <SearchIcon /> },
+  { id: "findReplace", label: "Find & Replace", shortcut: "Ctrl+F", category: "View", keywords: "search", icon: <SearchIcon /> },
   { id: "toggleStats", label: "Toggle Word Count", category: "View", keywords: "word count character stats reading time hide show", icon: <ViewIcon /> },
   // Export
   { id: "exportHtml", label: "Export as HTML", category: "Export", keywords: "share html web", icon: <ExportIcon /> },
   { id: "exportPdf", label: "Export as PDF", category: "Export", keywords: "print pdf save", icon: <ExportIcon /> },
   // File
-  { id: "newFile", label: "New File", category: "File", keywords: "create", icon: <FileIcon /> },
-  { id: "save", label: "Save Now", category: "File", icon: <FileIcon /> },
+  { id: "newFile", label: "New File", shortcut: "Ctrl+N", category: "File", keywords: "create", icon: <FileIcon /> },
+  { id: "save", label: "Save Now", shortcut: "Ctrl+S", category: "File", icon: <FileIcon /> },
   { id: "browseFiles", label: "Browse Files", category: "File", keywords: "open", icon: <FileIcon /> },
   // Settings
   { id: "settings", label: "Settings", category: "App", keywords: "preferences options config font theme", icon: <SettingsIcon /> },
