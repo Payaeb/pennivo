@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getPlatform } from "@pennivo/ui";
-import type { Theme } from "@pennivo/ui";
+import { getPlatform, COLOR_SCHEMES } from "@pennivo/ui";
+import type { Theme, ColorScheme } from "@pennivo/ui";
 import "./FileBrowser.css";
 
 interface FileEntry {
@@ -14,8 +14,11 @@ export interface FileBrowserProps {
   onOpenFile: (filePath: string) => void;
   onNewFile: (filePath: string) => void;
   currentFilePath: string | null;
-  onToggleTheme: () => void;
   themeMode: Theme;
+  colorScheme: ColorScheme;
+  onColorSchemeChange: (scheme: ColorScheme) => void;
+  onModeChange: (mode: Theme) => void;
+  onOpenSettings?: () => void;
 }
 
 type ContextMenu = {
@@ -58,8 +61,11 @@ export function FileBrowser({
   onOpenFile,
   onNewFile,
   currentFilePath,
-  onToggleTheme,
   themeMode,
+  colorScheme,
+  onColorSchemeChange,
+  onModeChange,
+  onOpenSettings,
 }: FileBrowserProps) {
   const platform = getPlatform();
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -72,6 +78,7 @@ export function FileBrowser({
   const [renamingFile, setRenamingFile] = useState<FileEntry | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const newInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -417,19 +424,105 @@ export function FileBrowser({
       {/* Header */}
       <div className="file-browser__header">
         <h2 className="file-browser__title">Files</h2>
-        <button
-          className="mobile-theme-btn"
-          onClick={onToggleTheme}
-          aria-label={
-            themeMode === "dark"
-              ? "Switch to light theme"
-              : "Switch to dark theme"
-          }
-          type="button"
-        >
-          {themeMode === "dark" ? "\u2600" : "\u263D"}
-        </button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            className="mobile-theme-btn"
+            onClick={() => setShowThemePicker((v) => !v)}
+            aria-label="Theme settings"
+            aria-expanded={showThemePicker}
+            type="button"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="10" cy="10" r="4" />
+              <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" />
+            </svg>
+          </button>
+          {onOpenSettings && (
+            <button
+              className="mobile-command-btn"
+              onClick={onOpenSettings}
+              aria-label="Settings"
+              type="button"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="10" cy="10" r="2.5" />
+                <path d="M16.2 12.2a1.5 1.5 0 0 0 .3 1.65l.05.05a1.8 1.8 0 1 1-2.55 2.55l-.05-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.35v.15a1.8 1.8 0 1 1-3.6 0v-.08a1.5 1.5 0 0 0-1-1.35 1.5 1.5 0 0 0-1.65.3l-.05.05a1.8 1.8 0 1 1-2.55-2.55l.05-.05a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.35-.9H1.4a1.8 1.8 0 1 1 0-3.6h.08a1.5 1.5 0 0 0 1.35-1 1.5 1.5 0 0 0-.3-1.65l-.05-.05a1.8 1.8 0 1 1 2.55-2.55l.05.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.35V1.4a1.8 1.8 0 1 1 3.6 0v.08a1.5 1.5 0 0 0 .9 1.35 1.5 1.5 0 0 0 1.65-.3l.05-.05a1.8 1.8 0 1 1 2.55 2.55l-.05.05a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.35.9h.15a1.8 1.8 0 1 1 0 3.6h-.08a1.5 1.5 0 0 0-1.35.9z" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Theme picker panel */}
+      {showThemePicker && (
+        <div
+          className="mobile-theme-picker-backdrop"
+          onClick={() => setShowThemePicker(false)}
+        >
+          <div
+            className="mobile-theme-picker"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Theme settings"
+          >
+            <div className="mobile-theme-picker__section">
+              <div className="mobile-theme-picker__label">Mode</div>
+              <div className="mobile-theme-picker__options">
+                <button
+                  className={`mobile-theme-picker__option ${themeMode === "light" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => onModeChange("light")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--light" />
+                  Light
+                </button>
+                <button
+                  className={`mobile-theme-picker__option ${themeMode === "dark" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => onModeChange("dark")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--dark" />
+                  Dark
+                </button>
+              </div>
+            </div>
+            <div className="mobile-theme-picker__section">
+              <div className="mobile-theme-picker__label">Color Scheme</div>
+              <div className="mobile-theme-picker__options">
+                {COLOR_SCHEMES.map((scheme) => (
+                  <button
+                    key={scheme.id}
+                    className={`mobile-theme-picker__option ${colorScheme === scheme.id ? "mobile-theme-picker__option--active" : ""}`}
+                    onClick={() => onColorSchemeChange(scheme.id)}
+                    type="button"
+                  >
+                    <span className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`} />
+                    {scheme.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action bar */}
       <div className="file-browser__actions">

@@ -24,11 +24,32 @@ import {
 import {
   toggleStrikethroughCommand,
   insertTableCommand,
+  setAlignCommand,
+  addRowBeforeCommand,
+  addRowAfterCommand,
 } from "@milkdown/preset-gfm";
 import { lift } from "@milkdown/prose/commands";
-import { Editor, useTheme, getPlatform } from "@pennivo/ui";
+import { Editor, useTheme, getPlatform, COLOR_SCHEMES } from "@pennivo/ui";
+import type { ColorScheme, ThemeMode } from "@pennivo/ui";
+import {
+  executeTableAction,
+  type TableAction,
+} from "../../ui/src/components/Editor/tablePlugin";
+import { TableToolbar } from "../../ui/src/components/TableToolbar/TableToolbar";
+import {
+  parseMermaidGantt,
+  ganttDataToMermaid,
+  type GanttData,
+  parseKanbanMarkdown,
+  kanbanDataToMarkdown,
+  type KanbanData,
+} from "@pennivo/core";
+import { countCharacters } from "../../ui/src/utils/textStats";
 import { MobileToolbar } from "./components/MobileToolbar/MobileToolbar";
+import { MobileFindReplace } from "./components/MobileFindReplace/MobileFindReplace";
+import { MobileCommandPalette, MOBILE_COMMANDS } from "./components/MobileCommandPalette/MobileCommandPalette";
 import { FileBrowser } from "./components/FileBrowser/FileBrowser";
+import { MobileSettings } from "./components/MobileSettings/MobileSettings";
 import { useShareIntent } from "./hooks/useShareIntent";
 
 const LazySourceEditor = lazy(() =>
@@ -37,8 +58,22 @@ const LazySourceEditor = lazy(() =>
   })),
 );
 
+const LazyGanttEditorPanel = lazy(() =>
+  import("../../ui/src/components/GanttEditor/GanttEditorPanel").then((m) => ({
+    default: m.GanttEditorPanel,
+  })),
+);
+
+const LazyKanbanEditorPanel = lazy(() =>
+  import("../../ui/src/components/KanbanEditor/KanbanEditorPanel").then(
+    (m) => ({
+      default: m.KanbanEditorPanel,
+    }),
+  ),
+);
+
 type SaveStatus = "saved" | "saving" | "unsaved";
-type Screen = "browser" | "editor";
+type Screen = "browser" | "editor" | "settings";
 
 const AUTO_SAVE_DELAY = 3000;
 const DEFAULT_FILENAME = "untitled.md";
@@ -54,6 +89,12 @@ interface MobileEditorContentProps {
   onMarkdownChange: (markdown: string) => void;
   onWordCountChange: (count: number) => void;
   onCharCountChange: (count: number) => void;
+  findReplaceOpen: boolean;
+  onFindReplaceClose: () => void;
+  onCmViewReady: (view: import("@codemirror/view").EditorView) => void;
+  onCmViewDestroy: () => void;
+  getCmView: () => import("@codemirror/view").EditorView | null;
+  getEditorHtmlRef: React.MutableRefObject<(() => string) | null>;
 }
 
 function getActiveFormats(view: import("@milkdown/prose/view").EditorView): Set<string> {
@@ -111,9 +152,252 @@ function MobileEditorContent({
   onMarkdownChange,
   onWordCountChange,
   onCharCountChange,
+  findReplaceOpen,
+  onFindReplaceClose,
+  onCmViewReady,
+  onCmViewDestroy,
+  getCmView,
+  getEditorHtmlRef,
 }: MobileEditorContentProps) {
   const [, getInstance] = useInstance();
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
+
+  // Expose getEditorHtml to parent via ref
+  useEffect(() => {
+    getEditorHtmlRef.current = () => {
+      const editor = getInstance();
+      if (!editor) return "";
+      let html = "";
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        html = view.dom.innerHTML;
+      });
+      return html;
+    };
+    return () => {
+      getEditorHtmlRef.current = null;
+    };
+  }, [getInstance, getEditorHtmlRef]);
+
+  // --- Table toolbar state ---
+  const [tableToolbarVisible, setTableToolbarVisible] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { visible } = (e as CustomEvent).detail;
+      setTableToolbarVisible(visible);
+    };
+    document.addEventListener("table-toolbar-update", handler);
+    return () => document.removeEventListener("table-toolbar-update", handler);
+  }, []);
+
+  const handleTableAction = useCallback(
+    (action: TableAction) => {
+      const editor = getInstance();
+      if (!editor) return;
+
+      switch (action) {
+        case "addRowAbove":
+          editor.action(callCommand(addRowBeforeCommand.key));
+          return;
+        case "addRowBelow":
+          editor.action(callCommand(addRowAfterCommand.key));
+          return;
+        case "alignLeft":
+          editor.action(callCommand(setAlignCommand.key, "left"));
+          return;
+        case "alignCenter":
+          editor.action(callCommand(setAlignCommand.key, "center"));
+          return;
+        case "alignRight":
+          editor.action(callCommand(setAlignCommand.key, "right"));
+          return;
+      }
+
+      editor.action((ctx) => {
+        executeTableAction(ctx.get(editorViewCtx), action);
+      });
+    },
+    [getInstance],
+  );
+
+  // --- Gantt editor state ---
+  const [ganttEditor, setGanttEditor] = useState<{
+    data: GanttData;
+    lastCode: string;
+    anchorRect: { top: number; left: number; width: number };
+  } | null>(null);
+
+  useEffect(() => {
+    const handleGanttEditRequest = (e: Event) => {
+      const { code, rect } = (e as CustomEvent).detail;
+      const parsed = parseMermaidGantt(code);
+      if (parsed) {
+        setGanttEditor({ data: parsed, lastCode: code, anchorRect: rect });
+      }
+    };
+    document.addEventListener("gantt-edit-request", handleGanttEditRequest);
+    return () =>
+      document.removeEventListener(
+        "gantt-edit-request",
+        handleGanttEditRequest,
+      );
+  }, []);
+
+  const ganttEditorRef = useRef(ganttEditor);
+  ganttEditorRef.current = ganttEditor;
+
+  const handleGanttUpdate = useCallback(
+    (data: GanttData) => {
+      const ge = ganttEditorRef.current;
+      if (!ge) return;
+      const newCode = ganttDataToMermaid(data);
+
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+
+          let foundPos = -1;
+          let foundNode: import("@milkdown/prose/model").Node | null = null;
+
+          state.doc.descendants((node, pos) => {
+            if (foundNode) return false;
+            if (
+              node.type.name === "code_block" &&
+              node.attrs["language"] === "mermaid"
+            ) {
+              const text = node.textContent;
+              if (text === ge.lastCode || text.trim().startsWith("gantt")) {
+                foundPos = pos;
+                foundNode = node;
+                return false;
+              }
+            }
+          });
+
+          if (foundNode && foundPos >= 0) {
+            const newBlock = state.schema.nodes["code_block"].create(
+              { language: "mermaid" },
+              state.schema.text(newCode),
+            );
+            const tr = state.tr.replaceWith(
+              foundPos,
+              foundPos +
+                (foundNode as import("@milkdown/prose/model").Node).nodeSize,
+              newBlock,
+            );
+            view.dispatch(tr);
+          }
+        });
+      }
+
+      setGanttEditor((prev) =>
+        prev ? { ...prev, data, lastCode: newCode } : null,
+      );
+    },
+    [getInstance],
+  );
+
+  const handleGanttClose = useCallback(() => {
+    setGanttEditor(null);
+    const editor = getInstance();
+    if (editor) {
+      editor.action((ctx) => {
+        ctx.get(editorViewCtx).focus();
+      });
+    }
+  }, [getInstance]);
+
+  // --- Kanban editor state ---
+  const [kanbanEditor, setKanbanEditor] = useState<{
+    data: KanbanData;
+    lastCode: string;
+    anchorRect: { top: number; left: number; width: number };
+  } | null>(null);
+
+  useEffect(() => {
+    const handleKanbanEditRequest = (e: Event) => {
+      const { code, rect } = (e as CustomEvent).detail;
+      const parsed = parseKanbanMarkdown(code);
+      if (parsed) {
+        setKanbanEditor({ data: parsed, lastCode: code, anchorRect: rect });
+      }
+    };
+    document.addEventListener("kanban-edit-request", handleKanbanEditRequest);
+    return () =>
+      document.removeEventListener(
+        "kanban-edit-request",
+        handleKanbanEditRequest,
+      );
+  }, []);
+
+  const kanbanEditorRef = useRef(kanbanEditor);
+  kanbanEditorRef.current = kanbanEditor;
+
+  const handleKanbanUpdate = useCallback(
+    (data: KanbanData) => {
+      const ke = kanbanEditorRef.current;
+      if (!ke) return;
+      const newCode = kanbanDataToMarkdown(data);
+
+      const editor = getInstance();
+      if (editor) {
+        editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { state } = view;
+
+          let foundPos = -1;
+          let foundNode: import("@milkdown/prose/model").Node | null = null;
+
+          state.doc.descendants((node, pos) => {
+            if (foundNode) return false;
+            if (
+              node.type.name === "code_block" &&
+              node.attrs["language"] === "kanban"
+            ) {
+              const text = node.textContent;
+              if (text === ke.lastCode || text.trim().startsWith("title:")) {
+                foundPos = pos;
+                foundNode = node;
+                return false;
+              }
+            }
+          });
+
+          if (foundNode && foundPos >= 0) {
+            const newBlock = state.schema.nodes["code_block"].create(
+              { language: "kanban" },
+              state.schema.text(newCode),
+            );
+            const tr = state.tr.replaceWith(
+              foundPos,
+              foundPos +
+                (foundNode as import("@milkdown/prose/model").Node).nodeSize,
+              newBlock,
+            );
+            view.dispatch(tr);
+          }
+        });
+      }
+
+      setKanbanEditor((prev) =>
+        prev ? { ...prev, data, lastCode: newCode } : null,
+      );
+    },
+    [getInstance],
+  );
+
+  const handleKanbanClose = useCallback(() => {
+    setKanbanEditor(null);
+    const editor = getInstance();
+    if (editor) {
+      editor.action((ctx) => {
+        ctx.get(editorViewCtx).focus();
+      });
+    }
+  }, [getInstance]);
 
   // Track active formats on selection/content changes
   useEffect(() => {
@@ -316,8 +600,40 @@ function MobileEditorContent({
     [sourceMode, getInstance],
   );
 
+  // Listen for command palette formatting commands
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent).detail as string;
+      handleToolbarAction(id);
+    };
+    window.addEventListener("pennivo:command", handler);
+    return () => window.removeEventListener("pennivo:command", handler);
+  }, [handleToolbarAction]);
+
+  // Get ProseMirror view for find/replace
+  const getEditorView = useCallback((): import("@milkdown/prose/view").EditorView | null => {
+    const editor = getInstance();
+    if (!editor) return null;
+    let view: import("@milkdown/prose/view").EditorView | null = null;
+    try {
+      editor.action((ctx) => {
+        view = ctx.get(editorViewCtx);
+      });
+    } catch {
+      // Editor not ready
+    }
+    return view;
+  }, [getInstance]);
+
   return (
     <>
+      <MobileFindReplace
+        visible={findReplaceOpen}
+        getView={getEditorView}
+        getCmView={getCmView}
+        sourceMode={sourceMode}
+        onClose={onFindReplaceClose}
+      />
       <main className="mobile-editor-area" ref={scrollRef}>
         {!sourceMode && (
           <Editor
@@ -339,6 +655,8 @@ function MobileEditorContent({
               onMarkdownChange={onMarkdownChange}
               onWordCountChange={onWordCountChange}
               onCharCountChange={onCharCountChange}
+              onViewReady={onCmViewReady}
+              onViewDestroy={onCmViewDestroy}
             />
           </Suspense>
         )}
@@ -348,6 +666,29 @@ function MobileEditorContent({
         activeFormats={activeFormats}
         visible={!sourceMode}
       />
+      {tableToolbarVisible && !sourceMode && (
+        <TableToolbar onAction={handleTableAction} />
+      )}
+      {ganttEditor && (
+        <Suspense fallback={null}>
+          <LazyGanttEditorPanel
+            data={ganttEditor.data}
+            anchorRect={ganttEditor.anchorRect}
+            onUpdate={handleGanttUpdate}
+            onClose={handleGanttClose}
+          />
+        </Suspense>
+      )}
+      {kanbanEditor && (
+        <Suspense fallback={null}>
+          <LazyKanbanEditorPanel
+            data={kanbanEditor.data}
+            anchorRect={kanbanEditor.anchorRect}
+            onUpdate={handleKanbanUpdate}
+            onClose={handleKanbanClose}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
@@ -357,22 +698,84 @@ function MobileEditorContent({
 /* ------------------------------------------------------------------ */
 
 export function MobileApp() {
-  const { mode, toggleTheme } = useTheme();
+  const { mode, setMode, colorScheme, setColorScheme } = useTheme();
   const platform = getPlatform();
 
   const [wordCount, setWordCount] = useState(0);
+  const [charCount, setCharCount] = useState(0);
+  const [showStats, setShowStats] = useState(true);
   const [sourceMode, setSourceMode] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const [fileName, setFileName] = useState("untitled.md");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [screen, setScreen] = useState<Screen>("browser");
   const [editorReady, setEditorReady] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   const markdownRef = useRef("");
   const filePathRef = useRef(DEFAULT_FILENAME);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
+  const themeLoadedRef = useRef(false);
+  const cmViewRef = useRef<import("@codemirror/view").EditorView | null>(null);
+  const previousScreenRef = useRef<"browser" | "editor">("browser");
+  const getEditorHtmlRef = useRef<(() => string) | null>(null);
+
+  // CodeMirror view callbacks for find/replace in source mode
+  const handleCmViewReady = useCallback((view: import("@codemirror/view").EditorView) => {
+    cmViewRef.current = view;
+  }, []);
+
+  const handleCmViewDestroy = useCallback(() => {
+    cmViewRef.current = null;
+  }, []);
+
+  const getCmView = useCallback(() => cmViewRef.current, []);
+
+  // Ctrl+F keyboard shortcut (hardware keyboard)
+  useEffect(() => {
+    if (screen !== "editor") return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        setFindReplaceOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [screen]);
+
+  // Load persisted theme and settings on mount
+  useEffect(() => {
+    let cancelled = false;
+    platform.getSettings().then((settings) => {
+      if (cancelled) return;
+      themeLoadedRef.current = true;
+      if (settings.themeMode === "light" || settings.themeMode === "dark") {
+        setMode(settings.themeMode as ThemeMode);
+      }
+      if (
+        typeof settings.colorScheme === "string" &&
+        COLOR_SCHEMES.some((s) => s.id === settings.colorScheme)
+      ) {
+        setColorScheme(settings.colorScheme as ColorScheme);
+      }
+      if (typeof settings.showStats === "boolean") {
+        setShowStats(settings.showStats);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [platform, setMode, setColorScheme]);
+
+  // Persist theme and display settings
+  useEffect(() => {
+    if (!themeLoadedRef.current) return;
+    platform.setSettings({ themeMode: mode, colorScheme, showStats });
+  }, [mode, colorScheme, showStats, platform]);
 
   // Handle files shared from other apps (share intent / "Open with")
   const handleSharedFile = useCallback(
@@ -394,6 +797,7 @@ export function MobileApp() {
       setFileName(uniqueName);
       setEditorKey((k) => k + 1);
       setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
+      setCharCount(countCharacters(content));
       setSaveStatus("saved");
       setEditorReady(true);
       setScreen("editor");
@@ -425,6 +829,7 @@ export function MobileApp() {
             const name = result.filePath.split("/").pop() || "untitled.md";
             setFileName(name);
             setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
+            setCharCount(countCharacters(result.content));
             setSaveStatus("saved");
             setEditorReady(true);
             setScreen("editor");
@@ -527,8 +932,8 @@ export function MobileApp() {
     setWordCount(count);
   }, []);
 
-  const handleCharCountChange = useCallback((_count: number) => {
-    // Not displayed on mobile — header shows word count only
+  const handleCharCountChange = useCallback((count: number) => {
+    setCharCount(count);
   }, []);
 
   const handleMarkdownChange = useCallback(
@@ -552,6 +957,7 @@ export function MobileApp() {
         setFileName(name);
         setEditorKey((k) => k + 1);
         setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
+        setCharCount(countCharacters(result.content));
         setSaveStatus("saved");
         setScreen("editor");
         await platform.addRecentFile(result.filePath);
@@ -571,6 +977,7 @@ export function MobileApp() {
       setFileName(name);
       setEditorKey((k) => k + 1);
       setWordCount(0);
+      setCharCount(0);
       setSaveStatus("saved");
       setScreen("editor");
       await platform.addRecentFile(filePath);
@@ -585,6 +992,15 @@ export function MobileApp() {
     setScreen("browser");
   }, [flushSave]);
 
+  const openSettings = useCallback(() => {
+    previousScreenRef.current = screen === "editor" ? "editor" : "browser";
+    setScreen("settings");
+  }, [screen]);
+
+  const handleBackFromSettings = useCallback(() => {
+    setScreen(previousScreenRef.current);
+  }, []);
+
   const toggleSourceMode = useCallback(() => {
     setSourceMode((prev) => {
       if (prev) {
@@ -596,11 +1012,93 @@ export function MobileApp() {
     scrollRef.current?.scrollTo(0, 0);
   }, []);
 
+  // Command palette handler
+  const handleCommandSelect = useCallback(
+    (id: string) => {
+      setCommandPaletteOpen(false);
+      switch (id) {
+        case "sourceMode":
+          toggleSourceMode();
+          break;
+        case "toggleTheme":
+          setMode(mode === "light" ? "dark" : "light");
+          break;
+        case "findReplace":
+          setFindReplaceOpen(true);
+          break;
+        case "newFile":
+          handleNewFileFromBrowser(
+            `untitled-${Date.now()}.md`,
+          );
+          break;
+        case "save":
+          performSave();
+          break;
+        case "browseFiles":
+          handleBackToBrowser();
+          break;
+        case "settings":
+          openSettings();
+          break;
+        case "toggleStats":
+          setShowStats((v) => !v);
+          break;
+        case "exportHtml": {
+          const htmlContent = getEditorHtmlRef.current?.();
+          if (htmlContent) {
+            platform.exportHtml(htmlContent, fileName);
+          }
+          break;
+        }
+        case "exportPdf": {
+          const pdfHtml = getEditorHtmlRef.current?.();
+          if (pdfHtml) {
+            platform.exportPdf(pdfHtml, fileName);
+          }
+          break;
+        }
+        // Formatting commands are dispatched through the toolbar action handler
+        // which lives inside MobileEditorContent. We broadcast via a custom event.
+        default:
+          window.dispatchEvent(
+            new CustomEvent("pennivo:command", { detail: id }),
+          );
+          break;
+      }
+    },
+    [
+      mode,
+      fileName,
+      platform,
+      toggleSourceMode,
+      setMode,
+      handleNewFileFromBrowser,
+      performSave,
+      handleBackToBrowser,
+      openSettings,
+    ],
+  );
+
   // Don't render until initial load is complete
   if (!editorReady) {
     return (
       <div className="mobile-app">
         <div className="mobile-loading">Loading...</div>
+      </div>
+    );
+  }
+
+  // Settings screen
+  if (screen === "settings") {
+    return (
+      <div className="mobile-app">
+        <MobileSettings
+          onBack={handleBackFromSettings}
+          themeMode={mode}
+          colorScheme={colorScheme}
+          onModeChange={setMode}
+          onColorSchemeChange={setColorScheme}
+        />
       </div>
     );
   }
@@ -613,8 +1111,11 @@ export function MobileApp() {
           onOpenFile={openFileFromBrowser}
           onNewFile={handleNewFileFromBrowser}
           currentFilePath={filePathRef.current}
-          onToggleTheme={toggleTheme}
           themeMode={mode}
+          colorScheme={colorScheme}
+          onColorSchemeChange={setColorScheme}
+          onModeChange={setMode}
+          onOpenSettings={openSettings}
         />
       </div>
     );
@@ -654,6 +1155,48 @@ export function MobileApp() {
         </div>
         <div className="mobile-header-right">
           <button
+            className="mobile-search-btn"
+            onClick={() => setFindReplaceOpen((v) => !v)}
+            aria-label="Find and replace"
+            type="button"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="8.5" cy="8.5" r="5.5" />
+              <line x1="13" y1="13" x2="18" y2="18" />
+            </svg>
+          </button>
+          <button
+            className="mobile-command-btn"
+            onClick={() => setCommandPaletteOpen(true)}
+            aria-label="Commands"
+            type="button"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="3" y1="6" x2="17" y2="6" />
+              <line x1="3" y1="10" x2="17" y2="10" />
+              <line x1="3" y1="14" x2="17" y2="14" />
+              <polyline points="13,4 17,6 13,8" />
+            </svg>
+          </button>
+          <button
             className={`mobile-mode-btn ${sourceMode ? "mobile-mode-btn--active" : ""}`}
             onClick={toggleSourceMode}
             aria-label={
@@ -664,17 +1207,105 @@ export function MobileApp() {
           </button>
           <button
             className="mobile-theme-btn"
-            onClick={toggleTheme}
-            aria-label={
-              mode === "dark"
-                ? "Switch to light theme"
-                : "Switch to dark theme"
-            }
+            onClick={() => setShowThemePicker((v) => !v)}
+            aria-label="Theme settings"
+            aria-expanded={showThemePicker}
           >
-            {mode === "dark" ? "\u2600" : "\u263D"}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="10" cy="10" r="4" />
+              <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" />
+            </svg>
+          </button>
+          <button
+            className="mobile-command-btn"
+            onClick={openSettings}
+            aria-label="Settings"
+            type="button"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="10" cy="10" r="2.5" />
+              <path d="M16.2 12.2a1.5 1.5 0 0 0 .3 1.65l.05.05a1.8 1.8 0 1 1-2.55 2.55l-.05-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.35v.15a1.8 1.8 0 1 1-3.6 0v-.08a1.5 1.5 0 0 0-1-1.35 1.5 1.5 0 0 0-1.65.3l-.05.05a1.8 1.8 0 1 1-2.55-2.55l.05-.05a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.35-.9H1.4a1.8 1.8 0 1 1 0-3.6h.08a1.5 1.5 0 0 0 1.35-1 1.5 1.5 0 0 0-.3-1.65l-.05-.05a1.8 1.8 0 1 1 2.55-2.55l.05.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.35V1.4a1.8 1.8 0 1 1 3.6 0v.08a1.5 1.5 0 0 0 .9 1.35 1.5 1.5 0 0 0 1.65-.3l.05-.05a1.8 1.8 0 1 1 2.55 2.55l-.05.05a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.35.9h.15a1.8 1.8 0 1 1 0 3.6h-.08a1.5 1.5 0 0 0-1.35.9z" />
+            </svg>
           </button>
         </div>
       </header>
+
+      {showThemePicker && (
+        <div
+          className="mobile-theme-picker-backdrop"
+          onClick={() => setShowThemePicker(false)}
+        >
+          <div
+            className="mobile-theme-picker"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Theme settings"
+          >
+            <div className="mobile-theme-picker__section">
+              <div className="mobile-theme-picker__label">Mode</div>
+              <div className="mobile-theme-picker__options">
+                <button
+                  className={`mobile-theme-picker__option ${mode === "light" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => setMode("light")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--light" />
+                  Light
+                </button>
+                <button
+                  className={`mobile-theme-picker__option ${mode === "dark" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => setMode("dark")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--dark" />
+                  Dark
+                </button>
+              </div>
+            </div>
+            <div className="mobile-theme-picker__section">
+              <div className="mobile-theme-picker__label">Color Scheme</div>
+              <div className="mobile-theme-picker__options">
+                {COLOR_SCHEMES.map((scheme) => (
+                  <button
+                    key={scheme.id}
+                    className={`mobile-theme-picker__option ${colorScheme === scheme.id ? "mobile-theme-picker__option--active" : ""}`}
+                    onClick={() => setColorScheme(scheme.id)}
+                    type="button"
+                  >
+                    <span className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`} />
+                    {scheme.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MobileCommandPalette
+        visible={commandPaletteOpen}
+        commands={MOBILE_COMMANDS}
+        onSelect={handleCommandSelect}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
 
       <MilkdownProvider key={editorKey}>
         <MobileEditorContent
@@ -684,8 +1315,37 @@ export function MobileApp() {
           onMarkdownChange={handleMarkdownChange}
           onWordCountChange={handleWordCountChange}
           onCharCountChange={handleCharCountChange}
+          findReplaceOpen={findReplaceOpen}
+          onFindReplaceClose={() => setFindReplaceOpen(false)}
+          onCmViewReady={handleCmViewReady}
+          onCmViewDestroy={handleCmViewDestroy}
+          getCmView={getCmView}
+          getEditorHtmlRef={getEditorHtmlRef}
         />
       </MilkdownProvider>
+
+      {showStats && (
+        <div
+          className="mobile-statusbar"
+          role="status"
+          onClick={() => setShowStats(false)}
+          aria-label="Document statistics"
+        >
+          <span className="mobile-stat">
+            {wordCount.toLocaleString()} words
+          </span>
+          <span className="mobile-stat-sep">&middot;</span>
+          <span className="mobile-stat">
+            {charCount.toLocaleString()} chars
+          </span>
+          <span className="mobile-stat-sep">&middot;</span>
+          <span className="mobile-stat">
+            {wordCount / 238 < 1
+              ? "< 1 min read"
+              : `${Math.ceil(wordCount / 238)} min read`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { PennivoPlatform } from './platform';
+import { wrapHtmlWithStyles } from '../utils/exportHtml';
 
 const noop = () => {};
 
@@ -12,6 +13,117 @@ async function getFilesystem() {
     '@capacitor/filesystem'
   );
   return { Filesystem, Directory, Encoding };
+}
+
+/**
+ * Share an HTML file via the Android share sheet using the Web Share API.
+ * Falls back to opening the HTML in a new tab if sharing is unavailable.
+ */
+async function shareHtmlFile(
+  styledHtml: string,
+  fileName: string,
+): Promise<string | null> {
+  const blob = new Blob([styledHtml], { type: 'text/html' });
+  const file = new File([blob], fileName, { type: 'text/html' });
+
+  // Prefer Web Share API with file support (available on modern Android WebViews)
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: fileName,
+      });
+      return fileName;
+    } catch (err) {
+      // User cancelled the share — not an error
+      if (err instanceof Error && err.name === 'AbortError') {
+        return null;
+      }
+      console.error('[Pennivo] Web Share failed:', err);
+    }
+  }
+
+  // Fallback: write to Documents via Capacitor Filesystem and notify user
+  try {
+    const { Filesystem, Directory, Encoding } = await getFilesystem();
+    await Filesystem.writeFile({
+      path: fileName,
+      data: styledHtml,
+      directory: Directory.Documents,
+      encoding: Encoding.UTF8,
+      recursive: true,
+    });
+    return fileName;
+  } catch (err) {
+    console.error('[Pennivo] exportHtml fallback write failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Trigger the Android print dialog (which includes "Save as PDF") by
+ * rendering styled HTML in a hidden iframe and calling print on it.
+ */
+function printHtmlAsPdf(styledHtml: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '800px';
+    iframe.style.height = '600px';
+    iframe.style.border = 'none';
+
+    const cleanup = () => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    };
+
+    iframe.onload = () => {
+      try {
+        const iframeWindow = iframe.contentWindow;
+        if (!iframeWindow) {
+          cleanup();
+          resolve(null);
+          return;
+        }
+
+        // Give the content a moment to render, then trigger print
+        setTimeout(() => {
+          try {
+            iframeWindow.print();
+            // The print dialog is modal on Android — when it returns,
+            // the user has either printed/saved or cancelled.
+            // Clean up after a brief delay to let the print dialog finish.
+            setTimeout(cleanup, 1000);
+            resolve('pdf');
+          } catch (printErr) {
+            console.error('[Pennivo] print() failed:', printErr);
+            cleanup();
+            resolve(null);
+          }
+        }, 300);
+      } catch (err) {
+        console.error('[Pennivo] iframe print setup failed:', err);
+        cleanup();
+        resolve(null);
+      }
+    };
+
+    document.body.appendChild(iframe);
+
+    // Write the styled HTML into the iframe
+    const doc = iframe.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(styledHtml);
+      doc.close();
+    } else {
+      // If contentDocument is not available, use srcdoc
+      iframe.srcdoc = styledHtml;
+    }
+  });
 }
 
 async function getPreferences() {
@@ -254,12 +366,16 @@ export function createCapacitorPlatform(): PennivoPlatform {
       }
     },
 
-    // Export — not supported yet
-    exportHtml: (_html, _title) => {
-      notSupported('exportHtml');
+    // Export
+    exportHtml: async (html, title) => {
+      const styledHtml = wrapHtmlWithStyles(html, title);
+      const fileName = title.replace(/\.md$/i, '') + '.html';
+      return shareHtmlFile(styledHtml, fileName);
     },
-    exportPdf: (_html, _title) => {
-      notSupported('exportPdf');
+
+    exportPdf: async (html, title) => {
+      const styledHtml = wrapHtmlWithStyles(html, title);
+      return printHtmlAsPdf(styledHtml);
     },
 
     // Window title — no-op, managed by mobile shell

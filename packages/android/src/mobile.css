@@ -159,6 +159,54 @@ body,
   color: #fff;
 }
 
+.mobile-search-btn {
+  background: none;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+  padding: 0;
+}
+
+.mobile-search-btn:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mobile-command-btn {
+  background: none;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+  padding: 0;
+}
+
+.mobile-command-btn:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .mobile-theme-btn {
   background: none;
   border: 1px solid var(--border-mid);
@@ -248,4 +296,334 @@ body,
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 14px;
+}
+
+/* ─── Theme Picker ─── */
+
+.mobile-theme-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: calc(var(--sai-top) + 56px);
+  animation: theme-picker-backdrop-in 0.15s ease;
+}
+
+@keyframes theme-picker-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-theme-picker {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+  width: calc(100% - 32px);
+  max-width: 340px;
+  animation: theme-picker-in 0.2s ease;
+}
+
+@keyframes theme-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-theme-picker__section {
+  margin-bottom: 16px;
+}
+
+.mobile-theme-picker__section:last-child {
+  margin-bottom: 0;
+}
+
+.mobile-theme-picker__label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.mobile-theme-picker__options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mobile-theme-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+  min-height: 44px;
+}
+
+.mobile-theme-picker__option:active {
+  background: var(--accent-soft);
+}
+
+.mobile-theme-picker__option--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+/* Color swatches for mode and scheme previews */
+.mobile-theme-picker__swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid var(--border-mid);
+}
+
+.mobile-theme-picker__swatch--light {
+  background: linear-gradient(135deg, #fafaf8 50%, #e8e6e1 50%);
+}
+
+.mobile-theme-picker__swatch--dark {
+  background: linear-gradient(135deg, #1c1c1c 50%, #141414 50%);
+}
+
+.mobile-theme-picker__swatch--default {
+  background: linear-gradient(135deg, #4a7c59 50%, #5e9e74 50%);
+}
+
+.mobile-theme-picker__swatch--sepia {
+  background: linear-gradient(135deg, #8b6b3d 50%, #c49a5c 50%);
+}
+
+.mobile-theme-picker__swatch--nord {
+  background: linear-gradient(135deg, #5e81ac 50%, #88c0d0 50%);
+}
+
+.mobile-theme-picker__swatch--rosepine {
+  background: linear-gradient(135deg, #d7827e 50%, #ebbcba 50%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Mobile overrides for Mermaid, Kanban, and Table features
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Mermaid Diagrams ─── */
+
+/* Scrollable wrapper for wide diagrams (especially gantt charts) */
+.mobile-editor-area .mermaid-preview-widget {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  margin: 8px 0 4px;
+}
+
+/* Ensure SVGs scale down but allow horizontal scroll if too wide */
+.mobile-editor-area .mermaid-preview-widget svg {
+  max-width: 100%;
+  height: auto;
+  min-width: 300px;
+}
+
+/* On mobile, always show the Edit Chart / Edit Board button (no hover) */
+.mobile-editor-area .mermaid-gantt-edit-btn {
+  opacity: 1;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+  min-width: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Kanban Board Preview ─── */
+
+/* Horizontal scroll for kanban columns on narrow screens */
+.mobile-editor-area .kanban-preview-columns {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+/* Narrower columns on mobile, but still readable */
+.mobile-editor-area .kanban-preview-column {
+  min-width: 140px;
+  max-width: 180px;
+  flex-shrink: 0;
+}
+
+/* Larger touch targets for kanban cards */
+.mobile-editor-area .kanban-preview-card {
+  min-height: 36px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Kanban Editor Panel (mobile) ─── */
+
+/* Full-width panel on mobile, positioned at bottom like a sheet */
+.kanban-editor {
+  width: calc(100vw - 16px) !important;
+  max-width: calc(100vw - 16px) !important;
+  left: 8px !important;
+  max-height: 60vh !important;
+}
+
+/* Larger touch targets for kanban editor */
+.kanban-card {
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.kanban-card-title {
+  font-size: 13px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+/* Always show remove button on mobile (no hover) */
+.kanban-card-remove {
+  opacity: 1 !important;
+  width: 28px;
+  height: 28px;
+}
+
+.kanban-card-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Touch-friendly column headers */
+.kanban-col-header {
+  min-height: 36px;
+}
+
+.kanban-col-title {
+  height: 32px;
+  font-size: 13px;
+}
+
+.kanban-col-remove {
+  width: 28px;
+  height: 28px;
+}
+
+.kanban-col-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Touch-friendly add buttons */
+.kanban-add-card {
+  height: 36px;
+  font-size: 13px;
+}
+
+.kanban-add-col {
+  height: 36px;
+  font-size: 13px;
+}
+
+/* Touch-friendly close button */
+.kanban-editor-close {
+  width: 32px;
+  height: 32px;
+}
+
+.kanban-editor-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Wider columns in the editor to work better on mobile */
+.kanban-editor-body {
+  gap: 8px;
+  padding: 8px;
+}
+
+.kanban-col {
+  width: 200px;
+  min-width: 180px;
+}
+
+.kanban-card-edit-input {
+  height: 36px;
+  font-size: 14px;
+  padding: 0 10px;
+}
+
+/* ─── Gantt Editor Panel (mobile) ─── */
+
+/* Similar full-width treatment */
+.gantt-editor {
+  width: calc(100vw - 16px) !important;
+  max-width: calc(100vw - 16px) !important;
+  left: 8px !important;
+  max-height: 60vh !important;
+}
+
+/* ─── Table Toolbar (mobile) ─── */
+
+/* Ensure toolbar fits on narrow screens */
+.table-toolbar {
+  max-width: calc(100vw - 16px);
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 6px;
+}
+
+/* Larger touch targets for table toolbar buttons */
+.table-tb-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.table-tb-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ─── Table (GFM) mobile overrides ─── */
+
+/* Horizontal scroll wrapper for wide tables */
+.mobile-editor-area .ProseMirror table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+}
+
+.mobile-editor-area .ProseMirror th,
+.mobile-editor-area .ProseMirror td {
+  padding: 8px 10px;
+  min-width: 80px;
+  white-space: normal;
 }

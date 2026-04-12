@@ -1,0 +1,377 @@
+/* ─── Mobile Settings Screen ─── */
+
+.msettings {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* ─── Header ─── */
+
+.msettings-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-mid);
+  flex-shrink: 0;
+  min-height: 48px;
+  gap: 12px;
+}
+
+.msettings-back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+  padding: 0;
+  border-radius: var(--radius-md);
+}
+
+.msettings-back-btn:active {
+  opacity: 0.6;
+}
+
+.msettings-title {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.msettings-header-spacer {
+  width: 44px;
+  flex-shrink: 0;
+}
+
+/* ─── Body ─── */
+
+.msettings-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 16px 32px;
+  padding-bottom: max(32px, calc(var(--sai-bottom) + 16px));
+}
+
+/* ─── Sections ─── */
+
+.msettings-section {
+  margin-top: 28px;
+}
+
+.msettings-section:first-child {
+  margin-top: 20px;
+}
+
+.msettings-section-title {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  padding: 0 4px;
+}
+
+/* ─── Rows ─── */
+
+.msettings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  gap: 16px;
+  min-height: 44px;
+}
+
+.msettings-row + .msettings-row {
+  border-top: 1px solid var(--border);
+}
+
+.msettings-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* ─── Labels ─── */
+
+.msettings-label {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.msettings-label-desc {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.msettings-value {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ─── Toggle Switch ─── */
+
+.msettings-toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 14px;
+  background: var(--border-mid);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.msettings-toggle--on {
+  background: var(--accent);
+}
+
+.msettings-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.msettings-toggle--on .msettings-toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ─── Font Size Stepper (+/-) ─── */
+
+.msettings-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.msettings-stepper-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.msettings-stepper-btn:active {
+  background: var(--accent-soft);
+}
+
+.msettings-stepper-btn:disabled {
+  color: var(--text-faint);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.msettings-stepper-btn:disabled:active {
+  background: var(--bg-surface);
+}
+
+.msettings-stepper-value {
+  min-width: 44px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border-mid);
+  border-right: 1px solid var(--border-mid);
+  padding: 0 4px;
+  line-height: 44px;
+}
+
+/* ─── Chip Selector (font family, line height, mode) ─── */
+
+.msettings-chip-group {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.msettings-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.msettings-chip:active {
+  background: var(--accent-soft);
+}
+
+.msettings-chip--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ─── Color Scheme Grid ─── */
+
+.msettings-scheme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.msettings-scheme-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.msettings-scheme-btn:active {
+  background: var(--accent-soft);
+}
+
+.msettings-scheme-btn--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+/* ─── Color Swatches ─── */
+
+.msettings-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid var(--border-mid);
+}
+
+.msettings-swatch--light {
+  background: linear-gradient(135deg, #fafaf8 50%, #e8e6e1 50%);
+}
+
+.msettings-swatch--dark {
+  background: linear-gradient(135deg, #1c1c1c 50%, #141414 50%);
+}
+
+.msettings-swatch--default {
+  background: linear-gradient(135deg, #4a7c59 50%, #5e9e74 50%);
+}
+
+.msettings-swatch--sepia {
+  background: linear-gradient(135deg, #8b6b3d 50%, #c49a5c 50%);
+}
+
+.msettings-swatch--nord {
+  background: linear-gradient(135deg, #5e81ac 50%, #88c0d0 50%);
+}
+
+.msettings-swatch--rosepine {
+  background: linear-gradient(135deg, #d7827e 50%, #ebbcba 50%);
+}
+
+/* ─── Link Buttons (About section) ─── */
+
+.msettings-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  transition: opacity var(--transition-fast);
+}
+
+.msettings-link-btn:active {
+  opacity: 0.6;
+}
+
+.msettings-link-btn svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ─── About Section ─── */
+
+.msettings-section--about .msettings-row {
+  min-height: 40px;
+  padding: 8px 4px;
+}

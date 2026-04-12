@@ -1,0 +1,184 @@
+/* ─── Mobile Find & Replace Bar ─── */
+
+.mobile-find-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-mid);
+  font-family: var(--font-ui);
+  animation: mobile-find-slide-in 0.18s ease;
+  position: relative;
+  z-index: 60;
+}
+
+@keyframes mobile-find-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Row layout ─── */
+
+.mobile-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Input wrapper with match count ─── */
+
+.mobile-find-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.mobile-find-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  padding-right: 76px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  transition: border-color var(--transition-fast);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobile-find-input::placeholder {
+  color: var(--text-faint);
+}
+
+.mobile-find-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.mobile-find-match-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Buttons ─── */
+
+.mobile-find-btn {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-find-btn:active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.mobile-find-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Close button */
+.mobile-find-btn--close {
+  color: var(--text-muted);
+}
+
+.mobile-find-btn--close:active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* Regex toggle */
+.mobile-find-btn--regex {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  padding: 0 8px;
+}
+
+.mobile-find-btn--regex.mobile-find-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mobile-find-btn--regex.mobile-find-btn--active:active {
+  opacity: 0.85;
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Action buttons (Replace / All) */
+.mobile-find-btn--action {
+  padding: 0 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.mobile-find-btn--action:active {
+  background: var(--accent-soft);
+}
+
+/* ─── Match highlighting (reuse desktop classes) ─── */
+/* These are applied by the ProseMirror plugin and CM extension,
+   so the desktop FindReplace.css classes (.find-match, .find-match--current)
+   are used. We just ensure they're available on mobile. */
+
+.find-match {
+  background: rgba(74, 124, 89, 0.18);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(74, 124, 89, 0.25);
+}
+
+.find-match--current {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+[data-theme="dark"] .find-match {
+  background: rgba(94, 158, 116, 0.28);
+  box-shadow: 0 0 0 1px rgba(94, 158, 116, 0.4);
+}
+
+[data-theme="dark"] .find-match--current {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(94, 158, 116, 0.5);
+}
