@@ -7,8 +7,9 @@
 <p align="center"><strong>Markdown, modernized.</strong></p>
 
 <p align="center">
-  A free, open-source desktop markdown editor with WYSIWYG editing,<br/>
-  a real source mode, and a customizable workspace.
+  A free, open-source markdown editor with WYSIWYG editing,<br/>
+  a real source mode, and a customizable workspace.<br/>
+  Desktop on Windows today, Android coming soon.
 </p>
 
 <p align="center">
@@ -69,9 +70,15 @@ Pennivo v1.0 ships **unsigned**. When you run the installer Windows will show a 
 
 The warning is expected and unavoidable until a code-signing certificate is in place. The installer is built directly from this repository by [GitHub Actions](.github/workflows/release.yml) — you can verify the source for each release against the published artifacts.
 
+### Android
+
+An Android build is in active development and will ship to Google Play and F-Droid alongside the next release. It shares the same core editor as the desktop app and runs inside a Capacitor shell tuned for phones and tablets — mobile editor, formatting toolbar, file browser, and SAF-based file import/export.
+
+Watch the [Releases page](https://github.com/Payaeb/pennivo/releases) for the first public beta.
+
 ### macOS and Linux
 
-Not yet. Cross-platform builds are planned for a follow-up release.
+Not yet. Cross-platform desktop builds are planned for a follow-up release.
 
 ## Tech stack
 
