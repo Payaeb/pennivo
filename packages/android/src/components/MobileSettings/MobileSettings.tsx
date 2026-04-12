@@ -288,6 +288,14 @@ export function MobileSettings({
                 <span className="msettings-swatch msettings-swatch--dark" />
                 Dark
               </button>
+              <button
+                className={`msettings-chip${themeMode === "system" ? " msettings-chip--active" : ""}`}
+                onClick={() => onModeChange("system")}
+                type="button"
+              >
+                <span className="msettings-swatch msettings-swatch--system" />
+                System
+              </button>
             </div>
           </div>
 

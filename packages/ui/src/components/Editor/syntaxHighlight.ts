@@ -41,9 +41,14 @@ lowlight.register("golang", go);
 
 const lowlightParser = createParser(lowlight);
 
-// Wrap parser to skip auto-detection when no language is specified
+// Wrap parser to:
+//  1. Skip auto-detection when no language is specified.
+//  2. Skip unregistered languages (e.g. "mermaid", "kanban", "gantt") which
+//     are rendered by their own plugins. Without this guard, lowlight throws
+//     "Unknown language" and the error propagates, breaking those plugins.
 const parser: typeof lowlightParser = (options) => {
   if (!options.language) return [];
+  if (!lowlight.registered(options.language)) return [];
   return lowlightParser(options);
 };
 

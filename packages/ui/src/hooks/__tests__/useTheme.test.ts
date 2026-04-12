@@ -11,8 +11,11 @@ describe("useTheme", () => {
 
   it("returns current theme mode", () => {
     const { result } = renderHook(() => useTheme());
-    expect(["light", "dark"]).toContain(result.current.mode);
-    expect(result.current.theme).toBe(result.current.mode);
+    // mode is the user's preference (light | dark | system)
+    expect(["light", "dark", "system"]).toContain(result.current.mode);
+    // theme is the resolved light/dark mode actually applied
+    expect(["light", "dark"]).toContain(result.current.theme);
+    expect(result.current.theme).toBe(result.current.resolvedMode);
   });
 
   it("toggleTheme switches between light and dark", () => {
@@ -48,13 +51,19 @@ describe("useTheme", () => {
     expect(result.current.mode).toBe("dark");
   });
 
+  it("defaults to system mode when no stored preference", () => {
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.mode).toBe("system");
+  });
+
   it("respects system preference when no stored theme", () => {
     // matchMedia is mocked in setup.ts to return matches: false (light)
     const { result } = renderHook(() => useTheme());
-    expect(result.current.mode).toBe("light");
+    expect(result.current.mode).toBe("system");
+    expect(result.current.resolvedMode).toBe("light");
   });
 
-  it("defaults to system dark when matchMedia matches", () => {
+  it("resolves to dark when matchMedia matches", () => {
     vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
       matches: query === "(prefers-color-scheme: dark)",
       media: query,
@@ -66,7 +75,64 @@ describe("useTheme", () => {
       dispatchEvent: vi.fn(),
     }));
     const { result } = renderHook(() => useTheme());
-    expect(result.current.mode).toBe("dark");
+    expect(result.current.mode).toBe("system");
+    expect(result.current.resolvedMode).toBe("dark");
+  });
+
+  it("follows OS theme at runtime when mode is system", () => {
+    let mqHandler: ((e: MediaQueryListEvent) => void) | null = null;
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((_type: string, cb: unknown) => {
+        mqHandler = cb as (e: MediaQueryListEvent) => void;
+      }),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.mode).toBe("system");
+    expect(result.current.resolvedMode).toBe("light");
+    expect(mqHandler).not.toBeNull();
+
+    // Simulate OS flipping to dark.
+    act(() => {
+      mqHandler?.({ matches: true } as MediaQueryListEvent);
+    });
+    expect(result.current.resolvedMode).toBe("dark");
+
+    // And back to light.
+    act(() => {
+      mqHandler?.({ matches: false } as MediaQueryListEvent);
+    });
+    expect(result.current.resolvedMode).toBe("light");
+  });
+
+  it("does not subscribe to OS changes when mode is locked to light", () => {
+    localStorage.setItem("pennivo-theme", "light");
+    let mqHandler: ((e: MediaQueryListEvent) => void) | null = null;
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((_type: string, cb: unknown) => {
+        mqHandler = cb as (e: MediaQueryListEvent) => void;
+      }),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.mode).toBe("light");
+    expect(result.current.resolvedMode).toBe("light");
+    // Listener should not have been wired for an explicit preference.
+    expect(mqHandler).toBeNull();
   });
 
   it("returns available color schemes", () => {

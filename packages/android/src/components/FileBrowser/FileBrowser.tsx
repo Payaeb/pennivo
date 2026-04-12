@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getPlatform, COLOR_SCHEMES } from "@pennivo/ui";
-import type { Theme, ColorScheme } from "@pennivo/ui";
+import type { ThemeMode, ColorScheme } from "@pennivo/ui";
 import "./FileBrowser.css";
 
 interface FileEntry {
@@ -14,10 +14,10 @@ export interface FileBrowserProps {
   onOpenFile: (filePath: string) => void;
   onNewFile: (filePath: string) => void;
   currentFilePath: string | null;
-  themeMode: Theme;
+  themeMode: ThemeMode;
   colorScheme: ColorScheme;
   onColorSchemeChange: (scheme: ColorScheme) => void;
-  onModeChange: (mode: Theme) => void;
+  onModeChange: (mode: ThemeMode) => void;
   onOpenSettings?: () => void;
 }
 
@@ -506,6 +506,14 @@ export function FileBrowser({
                 >
                   <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--dark" />
                   Dark
+                </button>
+                <button
+                  className={`mobile-theme-picker__option ${themeMode === "system" ? "mobile-theme-picker__option--active" : ""}`}
+                  onClick={() => onModeChange("system")}
+                  type="button"
+                >
+                  <span className="mobile-theme-picker__swatch mobile-theme-picker__swatch--system" />
+                  System
                 </button>
               </div>
             </div>

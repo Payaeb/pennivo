@@ -115,6 +115,13 @@ type Screen = "browser" | "editor" | "settings";
 const AUTO_SAVE_DELAY = 3000;
 const DEFAULT_FILENAME = "untitled.md";
 
+// Mirror desktop thresholds (packages/ui/src/App.tsx). Android WebView's renderer
+// dies around 1.5MB of markdown inside the ProseMirror doc, so we must force
+// source mode at that size — on file open AND on paste/bulk content change.
+const FILE_SIZE_WARN = 500_000; // 500 KB — warn only
+const FILE_SIZE_SOURCE_DEFAULT = 1_000_000; // 1 MB — auto source mode
+const FILE_SIZE_SOURCE_LOCKED = 1_500_000; // 1.5 MB — locked to source mode
+
 /* ------------------------------------------------------------------ */
 /*  Inner component — lives inside MilkdownProvider, uses useInstance  */
 /* ------------------------------------------------------------------ */
@@ -748,6 +755,11 @@ export function MobileApp() {
   const [charCount, setCharCount] = useState(0);
   const [showStats, setShowStats] = useState(true);
   const [sourceMode, setSourceMode] = useState(false);
+  const [sourceLocked, setSourceLocked] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sourceModeRef = useRef(false);
+  const fileSizeRef = useRef(0);
   const [editorKey, setEditorKey] = useState(0);
   const [fileName, setFileName] = useState("untitled.md");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -779,6 +791,66 @@ export function MobileApp() {
 
   const getCmView = useCallback(() => cmViewRef.current, []);
 
+  // Lightweight toast banner for large-file warnings and similar notices.
+  const showToast = useCallback((message: string, persistent = false) => {
+    setToastMessage(message);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    if (!persistent) {
+      toastTimerRef.current = setTimeout(() => {
+        setToastMessage(null);
+        toastTimerRef.current = null;
+      }, 4000);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  /**
+   * Apply large-file policy to freshly loaded content. Returns the resulting
+   * source-mode state so callers can pass it to setEditorKey / remount flows.
+   * The WebView renderer can crash with >1.5MB of markdown in the WYSIWYG
+   * ProseMirror doc, so we force source mode at that tier.
+   */
+  const applyLargeFilePolicy = useCallback(
+    (content: string): { sourceMode: boolean; locked: boolean } => {
+      // Byte-accurate size estimate (UTF-8). TextEncoder is available in the
+      // Android WebView (Chrome 90+).
+      const size = new TextEncoder().encode(content).length;
+      fileSizeRef.current = size;
+
+      if (size > FILE_SIZE_SOURCE_LOCKED) {
+        setSourceMode(true);
+        sourceModeRef.current = true;
+        setSourceLocked(true);
+        showToast(
+          "Very large file — opened in source mode only to prevent crashes",
+          true,
+        );
+        return { sourceMode: true, locked: true };
+      }
+      if (size > FILE_SIZE_SOURCE_DEFAULT) {
+        setSourceMode(true);
+        sourceModeRef.current = true;
+        setSourceLocked(false);
+        showToast("Large file — opened in source mode for performance", true);
+        return { sourceMode: true, locked: false };
+      }
+      setSourceLocked(false);
+      if (size > FILE_SIZE_WARN) {
+        showToast("Large file — may be slow in WYSIWYG mode", true);
+      }
+      return { sourceMode: sourceModeRef.current, locked: false };
+    },
+    [showToast],
+  );
+
   // Ctrl+F keyboard shortcut (hardware keyboard)
   useEffect(() => {
     if (screen !== "editor") return;
@@ -798,7 +870,11 @@ export function MobileApp() {
     platform.getSettings().then((settings) => {
       if (cancelled) return;
       themeLoadedRef.current = true;
-      if (settings.themeMode === "light" || settings.themeMode === "dark") {
+      if (
+        settings.themeMode === "light" ||
+        settings.themeMode === "dark" ||
+        settings.themeMode === "system"
+      ) {
         setMode(settings.themeMode as ThemeMode);
       }
       if (
@@ -837,6 +913,7 @@ export function MobileApp() {
       // Open in editor
       markdownRef.current = content;
       filePathRef.current = uniqueName;
+      applyLargeFilePolicy(content);
       setFileName(uniqueName);
       setEditorKey((k) => k + 1);
       setWordCount(content.trim().split(/\s+/).filter(Boolean).length);
@@ -846,7 +923,7 @@ export function MobileApp() {
       setScreen("editor");
       await platform.addRecentFile(uniqueName);
     },
-    [platform],
+    [platform, applyLargeFilePolicy],
   );
 
   useShareIntent(handleSharedFile);
@@ -869,6 +946,7 @@ export function MobileApp() {
           if (result) {
             markdownRef.current = result.content;
             filePathRef.current = result.filePath;
+            applyLargeFilePolicy(result.content);
             const name = result.filePath.split("/").pop() || "untitled.md";
             setFileName(name);
             setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
@@ -895,7 +973,7 @@ export function MobileApp() {
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [platform]);
+  }, [platform, applyLargeFilePolicy]);
 
   // Prevent focus-induced scroll jumps
   useEffect(() => {
@@ -983,8 +1061,27 @@ export function MobileApp() {
     (markdown: string) => {
       markdownRef.current = markdown;
       scheduleSave();
+
+      // Paste/bulk-insert guard: if a large paste pushes the doc past the
+      // 1.5 MB threshold while in WYSIWYG, flip to source mode before the
+      // next ProseMirror update can crash the WebView renderer.
+      const size = new TextEncoder().encode(markdown).length;
+      fileSizeRef.current = size;
+      if (size > FILE_SIZE_SOURCE_LOCKED && !sourceModeRef.current) {
+        sourceModeRef.current = true;
+        setSourceMode(true);
+        setSourceLocked(true);
+        setEditorKey((k) => k + 1);
+        showToast(
+          "Very large content pasted — switched to source mode to prevent crashes",
+          true,
+        );
+      } else if (size <= FILE_SIZE_SOURCE_LOCKED && sourceLocked) {
+        // Content shrank back below the hard cap — release the lock.
+        setSourceLocked(false);
+      }
     },
-    [scheduleSave],
+    [scheduleSave, showToast, sourceLocked],
   );
 
   const openFileFromBrowser = useCallback(
@@ -996,6 +1093,7 @@ export function MobileApp() {
       if (result) {
         markdownRef.current = result.content;
         filePathRef.current = result.filePath;
+        applyLargeFilePolicy(result.content);
         const name = result.filePath.split("/").pop() || "untitled.md";
         setFileName(name);
         setEditorKey((k) => k + 1);
@@ -1006,7 +1104,7 @@ export function MobileApp() {
         await platform.addRecentFile(result.filePath);
       }
     },
-    [platform, flushSave],
+    [platform, flushSave, applyLargeFilePolicy],
   );
 
   const handleNewFileFromBrowser = useCallback(
@@ -1016,6 +1114,8 @@ export function MobileApp() {
 
       markdownRef.current = "";
       filePathRef.current = filePath;
+      fileSizeRef.current = 0;
+      setSourceLocked(false);
       const name = filePath.split("/").pop() || "untitled.md";
       setFileName(name);
       setEditorKey((k) => k + 1);
@@ -1032,6 +1132,8 @@ export function MobileApp() {
     // Save before navigating away
     await flushSave();
     setSourceMode(false);
+    sourceModeRef.current = false;
+    setSourceLocked(false);
     setScreen("browser");
   }, [flushSave]);
 
@@ -1046,14 +1148,23 @@ export function MobileApp() {
 
   const toggleSourceMode = useCallback(() => {
     setSourceMode((prev) => {
+      // Attempting to leave source mode while the file is over the hard cap
+      // would re-enter the WYSIWYG path and crash the WebView.
+      if (prev && sourceLocked) {
+        showToast(
+          "This document is too large for WYSIWYG mode — it would crash the editor",
+        );
+        return prev;
+      }
       if (prev) {
         // Returning from source mode -> WYSIWYG: remount with updated content
         setEditorKey((k) => k + 1);
       }
+      sourceModeRef.current = !prev;
       return !prev;
     });
     scrollRef.current?.scrollTo(0, 0);
-  }, []);
+  }, [sourceLocked, showToast]);
 
   // Command palette handler
   const handleCommandSelect = useCallback(
@@ -1377,6 +1488,17 @@ export function MobileApp() {
           getEditorHtmlRef={getEditorHtmlRef}
         />
       </MilkdownProvider>
+
+      {toastMessage && (
+        <div
+          className="mobile-toast"
+          role="status"
+          aria-live="polite"
+          onClick={() => setToastMessage(null)}
+        >
+          {toastMessage}
+        </div>
+      )}
 
       {showStats && (
         <div

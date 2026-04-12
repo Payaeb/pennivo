@@ -326,6 +326,10 @@
   background: linear-gradient(135deg, #1c1c1c 50%, #141414 50%);
 }
 
+.msettings-swatch--system {
+  background: linear-gradient(135deg, #fafaf8 50%, #1c1c1c 50%);
+}
+
 .msettings-swatch--default {
   background: linear-gradient(135deg, #4a7c59 50%, #5e9e74 50%);
 }

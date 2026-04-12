@@ -412,6 +412,10 @@ body,
   background: linear-gradient(135deg, #1c1c1c 50%, #141414 50%);
 }
 
+.mobile-theme-picker__swatch--system {
+  background: linear-gradient(135deg, #fafaf8 50%, #1c1c1c 50%);
+}
+
 .mobile-theme-picker__swatch--default {
   background: linear-gradient(135deg, #4a7c59 50%, #5e9e74 50%);
 }
@@ -667,4 +671,28 @@ body,
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Large-file / error toast banner */
+.mobile-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  transform: translateX(-50%);
+  max-width: min(92vw, 520px);
+  padding: 10px 16px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.35;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+  animation: mobile-toast-in 0.22s ease-out;
+}
+
+@keyframes mobile-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }

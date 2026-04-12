@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 
-/** Base light/dark mode */
-export type ThemeMode = "light" | "dark";
+/**
+ * Theme mode.
+ * - "light" / "dark": explicit user choice, locked.
+ * - "system": follow OS preference dynamically (reacts at runtime).
+ */
+export type ThemeMode = "light" | "dark" | "system";
+
+/** The resolved mode actually applied to the DOM. Always "light" or "dark". */
+export type ResolvedThemeMode = "light" | "dark";
 
 /** Color scheme names */
 export type ColorScheme = "default" | "sepia" | "nord" | "rosepine";
@@ -22,16 +29,25 @@ export const COLOR_SCHEMES: { id: ColorScheme; label: string }[] = [
   { id: "rosepine", label: "Rose Pine" },
 ];
 
+function systemPrefersDark(): boolean {
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    return false;
+  }
+}
+
 function getInitialMode(): ThemeMode {
   try {
     const stored = localStorage.getItem(MODE_KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    if (stored === "light" || stored === "dark" || stored === "system") {
+      return stored;
+    }
   } catch {
     // localStorage unavailable
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  // No stored preference — follow the OS.
+  return "system";
 }
 
 function getInitialScheme(): ColorScheme {
@@ -45,30 +61,79 @@ function getInitialScheme(): ColorScheme {
   return "default";
 }
 
-function applyTheme(mode: ThemeMode, scheme: ColorScheme) {
-  document.documentElement.setAttribute("data-theme", mode);
+function resolveMode(mode: ThemeMode): ResolvedThemeMode {
+  if (mode === "light" || mode === "dark") return mode;
+  return systemPrefersDark() ? "dark" : "light";
+}
+
+function applyTheme(resolved: ResolvedThemeMode, scheme: ColorScheme) {
+  document.documentElement.setAttribute("data-theme", resolved);
   document.documentElement.setAttribute("data-color-scheme", scheme);
 }
 
 export function useTheme() {
   const [mode, setModeState] = useState<ThemeMode>(getInitialMode);
   const [colorScheme, setSchemeState] = useState<ColorScheme>(getInitialScheme);
+  const [resolvedMode, setResolvedMode] = useState<ResolvedThemeMode>(() =>
+    resolveMode(getInitialMode()),
+  );
 
+  // Whenever the user's preference changes, recompute the resolved mode.
   useEffect(() => {
-    applyTheme(mode, colorScheme);
+    setResolvedMode(resolveMode(mode));
+  }, [mode]);
+
+  // Subscribe to OS theme changes — only takes effect when mode is "system".
+  useEffect(() => {
+    if (mode !== "system") return;
+    let mq: MediaQueryList;
+    try {
+      mq = window.matchMedia("(prefers-color-scheme: dark)");
+    } catch {
+      return;
+    }
+    const handler = (e: MediaQueryListEvent) => {
+      setResolvedMode(e.matches ? "dark" : "light");
+    };
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    // Legacy Safari fallback
+    const legacy = mq as unknown as {
+      addListener?: (cb: (e: MediaQueryListEvent) => void) => void;
+      removeListener?: (cb: (e: MediaQueryListEvent) => void) => void;
+    };
+    if (typeof legacy.addListener === "function") {
+      legacy.addListener(handler);
+      return () => legacy.removeListener?.(handler);
+    }
+  }, [mode]);
+
+  // Apply resolved theme + color scheme to the DOM, persist the user's choice.
+  useEffect(() => {
+    applyTheme(resolvedMode, colorScheme);
     try {
       localStorage.setItem(MODE_KEY, mode);
       localStorage.setItem(SCHEME_KEY, colorScheme);
     } catch {
       // ignore
     }
-  }, [mode, colorScheme]);
+  }, [mode, resolvedMode, colorScheme]);
 
   const setMode = useCallback((m: ThemeMode) => setModeState(m), []);
-  const toggleTheme = useCallback(
-    () => setModeState((m) => (m === "light" ? "dark" : "light")),
-    [],
-  );
+
+  // toggleTheme flips based on what's currently showing, and locks to that
+  // explicit choice (so it escapes "system" mode, as users expect).
+  const toggleTheme = useCallback(() => {
+    setModeState((current) => {
+      const shownDark =
+        current === "dark" ||
+        (current === "system" && systemPrefersDark());
+      return shownDark ? "light" : "dark";
+    });
+  }, []);
+
   const setColorScheme = useCallback((s: ColorScheme) => setSchemeState(s), []);
 
   const cycleColorScheme = useCallback(() => {
@@ -78,10 +143,13 @@ export function useTheme() {
     });
   }, []);
 
-  // Keep backward compatibility: theme = mode for simple checks
+  // Backward compatibility: `theme` used to be the applied light/dark mode.
+  // Keep that behavior so existing consumers that branch on light vs dark
+  // (e.g. icon choice) continue to work.
   return {
-    theme: mode,
+    theme: resolvedMode,
     mode,
+    resolvedMode,
     colorScheme,
     setTheme: setMode,
     setMode,
@@ -92,4 +160,4 @@ export function useTheme() {
 }
 
 // Re-export for backward compatibility
-export type Theme = ThemeMode;
+export type Theme = ResolvedThemeMode;
