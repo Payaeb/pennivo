@@ -66,8 +66,8 @@ body,
   background: none;
   border: none;
   color: var(--accent);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -76,6 +76,7 @@ body,
   flex-shrink: 0;
   transition: opacity var(--transition-fast);
   padding: 0;
+  border-radius: var(--radius-md);
 }
 
 .mobile-back-btn:active {
@@ -142,7 +143,8 @@ body,
   font-size: 12px;
   font-weight: 600;
   padding: 0 12px;
-  height: 36px;
+  height: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -164,8 +166,8 @@ body,
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -188,8 +190,8 @@ body,
   border: 1px solid var(--border-mid);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -213,8 +215,8 @@ body,
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 18px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,8 +512,8 @@ body,
 /* Always show remove button on mobile (no hover) */
 .kanban-card-remove {
   opacity: 1 !important;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
 }
 
 .kanban-card-remove svg {
@@ -530,8 +532,8 @@ body,
 }
 
 .kanban-col-remove {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
 }
 
 .kanban-col-remove svg {
@@ -600,9 +602,9 @@ body,
 
 /* Larger touch targets for table toolbar buttons */
 .table-tb-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -626,4 +628,43 @@ body,
   padding: 8px 10px;
   min-width: 80px;
   white-space: normal;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Accessibility: Focus indicators (WCAG 2.4.7)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Visible focus ring for all interactive mobile elements */
+.mobile-back-btn:focus-visible,
+.mobile-mode-btn:focus-visible,
+.mobile-search-btn:focus-visible,
+.mobile-command-btn:focus-visible,
+.mobile-theme-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skip focus ring for pointer interactions (touch/mouse) */
+.mobile-back-btn:focus:not(:focus-visible),
+.mobile-mode-btn:focus:not(:focus-visible),
+.mobile-search-btn:focus:not(:focus-visible),
+.mobile-command-btn:focus:not(:focus-visible),
+.mobile-theme-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Accessibility: Live region for save status announcements
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

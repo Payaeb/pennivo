@@ -182,3 +182,14 @@
   background: var(--accent);
   box-shadow: 0 0 0 2px rgba(94, 158, 116, 0.5);
 }
+
+/* ─── Accessibility: Focus indicators ─── */
+
+.mobile-find-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mobile-find-btn:focus:not(:focus-visible) {
+  outline: none;
+}

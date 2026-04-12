@@ -404,3 +404,34 @@
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/* ─── Accessibility: Focus indicators ─── */
+
+.file-browser__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+
+.file-browser__item:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.file-browser__item-menu-btn:focus-visible,
+.file-browser__new-btn:focus-visible,
+.file-browser__import-btn:focus-visible,
+.file-browser__inline-input-confirm:focus-visible,
+.file-browser__inline-input-cancel:focus-visible,
+.file-browser__context-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.file-browser__item-menu-btn:focus:not(:focus-visible),
+.file-browser__new-btn:focus:not(:focus-visible),
+.file-browser__import-btn:focus:not(:focus-visible),
+.file-browser__inline-input-confirm:focus:not(:focus-visible),
+.file-browser__inline-input-cancel:focus:not(:focus-visible),
+.file-browser__context-action:focus:not(:focus-visible) {
+  outline: none;
+}

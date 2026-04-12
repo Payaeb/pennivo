@@ -47,6 +47,7 @@
   font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .msettings-header-spacer {
@@ -240,7 +241,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1.5px solid var(--border-mid);
   border-radius: var(--radius-md);
@@ -374,4 +376,25 @@
 .msettings-section--about .msettings-row {
   min-height: 40px;
   padding: 8px 4px;
+}
+
+/* ─── Accessibility: Focus indicators ─── */
+
+.msettings-back-btn:focus-visible,
+.msettings-toggle:focus-visible,
+.msettings-chip:focus-visible,
+.msettings-scheme-btn:focus-visible,
+.msettings-stepper-btn:focus-visible,
+.msettings-link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.msettings-back-btn:focus:not(:focus-visible),
+.msettings-toggle:focus:not(:focus-visible),
+.msettings-chip:focus:not(:focus-visible),
+.msettings-scheme-btn:focus:not(:focus-visible),
+.msettings-stepper-btn:focus:not(:focus-visible),
+.msettings-link-btn:focus:not(:focus-visible) {
+  outline: none;
 }

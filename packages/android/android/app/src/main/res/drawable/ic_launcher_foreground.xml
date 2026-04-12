@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportHeight="108"
+    android:viewportWidth="108">
+
+    <!--
+        Pennivo app icon foreground: fountain pen nib.
+        White on accent green (#4a7c59) background.
+        Nib tilted ~45 degrees in natural writing position.
+        All geometry within 72dp safe zone (18-90).
+        Center: 54,54
+    -->
+
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="35">
+
+        <!-- Nib body: smooth taper from shoulder to tip -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="
+                M43,32
+                Q41,32 40,34
+                L54,80
+                L68,34
+                Q67,32 65,32
+                Z" />
+
+        <!-- Slit: thin line from mid-nib toward tip -->
+        <path
+            android:fillColor="#4a7c59"
+            android:pathData="
+                M53.25,47
+                L54,68
+                L54.75,47
+                Z" />
+
+        <!-- Breather hole -->
+        <path
+            android:fillColor="#4a7c59"
+            android:pathData="
+                M54,43
+                m-2.2,0
+                a2.2,2.2 0 1,0 4.4,0
+                a2.2,2.2 0 1,0 -4.4,0" />
+
+    </group>
+</vector>

@@ -1,0 +1,8 @@
+Initial release.
+
+- WYSIWYG markdown editor with real-time rendering
+- Source mode with CodeMirror 6
+- Light and dark themes
+- Mobile formatting toolbar
+- Local file management with SAF import
+- Share intent support for receiving markdown files

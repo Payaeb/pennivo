@@ -152,6 +152,7 @@ export function MobileCommandPalette({
             stroke="currentColor"
             strokeWidth="1.8"
             strokeLinecap="round"
+            aria-hidden="true"
           >
             <circle cx="8.5" cy="8.5" r="5.5" />
             <line x1="13" y1="13" x2="18" y2="18" />
@@ -172,6 +173,7 @@ export function MobileCommandPalette({
             role="combobox"
             aria-expanded="true"
             aria-controls="mcp-listbox"
+            aria-activedescendant={filtered[selectedIndex] ? `mcp-option-${filtered[selectedIndex].id}` : undefined}
           />
         </div>
 
@@ -188,6 +190,7 @@ export function MobileCommandPalette({
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
+              id={`mcp-option-${cmd.id}`}
               className={`mcp-item${i === selectedIndex ? " mcp-item--selected" : ""}`}
               onClick={() => handleSelect(cmd.id)}
               onMouseDown={(e) => e.preventDefault()}
@@ -196,7 +199,7 @@ export function MobileCommandPalette({
               aria-selected={i === selectedIndex}
               type="button"
             >
-              <span className="mcp-item-icon">{cmd.icon}</span>
+              <span className="mcp-item-icon" aria-hidden="true">{cmd.icon}</span>
               <span className="mcp-item-content">
                 <span className="mcp-item-label">{cmd.label}</span>
                 {cmd.category && (

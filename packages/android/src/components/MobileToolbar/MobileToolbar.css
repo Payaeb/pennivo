@@ -97,3 +97,14 @@
 /* Dark theme: tokens (--bg-surface, --text-primary, --accent, etc.)
    switch automatically via [data-theme="dark"] in tokens.css.
    No manual overrides needed. */
+
+/* ─── Accessibility: Focus indicators ─── */
+
+.mobile-toolbar__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mobile-toolbar__btn:focus:not(:focus-visible) {
+  outline: none;
+}

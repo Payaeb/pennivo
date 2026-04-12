@@ -190,6 +190,7 @@ function BulletListIcon() {
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"
+      aria-hidden="true"
     >
       <circle cx="2.5" cy="5.5" r="1.2" fill="currentColor" stroke="none" />
       <line x1="6" y1="5.5" x2="14" y2="5.5" />
@@ -201,7 +202,7 @@ function BulletListIcon() {
 
 function OrderedListIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" stroke="none">
+    <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" aria-hidden="true">
       <text x="1" y="7" fontSize="6" fontWeight="700" fontFamily="sans-serif">
         1.
       </text>
@@ -229,6 +230,7 @@ function TaskListIcon() {
       strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <rect x="1.5" y="4" width="4" height="4" rx="0.8" />
       <polyline points="2.5,6.2 3.3,7 4.8,5" />
@@ -248,6 +250,7 @@ function CodeIcon() {
       strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <polyline points="5,5 2,8 5,11" />
       <polyline points="11,5 14,8 11,11" />
@@ -263,6 +266,7 @@ function BlockquoteIcon() {
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"
+      aria-hidden="true"
     >
       <line x1="4" y1="4" x2="4" y2="12" />
       <line x1="7" y1="6.5" x2="13" y2="6.5" />
@@ -280,6 +284,7 @@ function TableIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
       <line x1="1.5" y1="6.5" x2="14.5" y2="6.5" />
@@ -292,7 +297,7 @@ function TableIcon() {
 
 function MoreIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <circle cx="3" cy="8" r="1.5" />
       <circle cx="8" cy="8" r="1.5" />
       <circle cx="13" cy="8" r="1.5" />

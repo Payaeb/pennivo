@@ -20,6 +20,18 @@ const config: CapacitorConfig = {
       resize: "body",
       resizeOnFullScreen: true,
     },
+    SplashScreen: {
+      // Accent green background color
+      backgroundColor: "#4a7c59",
+      // Auto-hide after the app is ready
+      autoHide: true,
+      launchAutoHide: true,
+      // Duration in ms before auto-hiding
+      showSpinner: false,
+      androidScaleType: "CENTER_CROP",
+      splashFullScreen: false,
+      splashImmersive: false,
+    },
   },
 };
 

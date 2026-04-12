@@ -355,7 +355,7 @@ export function FileBrowser({
   const renderFileRow = (file: FileEntry) => {
     if (renamingFile && renamingFile.path === file.path) {
       return (
-        <div key={file.path} className="file-browser__rename-row">
+        <div key={file.path} className="file-browser__rename-row" role="listitem">
           <input
             ref={renameInputRef}
             type="text"
@@ -393,6 +393,11 @@ export function FileBrowser({
         key={file.path}
         className={`file-browser__item ${currentFilePath === file.path ? "file-browser__item--current" : ""}`}
         onClick={() => handleOpenFile(file.path)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpenFile(file.path); } }}
+        role="listitem"
+        tabIndex={0}
+        aria-current={currentFilePath === file.path ? "true" : undefined}
+        aria-label={`${file.name.replace(/\.md$/i, "")}, ${formatDate(file.modified)}${file.size > 0 ? `, ${formatSize(file.size)}` : ""}`}
       >
         <FileIcon />
         <div className="file-browser__item-info">
@@ -579,7 +584,7 @@ export function FileBrowser({
       )}
 
       {/* File list */}
-      <div className="file-browser__list" ref={listRef}>
+      <div className="file-browser__list" ref={listRef} role="list" aria-label="Files">
         {/* Pull-to-refresh indicator */}
         <div className="file-browser__pull-indicator" aria-hidden="true">
           {refreshing ? (
@@ -590,7 +595,7 @@ export function FileBrowser({
         </div>
 
         {loading && files.length === 0 && (
-          <div className="file-browser__empty">
+          <div className="file-browser__empty" role="status">
             <span className="file-browser__empty-text">Loading files...</span>
           </div>
         )}
@@ -607,8 +612,10 @@ export function FileBrowser({
         {/* Recent files section */}
         {recentFiles.length > 0 && (
           <>
-            <div className="file-browser__section-label">Recent</div>
-            {recentFiles.map(renderFileRow)}
+            <div className="file-browser__section-label" id="recent-files-label">Recent</div>
+            <div role="group" aria-labelledby="recent-files-label">
+              {recentFiles.map(renderFileRow)}
+            </div>
           </>
         )}
 
@@ -616,9 +623,11 @@ export function FileBrowser({
         {otherFiles.length > 0 && (
           <>
             {recentFiles.length > 0 && (
-              <div className="file-browser__section-label">All Files</div>
+              <div className="file-browser__section-label" id="all-files-label">All Files</div>
             )}
-            {otherFiles.map(renderFileRow)}
+            <div role="group" aria-labelledby={recentFiles.length > 0 ? "all-files-label" : undefined}>
+              {otherFiles.map(renderFileRow)}
+            </div>
           </>
         )}
       </div>
@@ -629,11 +638,14 @@ export function FileBrowser({
           className="file-browser__context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onPointerDown={(e) => e.stopPropagation()}
+          role="menu"
+          aria-label={`Actions for ${contextMenu.file.name}`}
         >
           <button
             className="file-browser__context-action"
             onClick={handleRenameStart}
             type="button"
+            role="menuitem"
           >
             <RenameIcon />
             Rename
@@ -642,6 +654,7 @@ export function FileBrowser({
             className="file-browser__context-action file-browser__context-action--danger"
             onClick={handleDelete}
             type="button"
+            role="menuitem"
           >
             <DeleteIcon />
             Delete
@@ -673,6 +686,7 @@ function CloseIcon() {
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
+      aria-hidden="true"
     >
       <line x1="5" y1="5" x2="15" y2="15" />
       <line x1="15" y1="5" x2="5" y2="15" />
@@ -688,6 +702,7 @@ function PlusIcon() {
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
+      aria-hidden="true"
     >
       <line x1="8" y1="3" x2="8" y2="13" />
       <line x1="3" y1="8" x2="13" y2="8" />
@@ -706,6 +721,7 @@ function CheckIcon() {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <polyline points="3,10 7,14 15,5" />
     </svg>
@@ -722,6 +738,7 @@ function FileIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M5 2h7l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" />
       <polyline points="12,2 12,6 16,6" />
@@ -741,6 +758,7 @@ function FileEmptyIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M12 4h16l10 10v28a2 2 0 01-2 2H12a2 2 0 01-2-2V6a2 2 0 012-2z" />
       <polyline points="28,4 28,14 38,14" />
@@ -750,7 +768,7 @@ function FileEmptyIcon() {
 
 function MoreVertIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <circle cx="8" cy="3.5" r="1.3" />
       <circle cx="8" cy="8" r="1.3" />
       <circle cx="8" cy="12.5" r="1.3" />
@@ -767,6 +785,7 @@ function RenameIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M11.5 1.5l3 3-9 9H2.5v-3z" />
       <line x1="9" y1="4" x2="12" y2="7" />
@@ -783,6 +802,7 @@ function DeleteIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M2 4h12" />
       <path d="M5 4V2.5A.5.5 0 015.5 2h5a.5.5 0 01.5.5V4" />
@@ -800,6 +820,7 @@ function ImportIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3" />
       <polyline points="4,6 8,2 12,6" />
@@ -819,6 +840,7 @@ function PullArrowIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <line x1="8" y1="2" x2="8" y2="14" />
       <polyline points="3,9 8,14 13,9" />

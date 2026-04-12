@@ -163,19 +163,20 @@ export function MobileSettings({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <polyline points="12,4 6,10 12,16" />
           </svg>
         </button>
-        <span className="msettings-title">Settings</span>
+        <h1 className="msettings-title">Settings</h1>
         <div className="msettings-header-spacer" />
       </header>
 
       {/* Body */}
       <div className="msettings-body">
         {/* ─── Editor Section ─── */}
-        <section className="msettings-section">
-          <h2 className="msettings-section-title">Editor</h2>
+        <section className="msettings-section" aria-labelledby="msettings-editor-title">
+          <h2 className="msettings-section-title" id="msettings-editor-title">Editor</h2>
 
           {/* Font Size */}
           <div className="msettings-row">
@@ -255,6 +256,7 @@ export function MobileSettings({
               }
               role="switch"
               aria-checked={settings.showLineNumbers}
+              aria-label="Line Numbers"
               type="button"
             >
               <span className="msettings-toggle-knob" />
@@ -263,8 +265,8 @@ export function MobileSettings({
         </section>
 
         {/* ─── Theme Section ─── */}
-        <section className="msettings-section">
-          <h2 className="msettings-section-title">Theme</h2>
+        <section className="msettings-section" aria-labelledby="msettings-theme-title">
+          <h2 className="msettings-section-title" id="msettings-theme-title">Theme</h2>
 
           {/* Light / Dark */}
           <div className="msettings-row">
@@ -311,8 +313,8 @@ export function MobileSettings({
         </section>
 
         {/* ─── Writing Section ─── */}
-        <section className="msettings-section">
-          <h2 className="msettings-section-title">Writing</h2>
+        <section className="msettings-section" aria-labelledby="msettings-writing-title">
+          <h2 className="msettings-section-title" id="msettings-writing-title">Writing</h2>
 
           <div className="msettings-row">
             <div className="msettings-label">
@@ -326,6 +328,7 @@ export function MobileSettings({
               onClick={() => updateSetting("autoSave", !settings.autoSave)}
               role="switch"
               aria-checked={settings.autoSave}
+              aria-label="Auto-save"
               type="button"
             >
               <span className="msettings-toggle-knob" />
@@ -339,6 +342,7 @@ export function MobileSettings({
               onClick={() => updateSetting("spellcheck", !settings.spellcheck)}
               role="switch"
               aria-checked={settings.spellcheck}
+              aria-label="Spell Check"
               type="button"
             >
               <span className="msettings-toggle-knob" />
@@ -359,6 +363,7 @@ export function MobileSettings({
               }
               role="switch"
               aria-checked={settings.typewriterMode}
+              aria-label="Typewriter Mode"
               type="button"
             >
               <span className="msettings-toggle-knob" />
@@ -377,6 +382,7 @@ export function MobileSettings({
               onClick={() => updateSetting("focusMode", !settings.focusMode)}
               role="switch"
               aria-checked={settings.focusMode}
+              aria-label="Focus Mode"
               type="button"
             >
               <span className="msettings-toggle-knob" />
@@ -385,8 +391,8 @@ export function MobileSettings({
         </section>
 
         {/* ─── About Section ─── */}
-        <section className="msettings-section msettings-section--about">
-          <h2 className="msettings-section-title">About</h2>
+        <section className="msettings-section msettings-section--about" aria-labelledby="msettings-about-title">
+          <h2 className="msettings-section-title" id="msettings-about-title">About</h2>
 
           <div className="msettings-row">
             <div className="msettings-label">Version</div>
@@ -413,6 +419,7 @@ export function MobileSettings({
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16z" />
                 <path d="M2 10h16" />
@@ -439,6 +446,7 @@ export function MobileSettings({
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <path d="M7.5 16.5c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 18.5 2.5a5.07 5.07 0 0 0-.09-3.72S17.22-1.68 14.5.5a13.38 13.38 0 0 0-7 0C4.78-1.68 3.59-1.22 3.59-1.22A5.07 5.07 0 0 0 3.5 2.5 5.44 5.44 0 0 0 2 6.02c0 5.42 3.3 6.61 6.44 7a3.37 3.37 0 0 0-.94 2.58v3.9" />
               </svg>

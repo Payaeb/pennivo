@@ -35,7 +35,6 @@ import {
   executeTableAction,
   type TableAction,
 } from "../../ui/src/components/Editor/tablePlugin";
-import { TableToolbar } from "../../ui/src/components/TableToolbar/TableToolbar";
 import {
   parseMermaidGantt,
   ganttDataToMermaid,
@@ -46,11 +45,49 @@ import {
 } from "@pennivo/core";
 import { countCharacters } from "../../ui/src/utils/textStats";
 import { MobileToolbar } from "./components/MobileToolbar/MobileToolbar";
-import { MobileFindReplace } from "./components/MobileFindReplace/MobileFindReplace";
-import { MobileCommandPalette, MOBILE_COMMANDS } from "./components/MobileCommandPalette/MobileCommandPalette";
 import { FileBrowser } from "./components/FileBrowser/FileBrowser";
-import { MobileSettings } from "./components/MobileSettings/MobileSettings";
 import { useShareIntent } from "./hooks/useShareIntent";
+
+/* Lazy-loaded components — not needed at startup */
+const LazyMobileFindReplace = lazy(() =>
+  import("./components/MobileFindReplace/MobileFindReplace").then((m) => ({
+    default: m.MobileFindReplace,
+  })),
+);
+
+/* Lazy wrapper that loads both MobileCommandPalette and MOBILE_COMMANDS
+   from the same dynamic import, rendering the palette with commands
+   already wired in. */
+const LazyMobileCommandPaletteWithCommands = lazy(() =>
+  import("./components/MobileCommandPalette/MobileCommandPalette").then(
+    (m) => ({
+      default: function CommandPaletteWrapper(props: {
+        visible: boolean;
+        onSelect: (id: string) => void;
+        onClose: () => void;
+      }) {
+        return (
+          <m.MobileCommandPalette
+            {...props}
+            commands={m.MOBILE_COMMANDS}
+          />
+        );
+      },
+    }),
+  ),
+);
+
+const LazyMobileSettings = lazy(() =>
+  import("./components/MobileSettings/MobileSettings").then((m) => ({
+    default: m.MobileSettings,
+  })),
+);
+
+const LazyTableToolbar = lazy(() =>
+  import("../../ui/src/components/TableToolbar/TableToolbar").then((m) => ({
+    default: m.TableToolbar,
+  })),
+);
 
 const LazySourceEditor = lazy(() =>
   import("../../ui/src/components/SourceEditor/SourceEditor").then((m) => ({
@@ -627,14 +664,18 @@ function MobileEditorContent({
 
   return (
     <>
-      <MobileFindReplace
-        visible={findReplaceOpen}
-        getView={getEditorView}
-        getCmView={getCmView}
-        sourceMode={sourceMode}
-        onClose={onFindReplaceClose}
-      />
-      <main className="mobile-editor-area" ref={scrollRef}>
+      {findReplaceOpen && (
+        <Suspense fallback={null}>
+          <LazyMobileFindReplace
+            visible={findReplaceOpen}
+            getView={getEditorView}
+            getCmView={getCmView}
+            sourceMode={sourceMode}
+            onClose={onFindReplaceClose}
+          />
+        </Suspense>
+      )}
+      <main className="mobile-editor-area" ref={scrollRef} aria-label="Document editor">
         {!sourceMode && (
           <Editor
             initialContent={markdownRef.current}
@@ -667,7 +708,9 @@ function MobileEditorContent({
         visible={!sourceMode}
       />
       {tableToolbarVisible && !sourceMode && (
-        <TableToolbar onAction={handleTableAction} />
+        <Suspense fallback={null}>
+          <LazyTableToolbar onAction={handleTableAction} />
+        </Suspense>
       )}
       {ganttEditor && (
         <Suspense fallback={null}>
@@ -1092,13 +1135,15 @@ export function MobileApp() {
   if (screen === "settings") {
     return (
       <div className="mobile-app">
-        <MobileSettings
-          onBack={handleBackFromSettings}
-          themeMode={mode}
-          colorScheme={colorScheme}
-          onModeChange={setMode}
-          onColorSchemeChange={setColorScheme}
-        />
+        <Suspense fallback={<div className="mobile-loading">Loading settings...</div>}>
+          <LazyMobileSettings
+            onBack={handleBackFromSettings}
+            themeMode={mode}
+            colorScheme={colorScheme}
+            onModeChange={setMode}
+            onColorSchemeChange={setColorScheme}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -1149,9 +1194,12 @@ export function MobileApp() {
           <span
             className={`save-dot save-dot--${saveStatus}`}
             title={saveStatus}
-            aria-label={`Save status: ${saveStatus}`}
+            aria-hidden="true"
           />
-          <span className="mobile-stat">{wordCount}w</span>
+          <span className="sr-only" role="status" aria-live="polite">
+            {saveStatus === "saved" ? "Document saved" : saveStatus === "saving" ? "Saving..." : "Unsaved changes"}
+          </span>
+          <span className="mobile-stat" aria-label={`${wordCount} words`}>{wordCount}w</span>
         </div>
         <div className="mobile-header-right">
           <button
@@ -1202,6 +1250,8 @@ export function MobileApp() {
             aria-label={
               sourceMode ? "Switch to WYSIWYG mode" : "Switch to source mode"
             }
+            aria-pressed={sourceMode}
+            type="button"
           >
             {sourceMode ? "WYSIWYG" : "Source"}
           </button>
@@ -1210,6 +1260,7 @@ export function MobileApp() {
             onClick={() => setShowThemePicker((v) => !v)}
             aria-label="Theme settings"
             aria-expanded={showThemePicker}
+            type="button"
           >
             <svg
               width="18"
@@ -1300,12 +1351,15 @@ export function MobileApp() {
         </div>
       )}
 
-      <MobileCommandPalette
-        visible={commandPaletteOpen}
-        commands={MOBILE_COMMANDS}
-        onSelect={handleCommandSelect}
-        onClose={() => setCommandPaletteOpen(false)}
-      />
+      {commandPaletteOpen && (
+        <Suspense fallback={null}>
+          <LazyMobileCommandPaletteWithCommands
+            visible={commandPaletteOpen}
+            onSelect={handleCommandSelect}
+            onClose={() => setCommandPaletteOpen(false)}
+          />
+        </Suspense>
+      )}
 
       <MilkdownProvider key={editorKey}>
         <MobileEditorContent

@@ -492,6 +492,7 @@ function ChevronUpIcon() {
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <polyline points="4,10 8,6 12,10" />
     </svg>
@@ -507,6 +508,7 @@ function ChevronDownIcon() {
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <polyline points="4,6 8,10 12,6" />
     </svg>
@@ -521,6 +523,7 @@ function CloseIcon() {
       stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
+      aria-hidden="true"
     >
       <line x1="4" y1="4" x2="12" y2="12" />
       <line x1="12" y1="4" x2="4" y2="12" />

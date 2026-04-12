@@ -5,17 +5,35 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- Capacitor ---
+# Keep all Capacitor classes (plugins, bridges, annotations)
+-keep class com.getcapacitor.** { *; }
+-dontwarn com.getcapacitor.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep Capacitor plugin annotations
+-keepattributes *Annotation*
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Pennivo app classes ---
+# Keep all app classes (ShareIntentPlugin, MainActivity, etc.)
+-keep class app.pennivo.editor.** { *; }
+
+# --- WebView JavaScript interfaces ---
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# --- Cordova/Capacitor plugin bridge ---
+-keep public class * extends com.getcapacitor.Plugin {
+    public <methods>;
+}
+
+# --- Preserve line numbers for stack traces ---
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# --- AndroidX ---
+-dontwarn androidx.**
+-keep class androidx.** { *; }
+
+# --- Splash screen ---
+-keep class androidx.core.splashscreen.** { *; }

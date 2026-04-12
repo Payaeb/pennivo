@@ -1,0 +1,63 @@
+Categories:
+  - Writing
+  - Office
+License: MIT
+AuthorName: Paya Ebrahimi
+AuthorWebSite: https://pennivo.app
+SourceCode: https://github.com/Payaeb/pennivo
+IssueTracker: https://github.com/Payaeb/pennivo/issues
+Donate: https://pennivo.app
+
+AutoName: Pennivo
+Description: |
+  Pennivo is a free, open-source markdown editor built for writers who think
+  in markdown.
+
+  Write in a clean, distraction-free WYSIWYG editor that renders your markdown
+  in real time — no preview pane, no split view, just your words on the page.
+  Switch to source mode when you want full control over the raw markdown.
+
+  Features:
+  * WYSIWYG editing powered by Milkdown (ProseMirror + Remark)
+  * Source mode with CodeMirror 6 for direct markdown editing
+  * Full CommonMark and GFM support (tables, task lists, footnotes, math)
+  * Light and dark themes
+  * Mobile-optimized formatting toolbar
+  * Local file management — your files stay on your device
+  * Import files from your device or receive them via share intent
+  * No account required, no cloud sync, no tracking
+
+  Pennivo is MIT-licensed and built entirely in the open. Your writing belongs
+  to you.
+
+RepoType: git
+Repo: https://github.com/Payaeb/pennivo.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0-android
+    subdir: packages/android/android/app
+    sudo:
+      - apt-get update
+      - apt-get install -y npm
+      - npm install -g n
+      - n 20
+      - npm install -g pnpm@latest
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-release-unsigned.apk
+    prebuild:
+      - cd ../../../..
+      - pnpm install --frozen-lockfile
+      - pnpm --filter @pennivo/android build
+      - cd packages/android
+      - npx cap sync android
+    scandelete:
+      - node_modules
+    ndk: false
+
+AutoUpdateMode: None
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1
