@@ -20,6 +20,7 @@ import {
   toggleInlineCodeCommand,
   turnIntoTextCommand,
   liftListItemCommand,
+  sinkListItemCommand,
   insertHrCommand,
 } from "@milkdown/preset-commonmark";
 import {
@@ -30,7 +31,13 @@ import {
   addRowAfterCommand,
 } from "@milkdown/preset-gfm";
 import { lift } from "@milkdown/prose/commands";
-import { Editor, useTheme, getPlatform, COLOR_SCHEMES } from "@pennivo/ui";
+import {
+  Editor,
+  useTheme,
+  getPlatform,
+  COLOR_SCHEMES,
+  LinkActionSheet,
+} from "@pennivo/ui";
 import type { ColorScheme, ThemeMode } from "@pennivo/ui";
 import {
   executeTableAction,
@@ -608,6 +615,12 @@ function MobileEditorContent({
             }
           });
           break;
+        case "indent":
+          editor.action(callCommand(sinkListItemCommand.key));
+          break;
+        case "outdent":
+          editor.action(callCommand(liftListItemCommand.key));
+          break;
         case "blockquote":
           editor.action((ctx) => {
             const view = ctx.get(editorViewCtx);
@@ -676,17 +689,34 @@ function MobileEditorContent({
           break;
         }
         case "image": {
-          // Mobile: platform.pickImage is not supported, so prompt for a URL.
-          const src = window.prompt("Enter image URL:");
-          if (!src) break;
-          editor.action((ctx) => {
-            const view = ctx.get(editorViewCtx);
-            const imageNodeType = view.state.schema.nodes["image"];
-            if (!imageNodeType) return;
-            const imageNode = imageNodeType.create({ src: src.trim(), alt: "" });
-            view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
-            view.focus();
-          });
+          // Try the native image picker first (gallery + camera). If the user
+          // cancels or the platform cannot supply an image, fall back to a URL
+          // prompt so remote image insertion still works.
+          (async () => {
+            const insertSrc = (src: string) => {
+              editor.action((ctx) => {
+                const view = ctx.get(editorViewCtx);
+                const imageNodeType = view.state.schema.nodes["image"];
+                if (!imageNodeType) return;
+                const imageNode = imageNodeType.create({ src, alt: "" });
+                view.dispatch(view.state.tr.replaceSelectionWith(imageNode));
+                view.focus();
+              });
+            };
+            try {
+              const picked = await getPlatform().pickImage("");
+              if (picked) {
+                // On Capacitor, absolutePath is the data URL of the chosen image.
+                insertSrc(picked.absolutePath);
+                return;
+              }
+            } catch (err) {
+              console.error("[Pennivo] pickImage failed:", err);
+            }
+            const src = window.prompt("Enter image URL:");
+            if (!src) return;
+            insertSrc(src.trim());
+          })();
           break;
         }
         case "math": {
@@ -770,6 +800,112 @@ function MobileEditorContent({
     window.addEventListener("pennivo:command", handler);
     return () => window.removeEventListener("pennivo:command", handler);
   }, [handleToolbarAction]);
+
+  // --- Mobile link action sheet ---
+  // The Editor's linkClick plugin dispatches a `pennivo-mobile-link-tap`
+  // CustomEvent when a user taps a link on mobile, carrying { href, from, to }.
+  const [linkSheet, setLinkSheet] = useState<{
+    href: string;
+    from: number;
+    to: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { href: string; from: number; to: number }
+        | undefined;
+      if (!detail) return;
+      setLinkSheet({ href: detail.href, from: detail.from, to: detail.to });
+    };
+    window.addEventListener("pennivo-mobile-link-tap", handler);
+    return () =>
+      window.removeEventListener("pennivo-mobile-link-tap", handler);
+  }, []);
+
+  const closeLinkSheet = useCallback(() => setLinkSheet(null), []);
+
+  const handleLinkOpen = useCallback(() => {
+    if (!linkSheet) return;
+    const url = linkSheet.href;
+    closeLinkSheet();
+    // Capacitor's WebView hands off window.open to the native browser.
+    try {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      getPlatform().openExternal(url);
+    }
+  }, [linkSheet, closeLinkSheet]);
+
+  const handleLinkCopy = useCallback(async () => {
+    if (!linkSheet) return;
+    const url = linkSheet.href;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback for older WebViews
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+    } catch (err) {
+      console.error("[Pennivo] copy link failed:", err);
+    }
+    closeLinkSheet();
+  }, [linkSheet, closeLinkSheet]);
+
+  const handleLinkRemove = useCallback(() => {
+    if (!linkSheet) return;
+    const { from, to } = linkSheet;
+    const editor = getInstance();
+    if (!editor) {
+      closeLinkSheet();
+      return;
+    }
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const linkMarkType = state.schema.marks["link"];
+      if (!linkMarkType) return;
+      view.dispatch(state.tr.removeMark(from, to, linkMarkType));
+    });
+    closeLinkSheet();
+  }, [linkSheet, getInstance, closeLinkSheet]);
+
+  const handleLinkEdit = useCallback(() => {
+    if (!linkSheet) return;
+    const current = linkSheet.href;
+    const { from, to } = linkSheet;
+    closeLinkSheet();
+    // Simple prompt-based edit — mirrors the mobile "insert link" flow
+    // used elsewhere in this file. A full inline edit form can replace this
+    // later without changing the Editor plugin.
+    const next = window.prompt("Edit link URL:", current);
+    if (next == null) return; // cancelled
+    let href = next.trim();
+    if (!href) return;
+    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href)) {
+      href = "https://" + href;
+    }
+    const editor = getInstance();
+    if (!editor) return;
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const linkMarkType = state.schema.marks["link"];
+      if (!linkMarkType) return;
+      const tr = state.tr
+        .removeMark(from, to, linkMarkType)
+        .addMark(from, to, linkMarkType.create({ href }));
+      view.dispatch(tr);
+    });
+  }, [linkSheet, getInstance, closeLinkSheet]);
 
   // Get ProseMirror view for find/replace
   const getEditorView = useCallback((): import("@milkdown/prose/view").EditorView | null => {
@@ -856,6 +992,17 @@ function MobileEditorContent({
           />
         </Suspense>
       )}
+      {linkSheet && (
+        <LinkActionSheet
+          href={linkSheet.href}
+          anchorRect={null}
+          onOpen={handleLinkOpen}
+          onEdit={handleLinkEdit}
+          onCopy={handleLinkCopy}
+          onRemove={handleLinkRemove}
+          onClose={closeLinkSheet}
+        />
+      )}
     </>
   );
 }
@@ -886,6 +1033,7 @@ export function MobileApp() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
 
   const markdownRef = useRef("");
   const filePathRef = useRef(DEFAULT_FILENAME);
@@ -1314,6 +1462,9 @@ export function MobileApp() {
         case "toggleStats":
           setShowStats((v) => !v);
           break;
+        case "focusMode":
+          setFocusMode((v) => !v);
+          break;
         case "exportHtml": {
           const htmlContent = getEditorHtmlRef.current?.();
           if (htmlContent) {
@@ -1396,9 +1547,9 @@ export function MobileApp() {
 
   // Editor screen
   return (
-    <div className="mobile-app">
-      <header className="mobile-header">
-        <div className="mobile-header-left">
+    <div className={`mobile-app${focusMode ? " mobile-app--focus" : ""}`}>
+      {!focusMode && (
+        <header className="mobile-header">
           <button
             className="mobile-back-btn"
             onClick={handleBackToBrowser}
@@ -1427,104 +1578,33 @@ export function MobileApp() {
           <span className="sr-only" role="status" aria-live="polite">
             {saveStatus === "saved" ? "Document saved" : saveStatus === "saving" ? "Saving..." : "Unsaved changes"}
           </span>
-        </div>
-        <div className="mobile-header-right">
-          <button
-            className="mobile-search-btn"
-            onClick={() => setFindReplaceOpen((v) => !v)}
-            aria-label="Find and replace"
-            type="button"
+        </header>
+      )}
+
+      {focusMode && (
+        <button
+          className="mobile-focus-exit"
+          onClick={() => setFocusMode(false)}
+          aria-label="Exit focus mode"
+          type="button"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="8.5" cy="8.5" r="5.5" />
-              <line x1="13" y1="13" x2="18" y2="18" />
-            </svg>
-          </button>
-          <button
-            className="mobile-command-btn"
-            onClick={() => setCommandPaletteOpen(true)}
-            aria-label="Commands"
-            type="button"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="3" y1="6" x2="17" y2="6" />
-              <line x1="3" y1="10" x2="17" y2="10" />
-              <line x1="3" y1="14" x2="17" y2="14" />
-              <polyline points="13,4 17,6 13,8" />
-            </svg>
-          </button>
-          <button
-            className={`mobile-mode-btn ${sourceMode ? "mobile-mode-btn--active" : ""}`}
-            onClick={toggleSourceMode}
-            aria-label={
-              sourceMode ? "Switch to WYSIWYG mode" : "Switch to source mode"
-            }
-            aria-pressed={sourceMode}
-            type="button"
-          >
-            {sourceMode ? "WYSIWYG" : "Source"}
-          </button>
-          <button
-            className="mobile-theme-btn"
-            onClick={() => setShowThemePicker((v) => !v)}
-            aria-label="Theme settings"
-            aria-expanded={showThemePicker}
-            type="button"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="10" cy="10" r="4" />
-              <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" />
-            </svg>
-          </button>
-          <button
-            className="mobile-command-btn"
-            onClick={openSettings}
-            aria-label="Settings"
-            type="button"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="10" cy="10" r="2.5" />
-              <path d="M16.2 12.2a1.5 1.5 0 0 0 .3 1.65l.05.05a1.8 1.8 0 1 1-2.55 2.55l-.05-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.35v.15a1.8 1.8 0 1 1-3.6 0v-.08a1.5 1.5 0 0 0-1-1.35 1.5 1.5 0 0 0-1.65.3l-.05.05a1.8 1.8 0 1 1-2.55-2.55l.05-.05a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.35-.9H1.4a1.8 1.8 0 1 1 0-3.6h.08a1.5 1.5 0 0 0 1.35-1 1.5 1.5 0 0 0-.3-1.65l-.05-.05a1.8 1.8 0 1 1 2.55-2.55l.05.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.35V1.4a1.8 1.8 0 1 1 3.6 0v.08a1.5 1.5 0 0 0 .9 1.35 1.5 1.5 0 0 0 1.65-.3l.05-.05a1.8 1.8 0 1 1 2.55 2.55l-.05.05a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.35.9h.15a1.8 1.8 0 1 1 0 3.6h-.08a1.5 1.5 0 0 0-1.35.9z" />
-            </svg>
-          </button>
-        </div>
-      </header>
+            <polyline points="14,4 18,4 18,8" />
+            <polyline points="6,16 2,16 2,12" />
+            <line x1="18" y1="4" x2="12" y2="10" />
+            <line x1="2" y1="16" x2="8" y2="10" />
+          </svg>
+        </button>
+      )}
 
       {showThemePicker && (
         <div
@@ -1624,26 +1704,126 @@ export function MobileApp() {
         </div>
       )}
 
-      {showStats && (
-        <div
-          className="mobile-statusbar"
-          role="status"
-          onClick={() => setShowStats(false)}
-          aria-label="Document statistics"
-        >
-          <span className="mobile-stat">
-            {wordCount.toLocaleString()} words
-          </span>
-          <span className="mobile-stat-sep">&middot;</span>
-          <span className="mobile-stat">
-            {charCount.toLocaleString()} chars
-          </span>
-          <span className="mobile-stat-sep">&middot;</span>
-          <span className="mobile-stat">
-            {wordCount / 238 < 1
-              ? "< 1 min read"
-              : `${Math.ceil(wordCount / 238)} min read`}
-          </span>
+      {!focusMode && (
+        <div className="mobile-bottombar" aria-label="Editor tools and statistics">
+          <div className="mobile-bottombar-tools">
+            <button
+              className="mobile-search-btn"
+              onClick={() => setFindReplaceOpen((v) => !v)}
+              aria-label="Find and replace"
+              type="button"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="8.5" cy="8.5" r="5.5" />
+                <line x1="13" y1="13" x2="18" y2="18" />
+              </svg>
+            </button>
+            <button
+              className="mobile-command-btn"
+              onClick={() => setCommandPaletteOpen(true)}
+              aria-label="Commands"
+              type="button"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="3" y1="6" x2="17" y2="6" />
+                <line x1="3" y1="10" x2="17" y2="10" />
+                <line x1="3" y1="14" x2="17" y2="14" />
+                <polyline points="13,4 17,6 13,8" />
+              </svg>
+            </button>
+            <button
+              className={`mobile-mode-btn ${sourceMode ? "mobile-mode-btn--active" : ""}`}
+              onClick={toggleSourceMode}
+              aria-label={
+                sourceMode ? "Switch to WYSIWYG mode" : "Switch to source mode"
+              }
+              aria-pressed={sourceMode}
+              type="button"
+            >
+              {sourceMode ? "WYSIWYG" : "Source"}
+            </button>
+            <button
+              className="mobile-theme-btn"
+              onClick={() => setShowThemePicker((v) => !v)}
+              aria-label="Theme settings"
+              aria-expanded={showThemePicker}
+              type="button"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="10" cy="10" r="4" />
+                <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" />
+              </svg>
+            </button>
+            <button
+              className="mobile-command-btn"
+              onClick={openSettings}
+              aria-label="Settings"
+              type="button"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="10" cy="10" r="2.5" />
+                <path d="M16.2 12.2a1.5 1.5 0 0 0 .3 1.65l.05.05a1.8 1.8 0 1 1-2.55 2.55l-.05-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.35v.15a1.8 1.8 0 1 1-3.6 0v-.08a1.5 1.5 0 0 0-1-1.35 1.5 1.5 0 0 0-1.65.3l-.05.05a1.8 1.8 0 1 1-2.55-2.55l.05-.05a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.35-.9H1.4a1.8 1.8 0 1 1 0-3.6h.08a1.5 1.5 0 0 0 1.35-1 1.5 1.5 0 0 0-.3-1.65l-.05-.05a1.8 1.8 0 1 1 2.55-2.55l.05.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.35V1.4a1.8 1.8 0 1 1 3.6 0v.08a1.5 1.5 0 0 0 .9 1.35 1.5 1.5 0 0 0 1.65-.3l.05-.05a1.8 1.8 0 1 1 2.55 2.55l-.05.05a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.35.9h.15a1.8 1.8 0 1 1 0 3.6h-.08a1.5 1.5 0 0 0-1.35.9z" />
+              </svg>
+            </button>
+          </div>
+          {showStats && (
+            <div
+              className="mobile-bottombar-stats"
+              role="status"
+              onClick={() => setShowStats(false)}
+              aria-label="Document statistics"
+            >
+              <span className="mobile-stat">
+                {wordCount.toLocaleString()}w
+              </span>
+              <span className="mobile-stat-sep">&middot;</span>
+              <span className="mobile-stat">
+                {charCount.toLocaleString()}c
+              </span>
+              <span className="mobile-stat-sep">&middot;</span>
+              <span className="mobile-stat">
+                {wordCount / 238 < 1
+                  ? "<1m"
+                  : `${Math.ceil(wordCount / 238)}m`}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

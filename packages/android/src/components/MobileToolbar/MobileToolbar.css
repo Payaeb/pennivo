@@ -74,6 +74,13 @@
   background: var(--accent-hover);
 }
 
+/* Dimmed state — used for context-dependent actions (indent/outdent)
+   when the cursor is not in a list. Still tappable so users get a
+   gentle no-op rather than a disabled/inaccessible control. */
+.mobile-toolbar__btn--dimmed {
+  opacity: 0.35;
+}
+
 /* SVG icon sizing inside buttons */
 .mobile-toolbar__btn svg {
   width: 18px;

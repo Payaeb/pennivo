@@ -10,6 +10,8 @@ export type MobileToolbarAction =
   | "bulletList"
   | "orderedList"
   | "taskList"
+  | "indent"
+  | "outdent"
   | "code"
   | "blockquote"
   | "table";
@@ -42,6 +44,8 @@ const PRIMARY_ACTIONS: {
   { action: "bulletList", label: "Bullet List", icon: <BulletListIcon /> },
   { action: "orderedList", label: "Ordered List", icon: <OrderedListIcon /> },
   { action: "taskList", label: "Task List", icon: <TaskListIcon /> },
+  { action: "outdent", label: "Outdent", icon: <OutdentIcon /> },
+  { action: "indent", label: "Indent", icon: <IndentIcon /> },
   { action: "code", label: "Code", icon: <CodeIcon /> },
 ];
 
@@ -127,23 +131,36 @@ export function MobileToolbar({
     .filter(Boolean)
     .join(" ");
 
+  const inList =
+    activeFormats.has("bulletList") ||
+    activeFormats.has("orderedList") ||
+    activeFormats.has("taskList");
+
+  const isIndentAction = (a: MobileToolbarAction) =>
+    a === "indent" || a === "outdent";
+
   return (
     <div className={toolbarClass} role="toolbar" aria-label="Formatting">
       {/* Primary row */}
       <div className="mobile-toolbar__row">
-        {PRIMARY_ACTIONS.map(({ action, label, icon }) => (
-          <button
-            key={`primary-${action}`}
-            className={`mobile-toolbar__btn${activeFormats.has(action) ? " mobile-toolbar__btn--active" : ""}`}
-            onClick={() => handleAction(action)}
-            onMouseDown={(e) => e.preventDefault()}
-            aria-label={label}
-            aria-pressed={activeFormats.has(action)}
-            type="button"
-          >
-            {icon}
-          </button>
-        ))}
+        {PRIMARY_ACTIONS.map(({ action, label, icon }) => {
+          const indentBtn = isIndentAction(action);
+          const dimmed = indentBtn && !inList;
+          return (
+            <button
+              key={`primary-${action}`}
+              className={`mobile-toolbar__btn${activeFormats.has(action) ? " mobile-toolbar__btn--active" : ""}${dimmed ? " mobile-toolbar__btn--dimmed" : ""}`}
+              onClick={() => handleAction(action)}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label={label}
+              aria-pressed={indentBtn ? undefined : activeFormats.has(action)}
+              aria-disabled={dimmed || undefined}
+              type="button"
+            >
+              {icon}
+            </button>
+          );
+        })}
         <button
           className={`mobile-toolbar__btn mobile-toolbar__btn-more${expanded ? " mobile-toolbar__btn--active" : ""}`}
           onClick={toggleExpanded}
@@ -237,6 +254,44 @@ function TaskListIcon() {
       <line x1="8" y1="6" x2="14" y2="6" />
       <rect x="1.5" y="9.5" width="4" height="4" rx="0.8" />
       <line x1="8" y1="11.5" x2="14" y2="11.5" />
+    </svg>
+  );
+}
+
+function IndentIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="2" y1="3.5" x2="14" y2="3.5" />
+      <line x1="7" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12.5" x2="14" y2="12.5" />
+      <polyline points="2,6 4.5,8 2,10" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function OutdentIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="2" y1="3.5" x2="14" y2="3.5" />
+      <line x1="7" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12.5" x2="14" y2="12.5" />
+      <polyline points="6,6 3.5,8 6,10" fill="currentColor" stroke="none" />
     </svg>
   );
 }

@@ -350,12 +350,109 @@ export function Editor({
         }),
     );
 
-    // Ctrl+Click to follow links, hover to show URL preview
+    // Ctrl+Click to follow links (desktop), hover to show URL preview.
+    // On mobile (Capacitor), a single tap on a link emits a custom event
+    // so the mobile shell can show an action sheet (Open / Edit / Copy / Remove).
+    const isMobileRuntime = getPlatform().platformName === "capacitor";
+
+    // Find the [from, to] range of the link mark that contains `pos`, if any.
+    function findLinkRange(
+      doc: import("@milkdown/prose/model").Node,
+      pos: number,
+    ): { from: number; to: number; href: string } | null {
+      const $pos = doc.resolve(pos);
+      const linkMark = $pos.marks().find((m) => m.type.name === "link");
+      if (!linkMark) return null;
+      const parent = $pos.parent;
+      const parentStart = $pos.start();
+
+      let from = pos;
+      let to = pos;
+      let found = false;
+      parent.forEach((child, offset) => {
+        const childStart = parentStart + offset;
+        const childEnd = childStart + child.nodeSize;
+        if (childStart <= pos && pos <= childEnd) {
+          const hasLink = child.marks.some(
+            (m) =>
+              m.type.name === "link" &&
+              m.attrs["href"] === linkMark.attrs["href"],
+          );
+          if (hasLink) {
+            from = childStart;
+            to = childEnd;
+            found = true;
+          }
+        }
+      });
+
+      // Extend left/right across adjacent text nodes that share the same link mark
+      if (found) {
+        let i = from;
+        while (i > parentStart) {
+          const prev = doc.resolve(i - 1);
+          const sameLink = prev
+            .marks()
+            .some(
+              (m) =>
+                m.type.name === "link" &&
+                m.attrs["href"] === linkMark.attrs["href"],
+            );
+          if (!sameLink) break;
+          i -= 1;
+        }
+        from = i;
+
+        let j = to;
+        const parentEnd = parentStart + parent.content.size;
+        while (j < parentEnd) {
+          const next = doc.resolve(j);
+          const sameLink = next
+            .marks()
+            .some(
+              (m) =>
+                m.type.name === "link" &&
+                m.attrs["href"] === linkMark.attrs["href"],
+            );
+          if (!sameLink) break;
+          j += 1;
+        }
+        to = j;
+      }
+
+      return {
+        from,
+        to,
+        href: linkMark.attrs["href"] as string,
+      };
+    }
+
     const linkClick = $prose(
       () =>
         new Plugin({
           props: {
             handleClick: (view, pos, event) => {
+              // Mobile: plain tap on a link opens the action sheet.
+              if (isMobileRuntime) {
+                const range = findLinkRange(view.state.doc, pos);
+                if (!range || !range.href) return false;
+                const coords = view.coordsAtPos(pos);
+                const detail = {
+                  href: range.href,
+                  from: range.from,
+                  to: range.to,
+                  anchorRect: {
+                    top: coords.bottom,
+                    left: coords.left,
+                  },
+                };
+                window.dispatchEvent(
+                  new CustomEvent("pennivo-mobile-link-tap", { detail }),
+                );
+                event.preventDefault();
+                return true;
+              }
+
               if (!(event.ctrlKey || event.metaKey)) return false;
               const { doc } = view.state;
               const $pos = doc.resolve(pos);
@@ -370,6 +467,9 @@ export function Editor({
             },
             handleDOMEvents: {
               mousemove: (view, event) => {
+                // Hover preview is desktop-only — on mobile, taps surface the
+                // action sheet instead.
+                if (isMobileRuntime) return false;
                 const pos = view.posAtCoords({
                   left: event.clientX,
                   top: event.clientY,

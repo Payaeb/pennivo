@@ -367,6 +367,28 @@ function HorizontalRuleIcon() {
   );
 }
 
+function IndentIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="2" y1="3.5" x2="14" y2="3.5" />
+      <line x1="7" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12.5" x2="14" y2="12.5" />
+      <polyline points="2,6 4.5,8 2,10" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function OutdentIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="2" y1="3.5" x2="14" y2="3.5" />
+      <line x1="7" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12.5" x2="14" y2="12.5" />
+      <polyline points="6,6 3.5,8 6,10" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function LinkIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -383,6 +405,17 @@ function ImageIcon() {
       <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
       <circle cx="5.5" cy="6" r="1" />
       <path d="M2 11l3-3 4 3 2-2 3 3" />
+    </svg>
+  );
+}
+
+function FocusModeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="2,5 2,2 5,2" />
+      <polyline points="11,2 14,2 14,5" />
+      <polyline points="14,11 14,14 11,14" />
+      <polyline points="5,14 2,14 2,11" />
     </svg>
   );
 }
@@ -410,6 +443,8 @@ export const MOBILE_COMMANDS: MobileCommand[] = [
   { id: "h2", label: "Heading 2", category: "Format", keywords: "subtitle header", icon: <FormatIcon /> },
   { id: "bulletList", label: "Bullet List", category: "Format", keywords: "unordered", icon: <FormatIcon /> },
   { id: "orderedList", label: "Ordered List", category: "Format", keywords: "numbered", icon: <FormatIcon /> },
+  { id: "indent", label: "Indent", category: "Format", keywords: "indent nest tab deeper list", icon: <IndentIcon /> },
+  { id: "outdent", label: "Outdent", category: "Format", keywords: "outdent unindent shift tab shallower list", icon: <OutdentIcon /> },
   { id: "blockquote", label: "Blockquote", category: "Format", keywords: "quote", icon: <FormatIcon /> },
   { id: "code", label: "Code", category: "Format", keywords: "inline block", icon: <FormatIcon /> },
   // Insert
@@ -428,6 +463,7 @@ export const MOBILE_COMMANDS: MobileCommand[] = [
   { id: "toggleTheme", label: "Toggle Theme", category: "View", keywords: "dark light mode", icon: <ThemeIcon /> },
   { id: "findReplace", label: "Find & Replace", shortcut: "Ctrl+F", category: "View", keywords: "search", icon: <SearchIcon /> },
   { id: "toggleStats", label: "Toggle Word Count", category: "View", keywords: "word count character stats reading time hide show", icon: <ViewIcon /> },
+  { id: "focusMode", label: "Toggle Focus Mode", category: "View", keywords: "focus distraction free zen hide bars fullscreen immersive", icon: <FocusModeIcon /> },
   // Export
   { id: "exportHtml", label: "Export as HTML", category: "Export", keywords: "share html web", icon: <ExportIcon /> },
   { id: "exportPdf", label: "Export as PDF", category: "Export", keywords: "print pdf save", icon: <ExportIcon /> },

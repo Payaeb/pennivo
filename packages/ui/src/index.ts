@@ -21,3 +21,5 @@ export {
   cmFindExtension,
 } from "./components/FindReplace/cmFindReplace";
 export { wrapHtmlWithStyles } from "./utils/exportHtml";
+export { LinkActionSheet } from "./components/LinkActionSheet/LinkActionSheet";
+export type { LinkActionSheetProps } from "./components/LinkActionSheet/LinkActionSheet";

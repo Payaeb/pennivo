@@ -138,6 +138,106 @@ const PREF_TOOLBAR_CONFIG = 'pennivo_toolbar_config';
 const MAX_RECENT_FILES = 10;
 
 /**
+ * Opens the system image picker (gallery + camera) using a hidden <input type="file">.
+ * Capacitor WebViews delegate image inputs to the native Android image picker, which
+ * offers "Choose from gallery" and "Take a photo" options.
+ *
+ * Returns a data URL that can be embedded directly in markdown as an image src.
+ * Handles cancellation gracefully (returns null).
+ */
+function pickImageViaInput(): Promise<{
+  relativePath: string;
+  absolutePath: string;
+} | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    // capture="environment" hints the back camera for the "take photo" option.
+    // Android still shows the gallery picker alongside it.
+    input.setAttribute('capture', 'environment');
+    input.style.display = 'none';
+
+    let settled = false;
+
+    const cleanup = () => {
+      input.removeEventListener('change', onChange);
+      input.removeEventListener('cancel', onCancel);
+      window.removeEventListener('focus', onWindowFocus);
+      if (input.parentNode) input.parentNode.removeChild(input);
+    };
+
+    const onChange = () => {
+      if (settled) return;
+      settled = true;
+      const file = input.files?.[0];
+      if (!file) {
+        cleanup();
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl =
+          typeof reader.result === 'string' ? reader.result : null;
+        cleanup();
+        if (!dataUrl) {
+          resolve(null);
+          return;
+        }
+        // Warn (non-blocking) if the image is large — embedding huge data URLs
+        // in markdown can slow the editor. v1 still proceeds; future work can
+        // compress via canvas or save to Filesystem.
+        if (file.size > 500 * 1024) {
+          console.warn(
+            `[Pennivo] Inserting large image (${Math.round(
+              file.size / 1024,
+            )}KB) as data URL — editor performance may degrade.`,
+          );
+        }
+        // Desktop returns { relativePath, absolutePath } where the caller uses
+        // absolutePath to build a pennivo-file:// URL. On mobile there is no
+        // local filesystem reference, so we hand back the data URL in both
+        // fields — callers that know they're on mobile will use it directly.
+        resolve({ relativePath: dataUrl, absolutePath: dataUrl });
+      };
+      reader.onerror = () => {
+        console.error('[Pennivo] pickImage FileReader failed:', reader.error);
+        cleanup();
+        resolve(null);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const onCancel = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(null);
+    };
+
+    // Fallback: if the user dismisses the picker, focus returns to the window
+    // without a change event. Delayed focus handler catches this.
+    const onWindowFocus = () => {
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          resolve(null);
+        }
+      }, 500);
+    };
+
+    input.addEventListener('change', onChange);
+    input.addEventListener('cancel', onCancel);
+    window.addEventListener('focus', onWindowFocus);
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+/**
  * Opens the system file picker (SAF on Android) using a hidden <input type="file">.
  * Capacitor WebViews delegate file inputs to the native picker, so this triggers
  * the full Android SAF document picker without needing a third-party plugin.
@@ -242,9 +342,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
     saveImage: (_filePath, _buffer, _mimeType) => {
       notSupported('saveImage');
     },
-    pickImage: (_filePath) => {
-      notSupported('pickImage');
-    },
+    pickImage: (_filePath) => pickImageViaInput(),
 
     openFile: async () => {
       // On Android, openFile delegates to the SAF picker
