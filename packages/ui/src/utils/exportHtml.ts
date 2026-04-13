@@ -13,22 +13,22 @@
  */
 export function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
   // Convert pennivo-file:// protocol URLs to file:// for standalone HTML
-  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, 'file:///');
+  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///");
 
   // Override dark-mode fill colors in mermaid SVG <style> blocks for light export background
   html = html.replace(
     /(<style>[^<]*?{[^}]*?)fill:#[Ee][0-9A-Fa-f]{5};/g,
-    '$1fill:#1A1A18;',
+    "$1fill:#1A1A18;",
   );
 
   // Fix bare domain hrefs — add https:// if no protocol
   html = html.replace(/href="([^"]+)"/g, (match, href: string) => {
     if (
       /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||
-      href.startsWith('#') ||
-      href.startsWith('/') ||
-      href.startsWith('./') ||
-      href.startsWith('../')
+      href.startsWith("#") ||
+      href.startsWith("/") ||
+      href.startsWith("./") ||
+      href.startsWith("../")
     ) {
       return match;
     }
@@ -36,9 +36,9 @@ export function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
   });
 
   const safeTitle = title
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
   return `<!DOCTYPE html>
 <html lang="en">

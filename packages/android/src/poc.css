@@ -6,7 +6,9 @@
   --sai-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -20,7 +22,8 @@ html, body, #root {
 [data-theme="dark"] {
   color-scheme: dark;
 }
-[data-theme="light"], :root {
+[data-theme="light"],
+:root {
   color-scheme: light;
 }
 
@@ -30,7 +33,9 @@ html, body, #root {
   height: 100%;
   padding-top: var(--sai-top);
   background: var(--bg);
-  transition: background var(--transition-base), color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    color var(--transition-base);
 }
 
 .poc-header {

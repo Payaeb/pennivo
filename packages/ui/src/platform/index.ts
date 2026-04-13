@@ -1,9 +1,9 @@
-import { createElectronPlatform } from './electronPlatform';
-import { createCapacitorPlatform } from './capacitorPlatform';
-import { createWebPlatform } from './webPlatform';
-import type { PennivoPlatform } from './platform';
+import { createElectronPlatform } from "./electronPlatform";
+import { createCapacitorPlatform } from "./capacitorPlatform";
+import { createWebPlatform } from "./webPlatform";
+import type { PennivoPlatform } from "./platform";
 
-export type { PennivoPlatform, FileTreeEntry } from './platform';
+export type { PennivoPlatform, FileTreeEntry } from "./platform";
 
 let _platform: PennivoPlatform | null = null;
 
@@ -15,17 +15,17 @@ let _platform: PennivoPlatform | null = null;
  * is opened in a regular browser without Capacitor, this global is absent.
  */
 function isCapacitorRuntime(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === "undefined") return false;
   const cap = (window as unknown as { Capacitor?: unknown }).Capacitor as
     | { isNativePlatform?: () => boolean; getPlatform?: () => string }
     | undefined;
   if (!cap) return false;
   try {
-    if (typeof cap.isNativePlatform === 'function') {
+    if (typeof cap.isNativePlatform === "function") {
       return cap.isNativePlatform();
     }
-    if (typeof cap.getPlatform === 'function') {
-      return cap.getPlatform() !== 'web';
+    if (typeof cap.getPlatform === "function") {
+      return cap.getPlatform() !== "web";
     }
   } catch {
     return false;
@@ -35,7 +35,7 @@ function isCapacitorRuntime(): boolean {
 
 export function getPlatform(): PennivoPlatform {
   if (!_platform) {
-    if (typeof window !== 'undefined' && window.pennivo) {
+    if (typeof window !== "undefined" && window.pennivo) {
       _platform = createElectronPlatform();
     } else if (isCapacitorRuntime()) {
       _platform = createCapacitorPlatform();

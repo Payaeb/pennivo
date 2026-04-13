@@ -1,5 +1,5 @@
-import type { PennivoPlatform } from './platform';
-import { wrapHtmlWithStyles } from '../utils/exportHtml';
+import type { PennivoPlatform } from "./platform";
+import { wrapHtmlWithStyles } from "../utils/exportHtml";
 
 const noop = () => {};
 
@@ -9,9 +9,8 @@ function notSupported(feature: string): never {
 
 // Dynamic imports — only resolved at runtime on Android, never bundled for desktop
 async function getFilesystem() {
-  const { Filesystem, Directory, Encoding } = await import(
-    '@capacitor/filesystem'
-  );
+  const { Filesystem, Directory, Encoding } =
+    await import("@capacitor/filesystem");
   return { Filesystem, Directory, Encoding };
 }
 
@@ -23,8 +22,8 @@ async function shareHtmlFile(
   styledHtml: string,
   fileName: string,
 ): Promise<string | null> {
-  const blob = new Blob([styledHtml], { type: 'text/html' });
-  const file = new File([blob], fileName, { type: 'text/html' });
+  const blob = new Blob([styledHtml], { type: "text/html" });
+  const file = new File([blob], fileName, { type: "text/html" });
 
   // Prefer Web Share API with file support (available on modern Android WebViews)
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -36,10 +35,10 @@ async function shareHtmlFile(
       return fileName;
     } catch (err) {
       // User cancelled the share — not an error
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === "AbortError") {
         return null;
       }
-      console.error('[Pennivo] Web Share failed:', err);
+      console.error("[Pennivo] Web Share failed:", err);
     }
   }
 
@@ -55,7 +54,7 @@ async function shareHtmlFile(
     });
     return fileName;
   } catch (err) {
-    console.error('[Pennivo] exportHtml fallback write failed:', err);
+    console.error("[Pennivo] exportHtml fallback write failed:", err);
     return null;
   }
 }
@@ -66,13 +65,13 @@ async function shareHtmlFile(
  */
 function printHtmlAsPdf(styledHtml: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.top = '-10000px';
-    iframe.style.left = '-10000px';
-    iframe.style.width = '800px';
-    iframe.style.height = '600px';
-    iframe.style.border = 'none';
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.top = "-10000px";
+    iframe.style.left = "-10000px";
+    iframe.style.width = "800px";
+    iframe.style.height = "600px";
+    iframe.style.border = "none";
 
     const cleanup = () => {
       if (iframe.parentNode) {
@@ -97,15 +96,15 @@ function printHtmlAsPdf(styledHtml: string): Promise<string | null> {
             // the user has either printed/saved or cancelled.
             // Clean up after a brief delay to let the print dialog finish.
             setTimeout(cleanup, 1000);
-            resolve('pdf');
+            resolve("pdf");
           } catch (printErr) {
-            console.error('[Pennivo] print() failed:', printErr);
+            console.error("[Pennivo] print() failed:", printErr);
             cleanup();
             resolve(null);
           }
         }, 300);
       } catch (err) {
-        console.error('[Pennivo] iframe print setup failed:', err);
+        console.error("[Pennivo] iframe print setup failed:", err);
         cleanup();
         resolve(null);
       }
@@ -127,14 +126,14 @@ function printHtmlAsPdf(styledHtml: string): Promise<string | null> {
 }
 
 async function getPreferences() {
-  const { Preferences } = await import('@capacitor/preferences');
+  const { Preferences } = await import("@capacitor/preferences");
   return { Preferences };
 }
 
 // Preference key constants
-const PREF_RECENT_FILES = 'pennivo_recent_files';
-const PREF_SETTINGS = 'pennivo_settings';
-const PREF_TOOLBAR_CONFIG = 'pennivo_toolbar_config';
+const PREF_RECENT_FILES = "pennivo_recent_files";
+const PREF_SETTINGS = "pennivo_settings";
+const PREF_TOOLBAR_CONFIG = "pennivo_toolbar_config";
 const MAX_RECENT_FILES = 10;
 
 /**
@@ -154,21 +153,21 @@ async function compressImage(dataUrl: string): Promise<string> {
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) {
         resolve(dataUrl);
         return;
       }
       try {
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+        const compressed = canvas.toDataURL("image/jpeg", 0.82);
         // If compression made it bigger (e.g. small PNG), keep the original.
         resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
       } catch (err) {
-        console.warn('[Pennivo] compressImage drawImage failed:', err);
+        console.warn("[Pennivo] compressImage drawImage failed:", err);
         resolve(dataUrl);
       }
     };
@@ -194,19 +193,19 @@ function pickImageViaInput(): Promise<{
   absolutePath: string;
 } | null> {
   return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
     // Intentionally no `capture` attribute — that would force camera-only mode.
     // With just accept="image/*", Android shows both gallery and camera options.
-    input.style.display = 'none';
+    input.style.display = "none";
 
     let settled = false;
 
     const cleanup = () => {
-      input.removeEventListener('change', onChange);
-      input.removeEventListener('cancel', onCancel);
-      window.removeEventListener('focus', onWindowFocus);
+      input.removeEventListener("change", onChange);
+      input.removeEventListener("cancel", onCancel);
+      window.removeEventListener("focus", onWindowFocus);
       if (input.parentNode) input.parentNode.removeChild(input);
     };
 
@@ -222,7 +221,7 @@ function pickImageViaInput(): Promise<{
       const reader = new FileReader();
       reader.onload = async () => {
         const dataUrl =
-          typeof reader.result === 'string' ? reader.result : null;
+          typeof reader.result === "string" ? reader.result : null;
         cleanup();
         if (!dataUrl) {
           resolve(null);
@@ -230,7 +229,7 @@ function pickImageViaInput(): Promise<{
         }
         // Skip compression for GIFs (would lose animation) and for small images
         // (< 500KB) to preserve quality. Everything else gets downscaled+re-encoded.
-        const isGif = file.type === 'image/gif';
+        const isGif = file.type === "image/gif";
         const isSmall = file.size < 500 * 1024;
         let finalDataUrl = dataUrl;
         if (!isGif && !isSmall) {
@@ -238,7 +237,7 @@ function pickImageViaInput(): Promise<{
             finalDataUrl = await compressImage(dataUrl);
           } catch (err) {
             console.warn(
-              '[Pennivo] compressImage failed, using original:',
+              "[Pennivo] compressImage failed, using original:",
               err,
             );
             finalDataUrl = dataUrl;
@@ -251,7 +250,7 @@ function pickImageViaInput(): Promise<{
         resolve({ relativePath: finalDataUrl, absolutePath: finalDataUrl });
       };
       reader.onerror = () => {
-        console.error('[Pennivo] pickImage FileReader failed:', reader.error);
+        console.error("[Pennivo] pickImage FileReader failed:", reader.error);
         cleanup();
         resolve(null);
       };
@@ -277,9 +276,9 @@ function pickImageViaInput(): Promise<{
       }, 500);
     };
 
-    input.addEventListener('change', onChange);
-    input.addEventListener('cancel', onCancel);
-    window.addEventListener('focus', onWindowFocus);
+    input.addEventListener("change", onChange);
+    input.addEventListener("cancel", onCancel);
+    window.addEventListener("focus", onWindowFocus);
 
     document.body.appendChild(input);
     input.click();
@@ -297,17 +296,17 @@ function pickFileViaSAF(): Promise<{
   name: string;
 } | null> {
   return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.md,.markdown,.txt,text/markdown,text/plain';
-    input.style.display = 'none';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".md,.markdown,.txt,text/markdown,text/plain";
+    input.style.display = "none";
 
     let settled = false;
 
     const cleanup = () => {
-      input.removeEventListener('change', onChange);
-      input.removeEventListener('cancel', onCancel);
-      window.removeEventListener('focus', onWindowFocus);
+      input.removeEventListener("change", onChange);
+      input.removeEventListener("cancel", onCancel);
+      window.removeEventListener("focus", onWindowFocus);
       if (input.parentNode) input.parentNode.removeChild(input);
     };
 
@@ -322,11 +321,11 @@ function pickFileViaSAF(): Promise<{
       }
       try {
         const content = await file.text();
-        const name = file.name || 'imported.md';
+        const name = file.name || "imported.md";
         cleanup();
         resolve({ filePath: name, content, name });
       } catch (err) {
-        console.error('[Pennivo] pickFileViaSAF read failed:', err);
+        console.error("[Pennivo] pickFileViaSAF read failed:", err);
         cleanup();
         resolve(null);
       }
@@ -351,9 +350,9 @@ function pickFileViaSAF(): Promise<{
       }, 500);
     };
 
-    input.addEventListener('change', onChange);
-    input.addEventListener('cancel', onCancel);
-    window.addEventListener('focus', onWindowFocus);
+    input.addEventListener("change", onChange);
+    input.addEventListener("cancel", onCancel);
+    window.addEventListener("focus", onWindowFocus);
 
     document.body.appendChild(input);
     input.click();
@@ -362,11 +361,11 @@ function pickFileViaSAF(): Promise<{
 
 export function createCapacitorPlatform(): PennivoPlatform {
   return {
-    platformName: 'capacitor',
+    platformName: "capacitor",
 
     // Platform info
-    platform: 'capacitor',
-    getPathForFile: () => '',
+    platform: "capacitor",
+    getPathForFile: () => "",
 
     // Window controls — no-op on mobile
     minimize: noop,
@@ -384,12 +383,12 @@ export function createCapacitorPlatform(): PennivoPlatform {
     // External links
     openExternal: (url) => {
       // TODO: implement with Capacitor Browser plugin
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     },
 
     // File I/O
     saveImage: (_filePath, _buffer, _mimeType) => {
-      notSupported('saveImage');
+      notSupported("saveImage");
     },
     pickImage: (_filePath) => pickImageViaInput(),
 
@@ -416,7 +415,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return true;
       } catch (err) {
-        console.error('[Pennivo] saveFile failed:', err);
+        console.error("[Pennivo] saveFile failed:", err);
         return false;
       }
     },
@@ -435,7 +434,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return filename;
       } catch (err) {
-        console.error('[Pennivo] saveFileAs failed:', err);
+        console.error("[Pennivo] saveFileAs failed:", err);
         return null;
       }
     },
@@ -457,7 +456,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         if (!value) return [];
         return JSON.parse(value) as string[];
       } catch (err) {
-        console.error('[Pennivo] getRecentFiles failed:', err);
+        console.error("[Pennivo] getRecentFiles failed:", err);
         return [];
       }
     },
@@ -475,7 +474,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return updated;
       } catch (err) {
-        console.error('[Pennivo] addRecentFile failed:', err);
+        console.error("[Pennivo] addRecentFile failed:", err);
         return [];
       }
     },
@@ -489,7 +488,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return [];
       } catch (err) {
-        console.error('[Pennivo] clearRecentFiles failed:', err);
+        console.error("[Pennivo] clearRecentFiles failed:", err);
         return [];
       }
     },
@@ -503,12 +502,12 @@ export function createCapacitorPlatform(): PennivoPlatform {
           encoding: Encoding.UTF8,
         });
         const data =
-          typeof result.data === 'string'
+          typeof result.data === "string"
             ? result.data
             : await (result.data as Blob).text();
         return { filePath, content: data, fileSize: data.length };
       } catch (err) {
-        console.error('[Pennivo] openFilePath failed:', err);
+        console.error("[Pennivo] openFilePath failed:", err);
         return null;
       }
     },
@@ -516,7 +515,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
     // Export
     exportHtml: async (html, title) => {
       const styledHtml = wrapHtmlWithStyles(html, title);
-      const fileName = title.replace(/\.md$/i, '') + '.html';
+      const fileName = title.replace(/\.md$/i, "") + ".html";
       return shareHtmlFile(styledHtml, fileName);
     },
 
@@ -530,19 +529,19 @@ export function createCapacitorPlatform(): PennivoPlatform {
 
     // Sidebar — not supported yet
     getSidebarFolder: () => {
-      notSupported('getSidebarFolder');
+      notSupported("getSidebarFolder");
     },
     setSidebarFolder: (_folderPath) => {
-      notSupported('setSidebarFolder');
+      notSupported("setSidebarFolder");
     },
     chooseSidebarFolder: () => {
-      notSupported('chooseSidebarFolder');
+      notSupported("chooseSidebarFolder");
     },
     readDirectory: (_folderPath) => {
-      notSupported('readDirectory');
+      notSupported("readDirectory");
     },
     onSidebarFolderChanged: (_cb) => {
-      notSupported('onSidebarFolderChanged');
+      notSupported("onSidebarFolderChanged");
     },
 
     // Toolbar config
@@ -553,7 +552,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         if (!value) return null;
         return JSON.parse(value) as string[];
       } catch (err) {
-        console.error('[Pennivo] getToolbarConfig failed:', err);
+        console.error("[Pennivo] getToolbarConfig failed:", err);
         return null;
       }
     },
@@ -566,22 +565,22 @@ export function createCapacitorPlatform(): PennivoPlatform {
           value: JSON.stringify(actions),
         });
       } catch (err) {
-        console.error('[Pennivo] setToolbarConfig failed:', err);
+        console.error("[Pennivo] setToolbarConfig failed:", err);
       }
     },
 
     // Spellcheck — not supported yet
     getSpellCheckLanguages: () => {
-      notSupported('getSpellCheckLanguages');
+      notSupported("getSpellCheckLanguages");
     },
     getAvailableSpellLanguages: () => {
-      notSupported('getAvailableSpellLanguages');
+      notSupported("getAvailableSpellLanguages");
     },
     setSpellCheckLanguages: (_languages) => {
-      notSupported('setSpellCheckLanguages');
+      notSupported("setSpellCheckLanguages");
     },
     addWordToDictionary: (_word) => {
-      notSupported('addWordToDictionary');
+      notSupported("addWordToDictionary");
     },
 
     // Settings
@@ -592,7 +591,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         if (!value) return {};
         return JSON.parse(value) as Record<string, unknown>;
       } catch (err) {
-        console.error('[Pennivo] getSettings failed:', err);
+        console.error("[Pennivo] getSettings failed:", err);
         return {};
       }
     },
@@ -610,13 +609,13 @@ export function createCapacitorPlatform(): PennivoPlatform {
           value: JSON.stringify(merged),
         });
       } catch (err) {
-        console.error('[Pennivo] setSettings failed:', err);
+        console.error("[Pennivo] setSettings failed:", err);
       }
     },
 
     // App info
     getAppInfo: async () => {
-      return { version: '0.1.0', name: 'Pennivo' };
+      return { version: "0.1.0", name: "Pennivo" };
     },
 
     // File-from-OS — no-op on mobile
@@ -635,11 +634,11 @@ export function createCapacitorPlatform(): PennivoPlatform {
       try {
         const { Filesystem, Directory } = await getFilesystem();
         const result = await Filesystem.readdir({
-          path: _directory || '',
+          path: _directory || "",
           directory: Directory.Documents,
         });
         const mdFiles = result.files.filter(
-          (f) => f.type === 'file' && f.name.endsWith('.md'),
+          (f) => f.type === "file" && f.name.endsWith(".md"),
         );
         const entries = mdFiles.map((f) => ({
           name: f.name,
@@ -650,7 +649,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         entries.sort((a, b) => b.modified - a.modified);
         return entries;
       } catch (err) {
-        console.error('[Pennivo] listFiles failed:', err);
+        console.error("[Pennivo] listFiles failed:", err);
         return [];
       }
     },
@@ -658,17 +657,17 @@ export function createCapacitorPlatform(): PennivoPlatform {
     createFile: async (fileName) => {
       try {
         const { Filesystem, Directory, Encoding } = await getFilesystem();
-        const safeName = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
+        const safeName = fileName.endsWith(".md") ? fileName : `${fileName}.md`;
         await Filesystem.writeFile({
           path: safeName,
-          data: '',
+          data: "",
           directory: Directory.Documents,
           encoding: Encoding.UTF8,
           recursive: true,
         });
-        return { filePath: safeName, content: '' };
+        return { filePath: safeName, content: "" };
       } catch (err) {
-        console.error('[Pennivo] createFile failed:', err);
+        console.error("[Pennivo] createFile failed:", err);
         return null;
       }
     },
@@ -682,7 +681,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return true;
       } catch (err) {
-        console.error('[Pennivo] deleteFile failed:', err);
+        console.error("[Pennivo] deleteFile failed:", err);
         return false;
       }
     },
@@ -690,7 +689,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
     renameFile: async (oldPath, newName) => {
       try {
         const { Filesystem, Directory, Encoding } = await getFilesystem();
-        const safeName = newName.endsWith('.md') ? newName : `${newName}.md`;
+        const safeName = newName.endsWith(".md") ? newName : `${newName}.md`;
         // Read old file
         const result = await Filesystem.readFile({
           path: oldPath,
@@ -698,7 +697,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
           encoding: Encoding.UTF8,
         });
         const data =
-          typeof result.data === 'string'
+          typeof result.data === "string"
             ? result.data
             : await (result.data as Blob).text();
         // Write to new path
@@ -716,7 +715,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
         });
         return safeName;
       } catch (err) {
-        console.error('[Pennivo] renameFile failed:', err);
+        console.error("[Pennivo] renameFile failed:", err);
         return null;
       }
     },

@@ -446,10 +446,7 @@ function AppContent() {
       const saveContent = currentPath
         ? relativizeImagePaths(content, currentPath)
         : content;
-      const newPath = await platform.saveFileAs(
-        saveContent,
-        defaultSavePath,
-      );
+      const newPath = await platform.saveFileAs(saveContent, defaultSavePath);
       if (newPath) {
         setFilePath(newPath);
         savedMarkdownRef.current = content;
@@ -1309,11 +1306,7 @@ function AppContent() {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Array.from(new Uint8Array(arrayBuffer));
         const mimeType = file.type || "image/png";
-        const result = await platform.saveImage(
-          currentPath,
-          buffer,
-          mimeType,
-        );
+        const result = await platform.saveImage(currentPath, buffer, mimeType);
         if (result) {
           showToast("Image saved");
           // Use custom protocol so the image displays in the editor.
@@ -1411,18 +1404,14 @@ function AppContent() {
         if (filePath) openRecentFile(filePath);
       });
     }
-    return platform.onFileOpenFromOS((filePath) =>
-      openRecentFile(filePath),
-    );
+    return platform.onFileOpenFromOS((filePath) => openRecentFile(filePath));
   }, [openRecentFile]);
 
   // --- Auto-update available banner ---
   // Main process only fires this in production after a release has been
   // fully downloaded, so dev runs never see the banner.
   useEffect(() => {
-    return platform.onUpdateAvailable((version) =>
-      setUpdateAvailable(version),
-    );
+    return platform.onUpdateAvailable((version) => setUpdateAvailable(version));
   }, []);
 
   // --- Drag-and-drop .md files to open ---
@@ -2362,8 +2351,7 @@ function AppContent() {
         case "spellcheckSettings": {
           // Cycle through common language presets
           (async () => {
-            const current =
-              (await platform.getSpellCheckLanguages()) ?? [];
+            const current = (await platform.getSpellCheckLanguages()) ?? [];
             const presets = [
               ["en-US"],
               ["en-US", "en-GB"],

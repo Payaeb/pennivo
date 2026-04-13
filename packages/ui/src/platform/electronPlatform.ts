@@ -1,10 +1,10 @@
-import type { PennivoPlatform } from './platform';
+import type { PennivoPlatform } from "./platform";
 
 export function createElectronPlatform(): PennivoPlatform {
   const api = window.pennivo!;
 
   return {
-    platformName: 'electron',
+    platformName: "electron",
 
     // Platform info
     platform: api.platform,
@@ -88,22 +88,30 @@ export function createElectronPlatform(): PennivoPlatform {
       // Desktop uses its own openFile dialog; this method is for mobile SAF only
       const result = await api.openFile();
       if (!result) return null;
-      const name = result.filePath.split(/[/\\]/).pop() || 'untitled.md';
+      const name = result.filePath.split(/[/\\]/).pop() || "untitled.md";
       return { filePath: result.filePath, content: result.content, name };
     },
 
     // File management — not used on desktop (sidebar handles file management)
     listFiles: async () => {
-      throw new Error('Not implemented: desktop uses sidebar for file management');
+      throw new Error(
+        "Not implemented: desktop uses sidebar for file management",
+      );
     },
     createFile: async () => {
-      throw new Error('Not implemented: desktop uses sidebar for file management');
+      throw new Error(
+        "Not implemented: desktop uses sidebar for file management",
+      );
     },
     deleteFile: async () => {
-      throw new Error('Not implemented: desktop uses sidebar for file management');
+      throw new Error(
+        "Not implemented: desktop uses sidebar for file management",
+      );
     },
     renameFile: async () => {
-      throw new Error('Not implemented: desktop uses sidebar for file management');
+      throw new Error(
+        "Not implemented: desktop uses sidebar for file management",
+      );
     },
 
     // Menu events

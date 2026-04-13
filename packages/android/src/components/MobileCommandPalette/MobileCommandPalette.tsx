@@ -174,17 +174,16 @@ export function MobileCommandPalette({
             role="combobox"
             aria-expanded="true"
             aria-controls="mcp-listbox"
-            aria-activedescendant={filtered[selectedIndex] ? `mcp-option-${filtered[selectedIndex].id}` : undefined}
+            aria-activedescendant={
+              filtered[selectedIndex]
+                ? `mcp-option-${filtered[selectedIndex].id}`
+                : undefined
+            }
           />
         </div>
 
         {/* Command list */}
-        <div
-          className="mcp-list"
-          ref={listRef}
-          role="listbox"
-          id="mcp-listbox"
-        >
+        <div className="mcp-list" ref={listRef} role="listbox" id="mcp-listbox">
           {filtered.length === 0 && (
             <div className="mcp-empty">No matching commands</div>
           )}
@@ -200,7 +199,9 @@ export function MobileCommandPalette({
               aria-selected={i === selectedIndex}
               type="button"
             >
-              <span className="mcp-item-icon" aria-hidden="true">{cmd.icon}</span>
+              <span className="mcp-item-icon" aria-hidden="true">
+                {cmd.icon}
+              </span>
               <span className="mcp-item-content">
                 <span className="mcp-item-label">{cmd.label}</span>
                 {cmd.category && (
@@ -226,7 +227,14 @@ export function MobileCommandPalette({
 
 function FormatIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M4 2h8l-4 12" />
       <line x1="2" y1="8" x2="10" y2="8" />
     </svg>
@@ -235,7 +243,14 @@ function FormatIcon() {
 
 function ViewIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="8" cy="8" r="3" />
       <path d="M1 8c1.5-3.5 4-5 7-5s5.5 1.5 7 5c-1.5 3.5-4 5-7 5s-5.5-1.5-7-5z" />
     </svg>
@@ -244,7 +259,14 @@ function ViewIcon() {
 
 function FileIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M9 1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5L9 1z" />
       <polyline points="9,1 9,5 13,5" />
     </svg>
@@ -253,7 +275,14 @@ function FileIcon() {
 
 function ThemeIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="8" cy="8" r="4" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" />
     </svg>
@@ -262,7 +291,13 @@ function ThemeIcon() {
 
 function SearchIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <circle cx="7" cy="7" r="4.5" />
       <line x1="10.5" y1="10.5" x2="14" y2="14" />
     </svg>
@@ -271,7 +306,14 @@ function SearchIcon() {
 
 function ExportIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M14 10v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-3" />
       <polyline points="8,2 8,10" />
       <polyline points="5,5 8,2 11,5" />
@@ -281,7 +323,14 @@ function ExportIcon() {
 
 function SettingsIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="8" cy="8" r="2" />
       <path d="M6.6 1.6h2.8l.4 1.8.8.4 1.6-.8 2 2-.8 1.6.4.8 1.8.4v2.8l-1.8.4-.4.8.8 1.6-2 2-1.6-.8-.8.4-.4 1.8H6.6l-.4-1.8-.8-.4-1.6.8-2-2 .8-1.6-.4-.8-1.8-.4V6.6l1.8-.4.4-.8-.8-1.6 2-2 1.6.8.8-.4z" />
     </svg>
@@ -290,7 +339,14 @@ function SettingsIcon() {
 
 function DiagramIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="2" y="2" width="5" height="3" rx="0.5" />
       <rect x="9" y="2" width="5" height="3" rx="0.5" />
       <rect x="5.5" y="11" width="5" height="3" rx="0.5" />
@@ -302,7 +358,14 @@ function DiagramIcon() {
 
 function KanbanIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1.5" y="2" width="4" height="12" rx="0.5" />
       <rect x="6" y="2" width="4" height="8" rx="0.5" />
       <rect x="10.5" y="2" width="4" height="5" rx="0.5" />
@@ -312,7 +375,14 @@ function KanbanIcon() {
 
 function GanttIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1.5" y="3" width="6" height="2" rx="0.5" />
       <rect x="4.5" y="7" width="7" height="2" rx="0.5" />
       <rect x="7.5" y="11" width="7" height="2" rx="0.5" />
@@ -322,7 +392,14 @@ function GanttIcon() {
 
 function TableIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1.5" y="2.5" width="13" height="11" rx="0.5" />
       <line x1="1.5" y1="6.5" x2="14.5" y2="6.5" />
       <line x1="1.5" y1="10" x2="14.5" y2="10" />
@@ -334,7 +411,14 @@ function TableIcon() {
 
 function CodeBlockIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="5.5,4.5 2.5,8 5.5,11.5" />
       <polyline points="10.5,4.5 13.5,8 10.5,11.5" />
     </svg>
@@ -343,7 +427,14 @@ function CodeBlockIcon() {
 
 function TaskListIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1.5" y="2.5" width="4" height="4" rx="0.5" />
       <polyline points="2.5,4.5 3.3,5.5 5,3.5" />
       <rect x="1.5" y="9.5" width="4" height="4" rx="0.5" />
@@ -355,7 +446,14 @@ function TaskListIcon() {
 
 function HorizontalRuleIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="2" y1="8" x2="14" y2="8" />
       <circle cx="4" cy="4" r="0.5" fill="currentColor" stroke="none" />
       <circle cx="8" cy="4" r="0.5" fill="currentColor" stroke="none" />
@@ -369,7 +467,14 @@ function HorizontalRuleIcon() {
 
 function IndentIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="2" y1="3.5" x2="14" y2="3.5" />
       <line x1="7" y1="8" x2="14" y2="8" />
       <line x1="2" y1="12.5" x2="14" y2="12.5" />
@@ -380,7 +485,14 @@ function IndentIcon() {
 
 function OutdentIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="2" y1="3.5" x2="14" y2="3.5" />
       <line x1="7" y1="8" x2="14" y2="8" />
       <line x1="2" y1="12.5" x2="14" y2="12.5" />
@@ -391,7 +503,14 @@ function OutdentIcon() {
 
 function LinkIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M6.5 9.5l3-3" />
       <path d="M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8" />
       <path d="M9 11.5L7.5 13a2.5 2.5 0 0 1-3.5-3.5L5.5 8" />
@@ -401,7 +520,14 @@ function LinkIcon() {
 
 function ImageIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
       <circle cx="5.5" cy="6" r="1" />
       <path d="M2 11l3-3 4 3 2-2 3 3" />
@@ -411,7 +537,14 @@ function ImageIcon() {
 
 function FocusModeIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="2,5 2,2 5,2" />
       <polyline points="11,2 14,2 14,5" />
       <polyline points="14,11 14,14 11,14" />
@@ -422,7 +555,14 @@ function FocusModeIcon() {
 
 function MathIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M2 3.5L5 12l3-7 3 3.5" />
       <path d="M11 12h3" />
       <path d="M11 8h2" />
@@ -436,41 +576,237 @@ function MathIcon() {
 
 export const MOBILE_COMMANDS: MobileCommand[] = [
   // Format
-  { id: "bold", label: "Bold", shortcut: "Ctrl+B", category: "Format", keywords: "strong", icon: <FormatIcon /> },
-  { id: "italic", label: "Italic", shortcut: "Ctrl+I", category: "Format", keywords: "emphasis", icon: <FormatIcon /> },
-  { id: "strikethrough", label: "Strikethrough", category: "Format", icon: <FormatIcon /> },
-  { id: "h1", label: "Heading 1", category: "Format", keywords: "title header", icon: <FormatIcon /> },
-  { id: "h2", label: "Heading 2", category: "Format", keywords: "subtitle header", icon: <FormatIcon /> },
-  { id: "bulletList", label: "Bullet List", category: "Format", keywords: "unordered", icon: <FormatIcon /> },
-  { id: "orderedList", label: "Ordered List", category: "Format", keywords: "numbered", icon: <FormatIcon /> },
-  { id: "indent", label: "Indent", category: "Format", keywords: "indent nest tab deeper list", icon: <IndentIcon /> },
-  { id: "outdent", label: "Outdent", category: "Format", keywords: "outdent unindent shift tab shallower list", icon: <OutdentIcon /> },
-  { id: "blockquote", label: "Blockquote", category: "Format", keywords: "quote", icon: <FormatIcon /> },
-  { id: "code", label: "Code", category: "Format", keywords: "inline block", icon: <FormatIcon /> },
+  {
+    id: "bold",
+    label: "Bold",
+    shortcut: "Ctrl+B",
+    category: "Format",
+    keywords: "strong",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "italic",
+    label: "Italic",
+    shortcut: "Ctrl+I",
+    category: "Format",
+    keywords: "emphasis",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "strikethrough",
+    label: "Strikethrough",
+    category: "Format",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "h1",
+    label: "Heading 1",
+    category: "Format",
+    keywords: "title header",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "h2",
+    label: "Heading 2",
+    category: "Format",
+    keywords: "subtitle header",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "bulletList",
+    label: "Bullet List",
+    category: "Format",
+    keywords: "unordered",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "orderedList",
+    label: "Ordered List",
+    category: "Format",
+    keywords: "numbered",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "indent",
+    label: "Indent",
+    category: "Format",
+    keywords: "indent nest tab deeper list",
+    icon: <IndentIcon />,
+  },
+  {
+    id: "outdent",
+    label: "Outdent",
+    category: "Format",
+    keywords: "outdent unindent shift tab shallower list",
+    icon: <OutdentIcon />,
+  },
+  {
+    id: "blockquote",
+    label: "Blockquote",
+    category: "Format",
+    keywords: "quote",
+    icon: <FormatIcon />,
+  },
+  {
+    id: "code",
+    label: "Code",
+    category: "Format",
+    keywords: "inline block",
+    icon: <FormatIcon />,
+  },
   // Insert
-  { id: "table", label: "Insert Table", category: "Insert", keywords: "grid cells rows columns", icon: <TableIcon /> },
-  { id: "taskList", label: "Insert Task List", category: "Insert", keywords: "checkbox todo checklist", icon: <TaskListIcon /> },
-  { id: "insertCodeBlock", label: "Insert Code Block", category: "Insert", keywords: "fenced code snippet", icon: <CodeBlockIcon /> },
-  { id: "link", label: "Insert Link", shortcut: "Ctrl+K", category: "Insert", keywords: "url href hyperlink", icon: <LinkIcon /> },
-  { id: "image", label: "Insert Image", category: "Insert", keywords: "picture photo img", icon: <ImageIcon /> },
-  { id: "mermaid", label: "Insert Mermaid Diagram", category: "Insert", keywords: "diagram chart flowchart sequence graph", icon: <DiagramIcon /> },
-  { id: "kanban", label: "Insert Kanban Board", category: "Insert", keywords: "kanban board column card task todo", icon: <KanbanIcon /> },
-  { id: "gantt", label: "Insert Gantt Chart", category: "Insert", keywords: "gantt timeline project schedule task", icon: <GanttIcon /> },
-  { id: "math", label: "Insert Math Block", category: "Insert", keywords: "katex latex formula equation", icon: <MathIcon /> },
-  { id: "horizontalRule", label: "Insert Horizontal Rule", category: "Insert", keywords: "hr divider separator line break", icon: <HorizontalRuleIcon /> },
+  {
+    id: "table",
+    label: "Insert Table",
+    category: "Insert",
+    keywords: "grid cells rows columns",
+    icon: <TableIcon />,
+  },
+  {
+    id: "taskList",
+    label: "Insert Task List",
+    category: "Insert",
+    keywords: "checkbox todo checklist",
+    icon: <TaskListIcon />,
+  },
+  {
+    id: "insertCodeBlock",
+    label: "Insert Code Block",
+    category: "Insert",
+    keywords: "fenced code snippet",
+    icon: <CodeBlockIcon />,
+  },
+  {
+    id: "link",
+    label: "Insert Link",
+    shortcut: "Ctrl+K",
+    category: "Insert",
+    keywords: "url href hyperlink",
+    icon: <LinkIcon />,
+  },
+  {
+    id: "image",
+    label: "Insert Image",
+    category: "Insert",
+    keywords: "picture photo img",
+    icon: <ImageIcon />,
+  },
+  {
+    id: "mermaid",
+    label: "Insert Mermaid Diagram",
+    category: "Insert",
+    keywords: "diagram chart flowchart sequence graph",
+    icon: <DiagramIcon />,
+  },
+  {
+    id: "kanban",
+    label: "Insert Kanban Board",
+    category: "Insert",
+    keywords: "kanban board column card task todo",
+    icon: <KanbanIcon />,
+  },
+  {
+    id: "gantt",
+    label: "Insert Gantt Chart",
+    category: "Insert",
+    keywords: "gantt timeline project schedule task",
+    icon: <GanttIcon />,
+  },
+  {
+    id: "math",
+    label: "Insert Math Block",
+    category: "Insert",
+    keywords: "katex latex formula equation",
+    icon: <MathIcon />,
+  },
+  {
+    id: "horizontalRule",
+    label: "Insert Horizontal Rule",
+    category: "Insert",
+    keywords: "hr divider separator line break",
+    icon: <HorizontalRuleIcon />,
+  },
   // View
-  { id: "sourceMode", label: "Toggle Source Mode", category: "View", keywords: "markdown code raw", icon: <ViewIcon /> },
-  { id: "toggleTheme", label: "Toggle Theme", category: "View", keywords: "dark light mode", icon: <ThemeIcon /> },
-  { id: "findReplace", label: "Find & Replace", shortcut: "Ctrl+F", category: "View", keywords: "search", icon: <SearchIcon /> },
-  { id: "toggleStats", label: "Toggle Word Count", category: "View", keywords: "word count character stats reading time hide show", icon: <ViewIcon /> },
-  { id: "focusMode", label: "Toggle Focus Mode", category: "View", keywords: "focus distraction free zen hide bars fullscreen immersive", icon: <FocusModeIcon /> },
+  {
+    id: "sourceMode",
+    label: "Toggle Source Mode",
+    category: "View",
+    keywords: "markdown code raw",
+    icon: <ViewIcon />,
+  },
+  {
+    id: "toggleTheme",
+    label: "Toggle Theme",
+    category: "View",
+    keywords: "dark light mode",
+    icon: <ThemeIcon />,
+  },
+  {
+    id: "findReplace",
+    label: "Find & Replace",
+    shortcut: "Ctrl+F",
+    category: "View",
+    keywords: "search",
+    icon: <SearchIcon />,
+  },
+  {
+    id: "toggleStats",
+    label: "Toggle Word Count",
+    category: "View",
+    keywords: "word count character stats reading time hide show",
+    icon: <ViewIcon />,
+  },
+  {
+    id: "focusMode",
+    label: "Toggle Focus Mode",
+    category: "View",
+    keywords: "focus distraction free zen hide bars fullscreen immersive",
+    icon: <FocusModeIcon />,
+  },
   // Export
-  { id: "exportHtml", label: "Export as HTML", category: "Export", keywords: "share html web", icon: <ExportIcon /> },
-  { id: "exportPdf", label: "Export as PDF", category: "Export", keywords: "print pdf save", icon: <ExportIcon /> },
+  {
+    id: "exportHtml",
+    label: "Export as HTML",
+    category: "Export",
+    keywords: "share html web",
+    icon: <ExportIcon />,
+  },
+  {
+    id: "exportPdf",
+    label: "Export as PDF",
+    category: "Export",
+    keywords: "print pdf save",
+    icon: <ExportIcon />,
+  },
   // File
-  { id: "newFile", label: "New File", shortcut: "Ctrl+N", category: "File", keywords: "create", icon: <FileIcon /> },
-  { id: "save", label: "Save Now", shortcut: "Ctrl+S", category: "File", icon: <FileIcon /> },
-  { id: "browseFiles", label: "Browse Files", category: "File", keywords: "open", icon: <FileIcon /> },
+  {
+    id: "newFile",
+    label: "New File",
+    shortcut: "Ctrl+N",
+    category: "File",
+    keywords: "create",
+    icon: <FileIcon />,
+  },
+  {
+    id: "save",
+    label: "Save Now",
+    shortcut: "Ctrl+S",
+    category: "File",
+    icon: <FileIcon />,
+  },
+  {
+    id: "browseFiles",
+    label: "Browse Files",
+    category: "File",
+    keywords: "open",
+    icon: <FileIcon />,
+  },
   // Settings
-  { id: "settings", label: "Settings", category: "App", keywords: "preferences options config font theme", icon: <SettingsIcon /> },
+  {
+    id: "settings",
+    label: "Settings",
+    category: "App",
+    keywords: "preferences options config font theme",
+    icon: <SettingsIcon />,
+  },
 ];

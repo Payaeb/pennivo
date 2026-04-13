@@ -1,10 +1,10 @@
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin } from "@capacitor/core";
 
 export interface SharedContent {
   hasContent: boolean;
   content: string;
   fileName: string;
-  source: 'send_stream' | 'send_text' | 'view' | 'none';
+  source: "send_stream" | "send_text" | "view" | "none";
 }
 
 interface ShareIntentPlugin {
@@ -12,6 +12,6 @@ interface ShareIntentPlugin {
   clearIntent(): Promise<void>;
 }
 
-const ShareIntent = registerPlugin<ShareIntentPlugin>('ShareIntent');
+const ShareIntent = registerPlugin<ShareIntentPlugin>("ShareIntent");
 
 export { ShareIntent };

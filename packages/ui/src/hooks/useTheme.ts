@@ -128,8 +128,7 @@ export function useTheme() {
   const toggleTheme = useCallback(() => {
     setModeState((current) => {
       const shownDark =
-        current === "dark" ||
-        (current === "system" && systemPrefersDark());
+        current === "dark" || (current === "system" && systemPrefersDark());
       return shownDark ? "light" : "dark";
     });
   }, []);

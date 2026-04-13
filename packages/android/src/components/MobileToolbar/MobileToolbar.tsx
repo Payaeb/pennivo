@@ -184,7 +184,7 @@ export function MobileToolbar({
               className={`mobile-toolbar__btn${activeFormats.has(action) ? " mobile-toolbar__btn--active" : ""}`}
               onClick={() => handleAction(action)}
               onMouseDown={(e) => e.preventDefault()}
-                aria-label={label}
+              aria-label={label}
               aria-pressed={activeFormats.has(action)}
               type="button"
             >
@@ -221,7 +221,12 @@ function BulletListIcon() {
 
 function OrderedListIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" aria-hidden="true">
+    <svg
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden="true"
+    >
       <text x="1" y="7" fontSize="6" fontWeight="700" fontFamily="sans-serif">
         1.
       </text>

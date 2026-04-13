@@ -1,12 +1,12 @@
 export interface FileTreeEntry {
   name: string;
   path: string;
-  type: 'file' | 'folder';
+  type: "file" | "folder";
   children?: FileTreeEntry[];
 }
 
 export interface PennivoPlatform {
-  readonly platformName: 'electron' | 'capacitor' | 'web';
+  readonly platformName: "electron" | "capacitor" | "web";
 
   // Platform info
   platform: string;

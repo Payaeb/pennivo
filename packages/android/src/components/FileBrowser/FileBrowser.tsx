@@ -150,7 +150,9 @@ export function FileBrowser({
       const delta = e.touches[0]!.clientY - pullStartY.current;
       if (delta > 0 && el.scrollTop <= 0) {
         pullDelta.current = delta;
-        const indicator = el.querySelector(".file-browser__pull-indicator") as HTMLElement | null;
+        const indicator = el.querySelector(
+          ".file-browser__pull-indicator",
+        ) as HTMLElement | null;
         if (indicator) {
           const progress = Math.min(delta / 80, 1);
           indicator.style.height = `${Math.min(delta * 0.5, 48)}px`;
@@ -165,7 +167,9 @@ export function FileBrowser({
       if (!isPulling.current) return;
       isPulling.current = false;
 
-      const indicator = el.querySelector(".file-browser__pull-indicator") as HTMLElement | null;
+      const indicator = el.querySelector(
+        ".file-browser__pull-indicator",
+      ) as HTMLElement | null;
 
       if (pullDelta.current > 80) {
         setRefreshing(true);
@@ -289,7 +293,14 @@ export function FileBrowser({
       setRenameValue("");
       loadFiles();
     }
-  }, [renamingFile, renameValue, platform, currentFilePath, onOpenFile, loadFiles]);
+  }, [
+    renamingFile,
+    renameValue,
+    platform,
+    currentFilePath,
+    onOpenFile,
+    loadFiles,
+  ]);
 
   const handleRenameCancel = useCallback(() => {
     setRenamingFile(null);
@@ -318,8 +329,12 @@ export function FileBrowser({
 
       // Determine a safe local filename (avoid collisions)
       let localName = result.name;
-      if (!localName.endsWith('.md') && !localName.endsWith('.markdown') && !localName.endsWith('.txt')) {
-        localName = localName + '.md';
+      if (
+        !localName.endsWith(".md") &&
+        !localName.endsWith(".markdown") &&
+        !localName.endsWith(".txt")
+      ) {
+        localName = localName + ".md";
       }
 
       // Save imported content to Documents directory
@@ -329,11 +344,11 @@ export function FileBrowser({
         await loadFiles();
         onOpenFile(localName);
       } else {
-        setImportStatus('Import failed');
+        setImportStatus("Import failed");
       }
     } catch (err) {
-      console.error('[Pennivo] Import file failed:', err);
-      setImportStatus('Import failed');
+      console.error("[Pennivo] Import file failed:", err);
+      setImportStatus("Import failed");
     }
   }, [platform, loadFiles, onOpenFile]);
 
@@ -355,7 +370,11 @@ export function FileBrowser({
   const renderFileRow = (file: FileEntry) => {
     if (renamingFile && renamingFile.path === file.path) {
       return (
-        <div key={file.path} className="file-browser__rename-row" role="listitem">
+        <div
+          key={file.path}
+          className="file-browser__rename-row"
+          role="listitem"
+        >
           <input
             ref={renameInputRef}
             type="text"
@@ -397,7 +416,12 @@ export function FileBrowser({
         key={file.path}
         className={`file-browser__item ${currentFilePath === file.path ? "file-browser__item--current" : ""}`}
         onClick={() => handleOpenFile(file.path)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpenFile(file.path); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleOpenFile(file.path);
+          }
+        }}
         role="listitem"
         tabIndex={0}
         aria-current={currentFilePath === file.path ? "true" : undefined}
@@ -531,7 +555,9 @@ export function FileBrowser({
                     onClick={() => onColorSchemeChange(scheme.id)}
                     type="button"
                   >
-                    <span className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`} />
+                    <span
+                      className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`}
+                    />
                     {scheme.label}
                   </button>
                 ))}
@@ -600,7 +626,12 @@ export function FileBrowser({
       )}
 
       {/* File list */}
-      <div className="file-browser__list" ref={listRef} role="list" aria-label="Files">
+      <div
+        className="file-browser__list"
+        ref={listRef}
+        role="list"
+        aria-label="Files"
+      >
         {/* Pull-to-refresh indicator */}
         <div className="file-browser__pull-indicator" aria-hidden="true">
           {refreshing ? (
@@ -628,7 +659,12 @@ export function FileBrowser({
         {/* Recent files section */}
         {recentFiles.length > 0 && (
           <>
-            <div className="file-browser__section-label" id="recent-files-label">Recent</div>
+            <div
+              className="file-browser__section-label"
+              id="recent-files-label"
+            >
+              Recent
+            </div>
             <div role="group" aria-labelledby="recent-files-label">
               {recentFiles.map(renderFileRow)}
             </div>
@@ -639,9 +675,16 @@ export function FileBrowser({
         {otherFiles.length > 0 && (
           <>
             {recentFiles.length > 0 && (
-              <div className="file-browser__section-label" id="all-files-label">All Files</div>
+              <div className="file-browser__section-label" id="all-files-label">
+                All Files
+              </div>
             )}
-            <div role="group" aria-labelledby={recentFiles.length > 0 ? "all-files-label" : undefined}>
+            <div
+              role="group"
+              aria-labelledby={
+                recentFiles.length > 0 ? "all-files-label" : undefined
+              }
+            >
               {otherFiles.map(renderFileRow)}
             </div>
           </>
@@ -784,7 +827,13 @@ function FileEmptyIcon() {
 
 function MoreVertIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <circle cx="8" cy="3.5" r="1.3" />
       <circle cx="8" cy="8" r="1.3" />
       <circle cx="8" cy="12.5" r="1.3" />

@@ -86,7 +86,9 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
           <a
             className="about-link"
             href="https://github.com/payaeb/pennivo/issues"
-            onClick={handleLinkClick("https://github.com/payaeb/pennivo/issues")}
+            onClick={handleLinkClick(
+              "https://github.com/payaeb/pennivo/issues",
+            )}
           >
             Report issue
           </a>

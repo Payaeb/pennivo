@@ -77,10 +77,7 @@ const LazyMobileCommandPaletteWithCommands = lazy(() =>
         onClose: () => void;
       }) {
         return (
-          <m.MobileCommandPalette
-            {...props}
-            commands={m.MOBILE_COMMANDS}
-          />
+          <m.MobileCommandPalette {...props} commands={m.MOBILE_COMMANDS} />
         );
       },
     }),
@@ -151,7 +148,9 @@ interface MobileEditorContentProps {
   getEditorHtmlRef: React.MutableRefObject<(() => string) | null>;
 }
 
-function getActiveFormats(view: import("@milkdown/prose/view").EditorView): Set<string> {
+function getActiveFormats(
+  view: import("@milkdown/prose/view").EditorView,
+): Set<string> {
   const active = new Set<string>();
   const state = view.state;
   const { from, to, empty } = state.selection;
@@ -167,9 +166,21 @@ function getActiveFormats(view: import("@milkdown/prose/view").EditorView): Set<
     }
   } else {
     const schema = state.schema;
-    if (schema.marks["strong"] && doc.rangeHasMark(from, to, schema.marks["strong"])) active.add("bold");
-    if (schema.marks["emphasis"] && doc.rangeHasMark(from, to, schema.marks["emphasis"])) active.add("italic");
-    if (schema.marks["strike_through"] && doc.rangeHasMark(from, to, schema.marks["strike_through"])) active.add("strikethrough");
+    if (
+      schema.marks["strong"] &&
+      doc.rangeHasMark(from, to, schema.marks["strong"])
+    )
+      active.add("bold");
+    if (
+      schema.marks["emphasis"] &&
+      doc.rangeHasMark(from, to, schema.marks["emphasis"])
+    )
+      active.add("italic");
+    if (
+      schema.marks["strike_through"] &&
+      doc.rangeHasMark(from, to, schema.marks["strike_through"])
+    )
+      active.add("strikethrough");
   }
 
   // Check block-level formats
@@ -192,8 +203,14 @@ function getActiveFormats(view: import("@milkdown/prose/view").EditorView): Set<
       }
       break;
     }
-    if (node.type.name === "ordered_list") { active.add("orderedList"); break; }
-    if (node.type.name === "blockquote") { active.add("blockquote"); break; }
+    if (node.type.name === "ordered_list") {
+      active.add("orderedList");
+      break;
+    }
+    if (node.type.name === "blockquote") {
+      active.add("blockquote");
+      break;
+    }
   }
 
   return active;
@@ -819,8 +836,7 @@ function MobileEditorContent({
       setLinkSheet({ href: detail.href, from: detail.from, to: detail.to });
     };
     window.addEventListener("pennivo-mobile-link-tap", handler);
-    return () =>
-      window.removeEventListener("pennivo-mobile-link-tap", handler);
+    return () => window.removeEventListener("pennivo-mobile-link-tap", handler);
   }, []);
 
   const closeLinkSheet = useCallback(() => setLinkSheet(null), []);
@@ -908,7 +924,9 @@ function MobileEditorContent({
   }, [linkSheet, getInstance, closeLinkSheet]);
 
   // Get ProseMirror view for find/replace
-  const getEditorView = useCallback((): import("@milkdown/prose/view").EditorView | null => {
+  const getEditorView = useCallback(():
+    | import("@milkdown/prose/view").EditorView
+    | null => {
     const editor = getInstance();
     if (!editor) return null;
     let view: import("@milkdown/prose/view").EditorView | null = null;
@@ -935,7 +953,11 @@ function MobileEditorContent({
           />
         </Suspense>
       )}
-      <main className="mobile-editor-area" ref={scrollRef} aria-label="Document editor">
+      <main
+        className="mobile-editor-area"
+        ref={scrollRef}
+        aria-label="Document editor"
+      >
         {!sourceMode && (
           <Editor
             initialContent={markdownRef.current}
@@ -1046,9 +1068,12 @@ export function MobileApp() {
   const getEditorHtmlRef = useRef<(() => string) | null>(null);
 
   // CodeMirror view callbacks for find/replace in source mode
-  const handleCmViewReady = useCallback((view: import("@codemirror/view").EditorView) => {
-    cmViewRef.current = view;
-  }, []);
+  const handleCmViewReady = useCallback(
+    (view: import("@codemirror/view").EditorView) => {
+      cmViewRef.current = view;
+    },
+    [],
+  );
 
   const handleCmViewDestroy = useCallback(() => {
     cmViewRef.current = null;
@@ -1152,7 +1177,9 @@ export function MobileApp() {
         setShowStats(settings.showStats);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [platform, setMode, setColorScheme]);
 
   // Persist theme and display settings
@@ -1214,7 +1241,9 @@ export function MobileApp() {
             applyLargeFilePolicy(result.content);
             const name = result.filePath.split("/").pop() || "untitled.md";
             setFileName(name);
-            setWordCount(result.content.trim().split(/\s+/).filter(Boolean).length);
+            setWordCount(
+              result.content.trim().split(/\s+/).filter(Boolean).length,
+            );
             setCharCount(countCharacters(result.content));
             setSaveStatus("saved");
             setEditorReady(true);
@@ -1446,9 +1475,7 @@ export function MobileApp() {
           setFindReplaceOpen(true);
           break;
         case "newFile":
-          handleNewFileFromBrowser(
-            `untitled-${Date.now()}.md`,
-          );
+          handleNewFileFromBrowser(`untitled-${Date.now()}.md`);
           break;
         case "save":
           performSave();
@@ -1514,7 +1541,9 @@ export function MobileApp() {
   if (screen === "settings") {
     return (
       <div className="mobile-app">
-        <Suspense fallback={<div className="mobile-loading">Loading settings...</div>}>
+        <Suspense
+          fallback={<div className="mobile-loading">Loading settings...</div>}
+        >
           <LazyMobileSettings
             onBack={handleBackFromSettings}
             themeMode={mode}
@@ -1576,7 +1605,11 @@ export function MobileApp() {
             aria-hidden="true"
           />
           <span className="sr-only" role="status" aria-live="polite">
-            {saveStatus === "saved" ? "Document saved" : saveStatus === "saving" ? "Saving..." : "Unsaved changes"}
+            {saveStatus === "saved"
+              ? "Document saved"
+              : saveStatus === "saving"
+                ? "Saving..."
+                : "Unsaved changes"}
           </span>
         </header>
       )}
@@ -1656,7 +1689,9 @@ export function MobileApp() {
                     onClick={() => setColorScheme(scheme.id)}
                     type="button"
                   >
-                    <span className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`} />
+                    <span
+                      className={`mobile-theme-picker__swatch mobile-theme-picker__swatch--${scheme.id}`}
+                    />
                     {scheme.label}
                   </button>
                 ))}
@@ -1705,7 +1740,10 @@ export function MobileApp() {
       )}
 
       {!focusMode && (
-        <div className="mobile-bottombar" aria-label="Editor tools and statistics">
+        <div
+          className="mobile-bottombar"
+          aria-label="Editor tools and statistics"
+        >
           <div className="mobile-bottombar-tools">
             <button
               className="mobile-search-btn"
@@ -1809,18 +1847,12 @@ export function MobileApp() {
               onClick={() => setShowStats(false)}
               aria-label="Document statistics"
             >
-              <span className="mobile-stat">
-                {wordCount.toLocaleString()}w
-              </span>
+              <span className="mobile-stat">{wordCount.toLocaleString()}w</span>
+              <span className="mobile-stat-sep">&middot;</span>
+              <span className="mobile-stat">{charCount.toLocaleString()}c</span>
               <span className="mobile-stat-sep">&middot;</span>
               <span className="mobile-stat">
-                {charCount.toLocaleString()}c
-              </span>
-              <span className="mobile-stat-sep">&middot;</span>
-              <span className="mobile-stat">
-                {wordCount / 238 < 1
-                  ? "<1m"
-                  : `${Math.ceil(wordCount / 238)}m`}
+                {wordCount / 238 < 1 ? "<1m" : `${Math.ceil(wordCount / 238)}m`}
               </span>
             </div>
           )}

@@ -175,8 +175,13 @@ export function MobileSettings({
       {/* Body */}
       <div className="msettings-body">
         {/* ─── Editor Section ─── */}
-        <section className="msettings-section" aria-labelledby="msettings-editor-title">
-          <h2 className="msettings-section-title" id="msettings-editor-title">Editor</h2>
+        <section
+          className="msettings-section"
+          aria-labelledby="msettings-editor-title"
+        >
+          <h2 className="msettings-section-title" id="msettings-editor-title">
+            Editor
+          </h2>
 
           {/* Font Size */}
           <div className="msettings-row">
@@ -265,8 +270,13 @@ export function MobileSettings({
         </section>
 
         {/* ─── Theme Section ─── */}
-        <section className="msettings-section" aria-labelledby="msettings-theme-title">
-          <h2 className="msettings-section-title" id="msettings-theme-title">Theme</h2>
+        <section
+          className="msettings-section"
+          aria-labelledby="msettings-theme-title"
+        >
+          <h2 className="msettings-section-title" id="msettings-theme-title">
+            Theme
+          </h2>
 
           {/* Light / Dark */}
           <div className="msettings-row">
@@ -321,8 +331,13 @@ export function MobileSettings({
         </section>
 
         {/* ─── Writing Section ─── */}
-        <section className="msettings-section" aria-labelledby="msettings-writing-title">
-          <h2 className="msettings-section-title" id="msettings-writing-title">Writing</h2>
+        <section
+          className="msettings-section"
+          aria-labelledby="msettings-writing-title"
+        >
+          <h2 className="msettings-section-title" id="msettings-writing-title">
+            Writing
+          </h2>
 
           <div className="msettings-row">
             <div className="msettings-label">
@@ -360,9 +375,7 @@ export function MobileSettings({
           <div className="msettings-row">
             <div className="msettings-label">
               Typewriter Mode
-              <span className="msettings-label-desc">
-                Keep cursor centered
-              </span>
+              <span className="msettings-label-desc">Keep cursor centered</span>
             </div>
             <button
               className={`msettings-toggle${settings.typewriterMode ? " msettings-toggle--on" : ""}`}
@@ -399,8 +412,13 @@ export function MobileSettings({
         </section>
 
         {/* ─── About Section ─── */}
-        <section className="msettings-section msettings-section--about" aria-labelledby="msettings-about-title">
-          <h2 className="msettings-section-title" id="msettings-about-title">About</h2>
+        <section
+          className="msettings-section msettings-section--about"
+          aria-labelledby="msettings-about-title"
+        >
+          <h2 className="msettings-section-title" id="msettings-about-title">
+            About
+          </h2>
 
           <div className="msettings-row">
             <div className="msettings-label">Version</div>

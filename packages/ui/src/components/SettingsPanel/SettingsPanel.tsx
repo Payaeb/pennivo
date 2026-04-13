@@ -59,9 +59,7 @@ export function SettingsPanel({
   const persistSettings = useCallback(
     (updated: AppSettings) => {
       setSettings(updated);
-      platform.setSettings(
-        updated as unknown as Record<string, unknown>,
-      );
+      platform.setSettings(updated as unknown as Record<string, unknown>);
       onChange?.(updated as unknown as Record<string, unknown>);
     },
     [onChange],

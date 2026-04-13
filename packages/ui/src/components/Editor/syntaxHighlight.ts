@@ -36,9 +36,7 @@ const attachedViews = new Set<EditorView>();
 
 function refreshAllViews() {
   for (const view of attachedViews) {
-    view.dispatch(
-      view.state.tr.setMeta("prosemirror-highlight-refresh", true),
-    );
+    view.dispatch(view.state.tr.setMeta("prosemirror-highlight-refresh", true));
   }
 }
 

@@ -29,8 +29,7 @@ const languages: LanguageDescription[] = [
   LanguageDescription.of({
     name: "Markdown",
     extensions: ["md", "markdown", "mkd"],
-    load: () =>
-      import("@codemirror/lang-markdown").then((m) => m.markdown()),
+    load: () => import("@codemirror/lang-markdown").then((m) => m.markdown()),
   }),
   LanguageDescription.of({
     name: "JavaScript",
@@ -63,8 +62,7 @@ const languages: LanguageDescription[] = [
     name: "Python",
     alias: ["py"],
     extensions: ["py", "pyw"],
-    load: () =>
-      import("@codemirror/lang-python").then((m) => m.python()),
+    load: () => import("@codemirror/lang-python").then((m) => m.python()),
   }),
   LanguageDescription.of({
     name: "JSON",

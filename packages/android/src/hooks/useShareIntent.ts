@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { App } from '@capacitor/app';
-import { ShareIntent, type SharedContent } from '../plugins/shareIntent';
+import { useEffect, useRef, useCallback } from "react";
+import { App } from "@capacitor/app";
+import { ShareIntent, type SharedContent } from "../plugins/shareIntent";
 
 type ShareHandler = (content: string, fileName: string) => void;
 
@@ -16,11 +16,11 @@ export function useShareIntent(onSharedFile: ShareHandler): void {
     try {
       const result: SharedContent = await ShareIntent.getSharedContent();
       if (result.hasContent && result.content) {
-        handlerRef.current(result.content, result.fileName || 'shared.md');
+        handlerRef.current(result.content, result.fileName || "shared.md");
         await ShareIntent.clearIntent();
       }
     } catch (err) {
-      console.error('[Pennivo] Failed to read share intent:', err);
+      console.error("[Pennivo] Failed to read share intent:", err);
     }
   }, []);
 
@@ -29,7 +29,7 @@ export function useShareIntent(onSharedFile: ShareHandler): void {
     processSharedContent();
 
     // Listen for app resume (warm launch — user shares while app is backgrounded)
-    const resumeListener = App.addListener('resume', () => {
+    const resumeListener = App.addListener("resume", () => {
       processSharedContent();
     });
 

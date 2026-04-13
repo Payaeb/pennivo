@@ -1,5 +1,5 @@
-import type { PennivoPlatform } from './platform';
-import { wrapHtmlWithStyles } from '../utils/exportHtml';
+import type { PennivoPlatform } from "./platform";
+import { wrapHtmlWithStyles } from "../utils/exportHtml";
 
 /**
  * Neutral browser fallback platform used when the renderer runs in a plain
@@ -14,10 +14,10 @@ import { wrapHtmlWithStyles } from '../utils/exportHtml';
 
 const noop = () => {};
 
-const LS_RECENT_FILES = 'pennivo.web.recentFiles';
-const LS_SETTINGS = 'pennivo.web.settings';
-const LS_TOOLBAR_CONFIG = 'pennivo.web.toolbarConfig';
-const LS_SIDEBAR_FOLDER = 'pennivo.web.sidebarFolder';
+const LS_RECENT_FILES = "pennivo.web.recentFiles";
+const LS_SETTINGS = "pennivo.web.settings";
+const LS_TOOLBAR_CONFIG = "pennivo.web.toolbarConfig";
+const LS_SIDEBAR_FOLDER = "pennivo.web.sidebarFolder";
 const MAX_RECENT_FILES = 10;
 
 function lsGet<T>(key: string, fallback: T): T {
@@ -34,7 +34,7 @@ function lsSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
-    console.warn('[Pennivo:web] localStorage set failed:', err);
+    console.warn("[Pennivo:web] localStorage set failed:", err);
   }
 }
 
@@ -44,11 +44,11 @@ function warnUnsupported(feature: string): void {
 
 export function createWebPlatform(): PennivoPlatform {
   return {
-    platformName: 'web',
+    platformName: "web",
 
     // Platform info
-    platform: 'web',
-    getPathForFile: () => '',
+    platform: "web",
+    getPathForFile: () => "",
 
     // Window controls — no-op in browser
     minimize: noop,
@@ -65,28 +65,28 @@ export function createWebPlatform(): PennivoPlatform {
 
     // External links
     openExternal: (url) => {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      window.open(url, "_blank", "noopener,noreferrer");
     },
 
     // File I/O — not supported in plain browser
     saveImage: async () => {
-      warnUnsupported('saveImage');
-      return { relativePath: '', absolutePath: '' };
+      warnUnsupported("saveImage");
+      return { relativePath: "", absolutePath: "" };
     },
     pickImage: async () => {
-      warnUnsupported('pickImage');
+      warnUnsupported("pickImage");
       return null;
     },
     openFile: async () => {
-      warnUnsupported('openFile');
+      warnUnsupported("openFile");
       return null;
     },
     saveFile: async () => {
-      warnUnsupported('saveFile');
+      warnUnsupported("saveFile");
       return false;
     },
     saveFileAs: async () => {
-      warnUnsupported('saveFileAs');
+      warnUnsupported("saveFileAs");
       return null;
     },
     confirmDiscard: async () => {
@@ -110,18 +110,18 @@ export function createWebPlatform(): PennivoPlatform {
       return [];
     },
     openFilePath: async () => {
-      warnUnsupported('openFilePath');
+      warnUnsupported("openFilePath");
       return null;
     },
 
     // Export — best-effort via download link
     exportHtml: async (html, title) => {
       const styledHtml = wrapHtmlWithStyles(html, title);
-      const fileName = title.replace(/\.md$/i, '') + '.html';
+      const fileName = title.replace(/\.md$/i, "") + ".html";
       try {
-        const blob = new Blob([styledHtml], { type: 'text/html' });
+        const blob = new Blob([styledHtml], { type: "text/html" });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
         a.download = fileName;
         document.body.appendChild(a);
@@ -130,7 +130,7 @@ export function createWebPlatform(): PennivoPlatform {
         URL.revokeObjectURL(url);
         return fileName;
       } catch (err) {
-        console.error('[Pennivo:web] exportHtml failed:', err);
+        console.error("[Pennivo:web] exportHtml failed:", err);
         return null;
       }
     },
@@ -138,7 +138,7 @@ export function createWebPlatform(): PennivoPlatform {
       // No native PDF in plain browser — fall back to print dialog
       const styledHtml = wrapHtmlWithStyles(html, title);
       try {
-        const w = window.open('', '_blank');
+        const w = window.open("", "_blank");
         if (!w) return null;
         w.document.write(styledHtml);
         w.document.close();
@@ -146,7 +146,7 @@ export function createWebPlatform(): PennivoPlatform {
         w.print();
         return title;
       } catch (err) {
-        console.error('[Pennivo:web] exportPdf failed:', err);
+        console.error("[Pennivo:web] exportPdf failed:", err);
         return null;
       }
     },
@@ -162,7 +162,7 @@ export function createWebPlatform(): PennivoPlatform {
       lsSet(LS_SIDEBAR_FOLDER, folderPath);
     },
     chooseSidebarFolder: async () => {
-      warnUnsupported('chooseSidebarFolder');
+      warnUnsupported("chooseSidebarFolder");
       return null;
     },
     readDirectory: async () => [],
@@ -189,7 +189,7 @@ export function createWebPlatform(): PennivoPlatform {
     },
 
     // App info
-    getAppInfo: async () => ({ version: '0.0.0-web', name: 'Pennivo (web)' }),
+    getAppInfo: async () => ({ version: "0.0.0-web", name: "Pennivo (web)" }),
 
     // File-from-OS — not applicable in browser
     getPendingFilePath: () => Promise.resolve(null),
@@ -201,22 +201,22 @@ export function createWebPlatform(): PennivoPlatform {
 
     // External file import — not supported in plain browser
     pickExternalFile: async () => {
-      warnUnsupported('pickExternalFile');
+      warnUnsupported("pickExternalFile");
       return null;
     },
 
     // File management — return empty results, warn on write
     listFiles: async () => [],
     createFile: async () => {
-      warnUnsupported('createFile');
+      warnUnsupported("createFile");
       return null;
     },
     deleteFile: async () => {
-      warnUnsupported('deleteFile');
+      warnUnsupported("deleteFile");
       return false;
     },
     renameFile: async () => {
-      warnUnsupported('renameFile');
+      warnUnsupported("renameFile");
       return null;
     },
 
