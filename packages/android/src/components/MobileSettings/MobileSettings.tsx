@@ -441,7 +441,34 @@ export function MobileSettings({
             <button
               className="msettings-link-btn"
               onClick={() =>
-                platform.openExternal("https://github.com/paya-e/pennivo")
+                platform.openExternal("https://pennivo.app/#download")
+              }
+              type="button"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10 3v10" />
+                <polyline points="6,9 10,13 14,9" />
+                <path d="M4 16h12" />
+              </svg>
+              Get desktop version
+            </button>
+          </div>
+
+          <div className="msettings-row">
+            <button
+              className="msettings-link-btn"
+              onClick={() =>
+                platform.openExternal("https://github.com/payaeb/pennivo")
               }
               type="button"
             >
@@ -458,7 +485,7 @@ export function MobileSettings({
               >
                 <path d="M7.5 16.5c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 18.5 2.5a5.07 5.07 0 0 0-.09-3.72S17.22-1.68 14.5.5a13.38 13.38 0 0 0-7 0C4.78-1.68 3.59-1.22 3.59-1.22A5.07 5.07 0 0 0 3.5 2.5 5.44 5.44 0 0 0 2 6.02c0 5.42 3.3 6.61 6.44 7a3.37 3.37 0 0 0-.94 2.58v3.9" />
               </svg>
-              GitHub
+              Source on GitHub
             </button>
           </div>
         </section>

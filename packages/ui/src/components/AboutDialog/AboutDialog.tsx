@@ -54,15 +54,42 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
         <div className="about-meta">
           <div>&copy; 2026 Paya Ebrahimi</div>
           <div>Licensed under MIT</div>
-          <div>
-            <a
-              className="about-link"
-              href="https://github.com/payaeb/pennivo"
-              onClick={handleLinkClick("https://github.com/payaeb/pennivo")}
-            >
-              GitHub
-            </a>
-          </div>
+        </div>
+        <button
+          className="about-primary"
+          onClick={handleLinkClick("https://pennivo.app/#download")}
+          type="button"
+        >
+          Check for updates
+        </button>
+        <div className="about-links">
+          <a
+            className="about-link"
+            href="https://pennivo.app"
+            onClick={handleLinkClick("https://pennivo.app")}
+          >
+            Website
+          </a>
+          <span className="about-links-sep" aria-hidden="true">
+            ·
+          </span>
+          <a
+            className="about-link"
+            href="https://github.com/payaeb/pennivo"
+            onClick={handleLinkClick("https://github.com/payaeb/pennivo")}
+          >
+            Source on GitHub
+          </a>
+          <span className="about-links-sep" aria-hidden="true">
+            ·
+          </span>
+          <a
+            className="about-link"
+            href="https://github.com/payaeb/pennivo/issues"
+            onClick={handleLinkClick("https://github.com/payaeb/pennivo/issues")}
+          >
+            Report issue
+          </a>
         </div>
         <button className="about-close" onClick={onClose}>
           Close
