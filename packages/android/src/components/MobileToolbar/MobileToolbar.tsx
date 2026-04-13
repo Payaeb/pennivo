@@ -13,6 +13,7 @@ export type MobileToolbarAction =
   | "indent"
   | "outdent"
   | "code"
+  | "link"
   | "blockquote"
   | "table";
 
@@ -47,6 +48,7 @@ const PRIMARY_ACTIONS: {
   { action: "outdent", label: "Outdent", icon: <OutdentIcon /> },
   { action: "indent", label: "Indent", icon: <IndentIcon /> },
   { action: "code", label: "Code", icon: <CodeIcon /> },
+  { action: "link", label: "Insert link", icon: <LinkIcon /> },
 ];
 
 /** Secondary row actions (visible when "More" is toggled) */
@@ -309,6 +311,24 @@ function CodeIcon() {
     >
       <polyline points="5,5 2,8 5,11" />
       <polyline points="11,5 14,8 11,11" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6.5 9.5l3-3" />
+      <path d="M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8" />
+      <path d="M9 11.5L7.5 13a2.5 2.5 0 0 1-3.5-3.5L5.5 8" />
     </svg>
   );
 }

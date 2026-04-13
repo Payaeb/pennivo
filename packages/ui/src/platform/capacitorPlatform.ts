@@ -138,12 +138,56 @@ const PREF_TOOLBAR_CONFIG = 'pennivo_toolbar_config';
 const MAX_RECENT_FILES = 10;
 
 /**
+ * Compress a data URL via canvas: downscale to a max edge and re-encode as JPEG.
+ * Used to keep embedded images small enough to avoid the document lock guard
+ * and to keep editor performance reasonable. Falls back to the original data URL
+ * if the canvas path fails or produces a larger result.
+ */
+async function compressImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX_DIM = 2048;
+      let { width, height } = img;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        const scale = MAX_DIM / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      try {
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+        // If compression made it bigger (e.g. small PNG), keep the original.
+        resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+      } catch (err) {
+        console.warn('[Pennivo] compressImage drawImage failed:', err);
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+/**
  * Opens the system image picker (gallery + camera) using a hidden <input type="file">.
  * Capacitor WebViews delegate image inputs to the native Android image picker, which
  * offers "Choose from gallery" and "Take a photo" options.
  *
  * Returns a data URL that can be embedded directly in markdown as an image src.
  * Handles cancellation gracefully (returns null).
+ *
+ * Images are compressed client-side (downscale to 2048px max edge, JPEG @ 0.82)
+ * unless already small (< 500KB) or animated (image/gif). This keeps the data
+ * URL under the document lock threshold so the editor doesn't flip to source mode.
  */
 function pickImageViaInput(): Promise<{
   relativePath: string;
@@ -153,9 +197,8 @@ function pickImageViaInput(): Promise<{
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    // capture="environment" hints the back camera for the "take photo" option.
-    // Android still shows the gallery picker alongside it.
-    input.setAttribute('capture', 'environment');
+    // Intentionally no `capture` attribute — that would force camera-only mode.
+    // With just accept="image/*", Android shows both gallery and camera options.
     input.style.display = 'none';
 
     let settled = false;
@@ -177,7 +220,7 @@ function pickImageViaInput(): Promise<{
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         const dataUrl =
           typeof reader.result === 'string' ? reader.result : null;
         cleanup();
@@ -185,21 +228,27 @@ function pickImageViaInput(): Promise<{
           resolve(null);
           return;
         }
-        // Warn (non-blocking) if the image is large — embedding huge data URLs
-        // in markdown can slow the editor. v1 still proceeds; future work can
-        // compress via canvas or save to Filesystem.
-        if (file.size > 500 * 1024) {
-          console.warn(
-            `[Pennivo] Inserting large image (${Math.round(
-              file.size / 1024,
-            )}KB) as data URL — editor performance may degrade.`,
-          );
+        // Skip compression for GIFs (would lose animation) and for small images
+        // (< 500KB) to preserve quality. Everything else gets downscaled+re-encoded.
+        const isGif = file.type === 'image/gif';
+        const isSmall = file.size < 500 * 1024;
+        let finalDataUrl = dataUrl;
+        if (!isGif && !isSmall) {
+          try {
+            finalDataUrl = await compressImage(dataUrl);
+          } catch (err) {
+            console.warn(
+              '[Pennivo] compressImage failed, using original:',
+              err,
+            );
+            finalDataUrl = dataUrl;
+          }
         }
         // Desktop returns { relativePath, absolutePath } where the caller uses
         // absolutePath to build a pennivo-file:// URL. On mobile there is no
         // local filesystem reference, so we hand back the data URL in both
         // fields — callers that know they're on mobile will use it directly.
-        resolve({ relativePath: dataUrl, absolutePath: dataUrl });
+        resolve({ relativePath: finalDataUrl, absolutePath: finalDataUrl });
       };
       reader.onerror = () => {
         console.error('[Pennivo] pickImage FileReader failed:', reader.error);
