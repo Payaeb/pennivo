@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pennivo nib glyph — standalone nib in green c2 (#34b56f), no background.
+  Used as the badge on the .md file-association icon, and anywhere the nib
+  appears alone against a neutral surface. Slit and breather are negative
+  space (transparent) so the glyph sits cleanly on any color.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g transform="rotate(35 256 256)">
+    <path fill="#34b56f" fill-rule="evenodd" d="M203.85,151.7 Q194.37,151.7 189.63,161.19 L256,379.26 L322.37,161.19 Q317.63,151.7 308.15,151.7 Z M252.44,222.81 L256,322.37 L259.56,222.81 Z M256,193.42 A10.43,10.43 0 1 0 256,214.28 A10.43,10.43 0 1 0 256,193.42 Z"/>
+  </g>
+</svg>

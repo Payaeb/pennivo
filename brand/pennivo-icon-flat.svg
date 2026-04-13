@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pennivo app icon — flat variant (no vignette).
+  Reference/fallback master for any context where vignette is undesirable
+  (very small sizes, print, monochrome).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="0" y="0" width="512" height="512" rx="92" ry="92" fill="#34b56f"/>
+  <g transform="rotate(35 256 256)">
+    <path fill="#ffffff" d="M203.85,151.7 Q194.37,151.7 189.63,161.19 L256,379.26 L322.37,161.19 Q317.63,151.7 308.15,151.7 Z"/>
+    <path fill="#34b56f" d="M252.44,222.81 L256,322.37 L259.56,222.81 Z"/>
+    <circle fill="#34b56f" cx="256" cy="203.85" r="10.43"/>
+  </g>
+</svg>

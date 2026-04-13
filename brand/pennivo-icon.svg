@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pennivo app icon — master source.
+  White pen nib, rotated 35deg, on full-bleed c2 green (#34b56f) rounded square.
+  Subtle radial vignette (22% max, 75% radius) for depth at larger sizes.
+  Rounded-square corner radius = 18% (92/512).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.22"/>
+    </radialGradient>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="512" height="512" rx="92" ry="92"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="92" ry="92" fill="#34b56f"/>
+  <rect x="0" y="0" width="512" height="512" fill="url(#vignette)" clip-path="url(#squircle)"/>
+  <g transform="rotate(35 256 256)">
+    <path fill="#ffffff" d="M203.85,151.7 Q194.37,151.7 189.63,161.19 L256,379.26 L322.37,161.19 Q317.63,151.7 308.15,151.7 Z"/>
+    <path fill="#34b56f" d="M252.44,222.81 L256,322.37 L259.56,222.81 Z"/>
+    <circle fill="#34b56f" cx="256" cy="203.85" r="10.43"/>
+  </g>
+</svg>
