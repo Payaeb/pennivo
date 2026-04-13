@@ -1,6 +1,6 @@
 {
   "name": "@pennivo/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Pennivo editor engine - framework-agnostic markdown editing",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",

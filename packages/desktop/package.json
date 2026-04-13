@@ -1,6 +1,6 @@
 {
   "name": "@pennivo/desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "productName": "Pennivo",
   "description": "A modern markdown editor with WYSIWYG and source mode",

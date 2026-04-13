@@ -1,6 +1,6 @@
 {
   "name": "@pennivo/ui",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Pennivo shared React UI components",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
