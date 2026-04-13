@@ -1,0 +1,5 @@
+v1.0.1 — polish and bug fixes.
+
+- Added missing design tokens for improved theming consistency
+- Fixed FileBrowser inline confirm buttons on Samsung Android WebView
+- Minor version bumps and dependency updates
