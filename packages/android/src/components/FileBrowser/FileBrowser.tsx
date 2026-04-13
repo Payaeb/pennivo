@@ -368,8 +368,10 @@ export function FileBrowser({
           />
           <button
             className="file-browser__inline-input-confirm"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={handleRenameConfirm}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              handleRenameConfirm();
+            }}
             aria-label="Confirm rename"
             type="button"
           >
@@ -377,8 +379,10 @@ export function FileBrowser({
           </button>
           <button
             className="file-browser__inline-input-cancel"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={handleRenameCancel}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              handleRenameCancel();
+            }}
             aria-label="Cancel rename"
             type="button"
           >
@@ -572,8 +576,10 @@ export function FileBrowser({
           />
           <button
             className="file-browser__inline-input-confirm"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={handleNewFileConfirm}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              handleNewFileConfirm();
+            }}
             aria-label="Create file"
             type="button"
           >
@@ -581,8 +587,10 @@ export function FileBrowser({
           </button>
           <button
             className="file-browser__inline-input-cancel"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={handleNewFileCancel}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              handleNewFileCancel();
+            }}
             aria-label="Cancel"
             type="button"
           >
