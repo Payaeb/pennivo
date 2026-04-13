@@ -7,8 +7,8 @@
 
     <!--
         Pennivo app icon foreground: fountain pen nib.
-        White on accent green (#4a7c59) background.
-        Nib tilted ~45 degrees in natural writing position.
+        White on accent green (#34b56f) background.
+        Nib tilted 35 degrees clockwise from vertical.
         All geometry within 72dp safe zone (18-90).
         Center: 54,54
     -->
@@ -31,7 +31,7 @@
 
         <!-- Slit: thin line from mid-nib toward tip -->
         <path
-            android:fillColor="#4a7c59"
+            android:fillColor="#34b56f"
             android:pathData="
                 M53.25,47
                 L54,68
@@ -40,7 +40,7 @@
 
         <!-- Breather hole -->
         <path
-            android:fillColor="#4a7c59"
+            android:fillColor="#34b56f"
             android:pathData="
                 M54,43
                 m-2.2,0
