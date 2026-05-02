@@ -50,7 +50,6 @@ mockup.html
 packages/desktop/test-results/
 packages/desktop/playwright-report/
 
-# Claude Code internals (prompts/settings/worktrees stay local)
-.claude/scheduled_tasks.lock
-.claude/worktrees/
-.claude/settings.local.json
+# Claude Code — all local. Add `!.claude/<thing>` exceptions if anything
+# under here ever needs to ship.
+.claude/
