@@ -195,74 +195,99 @@ export function Editor({
         }),
     );
 
-    // Allow escaping tables: ArrowDown in the last cell of the last row
-    // when the table is the last element, creates a paragraph below.
+    // Allow escaping tables: ArrowDown or Enter in the last cell of the
+    // last row when the table is the last element creates a paragraph below.
+    // Without this, a trailing table traps the cursor — Enter inside a GFM
+    // table cell has no useful default behavior (cells can't contain line
+    // breaks in the markdown serialization), so we hijack it.
+    //
+    // We listen on BOTH `handleKeyDown` (the normal path: hardware keyboard,
+    // and Android soft keyboards that are not in IME composition) AND
+    // `beforeinput` with `inputType: "insertParagraph"`/`"insertLineBreak"`
+    // (the path Android Gboard uses while composing/predicting — it fires
+    // beforeinput but skips keydown for Enter).
+    const tryEscapeTrailingTable = (view: EditorView): boolean => {
+      const { state } = view;
+      const { $from, empty } = state.selection;
+      if (!empty) return false;
+
+      // Walk up to find a table_cell or table_header
+      let cellDepth = -1;
+      for (let d = $from.depth; d >= 0; d--) {
+        const name = $from.node(d).type.name;
+        if (name === "table_cell" || name === "table_header") {
+          cellDepth = d;
+          break;
+        }
+      }
+      if (cellDepth < 0) return false;
+
+      // Find the table node (parent of table_row which is parent of cell)
+      let tableDepth = -1;
+      for (let d = cellDepth - 1; d >= 0; d--) {
+        if ($from.node(d).type.name === "table") {
+          tableDepth = d;
+          break;
+        }
+      }
+      if (tableDepth < 0) return false;
+
+      const tableNode = $from.node(tableDepth);
+      const tablePos = $from.before(tableDepth);
+      const afterTablePos = tablePos + tableNode.nodeSize;
+
+      // Cursor must be in the last row
+      const rowDepth = cellDepth - 1;
+      const rowNode = $from.node(rowDepth);
+      const rowIndex = $from.index(tableDepth);
+      if (rowIndex !== tableNode.childCount - 1) return false;
+
+      // Cursor must be in the last cell of the row
+      const cellIndex = $from.index(rowDepth);
+      if (cellIndex !== rowNode.childCount - 1) return false;
+
+      // Cursor must be at the end of the cell content
+      const cell = $from.parent;
+      if ($from.parentOffset < cell.content.size) return false;
+
+      // Table must be the last node in the document
+      if (afterTablePos < state.doc.content.size) return false;
+
+      const paragraph = state.schema.nodes["paragraph"].create();
+      const tr = state.tr.insert(afterTablePos, paragraph);
+      tr.setSelection(Selection.near(tr.doc.resolve(afterTablePos + 1)));
+      view.dispatch(tr);
+      return true;
+    };
+
     const tableEscape = $prose(
       () =>
         new Plugin({
           props: {
             handleKeyDown: (view, event) => {
-              if (event.key !== "ArrowDown") return false;
-
-              const { state } = view;
-              const { $from, empty } = state.selection;
-              if (!empty) return false;
-
-              // Walk up to find a table_cell or table_header
-              let cellDepth = -1;
-              for (let d = $from.depth; d >= 0; d--) {
-                const name = $from.node(d).type.name;
-                if (name === "table_cell" || name === "table_header") {
-                  cellDepth = d;
-                  break;
+              if (event.key !== "ArrowDown" && event.key !== "Enter")
+                return false;
+              return tryEscapeTrailingTable(view);
+            },
+            handleDOMEvents: {
+              // Android Gboard fires `beforeinput` with insertParagraph/
+              // insertLineBreak instead of a keydown for Enter while the IME
+              // is composing. Catch that path too so mobile users aren't
+              // trapped by a trailing table when their keyboard predicts.
+              beforeinput: (view, event: Event) => {
+                const ie = event as InputEvent;
+                if (
+                  ie.inputType !== "insertParagraph" &&
+                  ie.inputType !== "insertLineBreak"
+                ) {
+                  return false;
                 }
-              }
-              if (cellDepth < 0) return false;
-
-              // Find the table node (parent of table_row which is parent of cell)
-              let tableDepth = -1;
-              for (let d = cellDepth - 1; d >= 0; d--) {
-                if ($from.node(d).type.name === "table") {
-                  tableDepth = d;
-                  break;
+                if (tryEscapeTrailingTable(view)) {
+                  ie.preventDefault();
+                  return true;
                 }
-              }
-              if (tableDepth < 0) return false;
-
-              const tableNode = $from.node(tableDepth);
-              const tablePos = $from.before(tableDepth);
-              const afterTablePos = tablePos + tableNode.nodeSize;
-
-              // Check if cursor is in the last row
-              const rowDepth = cellDepth - 1;
-              const rowNode = $from.node(rowDepth);
-              const rowIndex = $from.index(tableDepth);
-              const isLastRow = rowIndex === tableNode.childCount - 1;
-              if (!isLastRow) return false;
-
-              // Check if cursor is in the last cell of the row
-              const cellIndex = $from.index(rowDepth);
-              const isLastCell = cellIndex === rowNode.childCount - 1;
-              if (!isLastCell) return false;
-
-              // Check if cursor is at the end of the cell content
-              const cell = $from.parent;
-              if ($from.parentOffset < cell.content.size) return false;
-
-              // Only act if the table is the last node in the document
-              const isLastNode = afterTablePos >= state.doc.content.size;
-
-              if (isLastNode) {
-                const paragraph = state.schema.nodes["paragraph"].create();
-                const tr = state.tr.insert(afterTablePos, paragraph);
-                tr.setSelection(
-                  Selection.near(tr.doc.resolve(afterTablePos + 1)),
-                );
-                view.dispatch(tr);
-                return true;
-              }
-
-              return false;
+                return false;
+              },
             },
           },
         }),
