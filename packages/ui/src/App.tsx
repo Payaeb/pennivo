@@ -12,13 +12,13 @@ import { editorViewCtx } from "@milkdown/core";
 import DOMPurify from "dompurify";
 import { callCommand, replaceAll } from "@milkdown/utils";
 import { lift } from "@milkdown/prose/commands";
+import { wrapInList } from "@milkdown/prose/schema-list";
 import type { EditorView } from "@milkdown/prose/view";
+import type { NodeType } from "@milkdown/prose/model";
 import {
   toggleStrongCommand,
   toggleEmphasisCommand,
   wrapInHeadingCommand,
-  wrapInBulletListCommand,
-  wrapInOrderedListCommand,
   wrapInBlockquoteCommand,
   createCodeBlockCommand,
   toggleInlineCodeCommand,
@@ -135,6 +135,49 @@ const DRAFT_SAVE_INTERVAL = 30_000;
 const FILE_SIZE_WARN = 500_000; // 500 KB — warn, user chooses mode
 const FILE_SIZE_SOURCE_DEFAULT = 1_000_000; // 1 MB — auto source mode, can switch back with warning
 const FILE_SIZE_SOURCE_LOCKED = 1_500_000; // 1.5 MB — locked to source mode
+
+/**
+ * Wrap each block in the current selection in its own list item.
+ *
+ * Milkdown's `wrapInBulletListCommand` / `wrapInOrderedListCommand` use
+ * ProseMirror's `wrapIn`, which puts the entire selection inside a SINGLE
+ * list_item — so a 3-line selection becomes one bullet containing all 3
+ * lines. We use `wrapInList` from prosemirror-schema-list instead, which
+ * iterates across the selected blocks and produces one list_item per block.
+ *
+ * For task lists, after wrapping we walk the resulting list_items in the
+ * selection range and set `checked:false` on each so they render as
+ * checkboxes.
+ */
+function wrapSelectionAsList(
+  view: EditorView,
+  listTypeName: "bullet_list" | "ordered_list",
+  asTaskList: boolean,
+): void {
+  const { state, dispatch } = view;
+  const listType = state.schema.nodes[listTypeName] as NodeType | undefined;
+  if (!listType) return;
+
+  const wrapped = wrapInList(listType)(state, dispatch);
+  if (!wrapped || !asTaskList) return;
+
+  // After wrap, fetch the new state and mark every list_item in the
+  // selection as a task item. We use a microtask so `dispatch` above has
+  // committed and `view.state` reflects the new doc.
+  queueMicrotask(() => {
+    const s = view.state;
+    const tr = s.tr;
+    const { from, to } = s.selection;
+    let changed = false;
+    s.doc.nodesBetween(from, to, (node, pos) => {
+      if (node.type.name === "list_item" && node.attrs["checked"] == null) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: false });
+        changed = true;
+      }
+    });
+    if (changed) view.dispatch(tr);
+  });
+}
 
 function getActiveFormats(view: EditorView): Set<ToolbarAction> {
   const active = new Set<ToolbarAction>();
@@ -2046,11 +2089,10 @@ function AppContent() {
             if (formats.has("bulletList")) {
               callCommand(liftListItemCommand.key)(ctx);
             } else {
-              // Lift out of any existing list first (task list or ordered list)
               if (formats.has("taskList") || formats.has("orderedList")) {
                 callCommand(liftListItemCommand.key)(ctx);
               }
-              callCommand(wrapInBulletListCommand.key)(ctx);
+              wrapSelectionAsList(view, "bullet_list", false);
             }
           });
           break;
@@ -2061,11 +2103,10 @@ function AppContent() {
             if (formats.has("orderedList")) {
               callCommand(liftListItemCommand.key)(ctx);
             } else {
-              // Lift out of any existing list first (task list or bullet list)
               if (formats.has("taskList") || formats.has("bulletList")) {
                 callCommand(liftListItemCommand.key)(ctx);
               }
-              callCommand(wrapInOrderedListCommand.key)(ctx);
+              wrapSelectionAsList(view, "ordered_list", false);
             }
           });
           break;
@@ -2077,29 +2118,13 @@ function AppContent() {
             if (formats.has("taskList")) {
               callCommand(liftListItemCommand.key)(ctx);
             } else {
-              // Lift out of any existing list first
               if (formats.has("orderedList") || formats.has("bulletList")) {
                 callCommand(liftListItemCommand.key)(ctx);
               }
-              callCommand(wrapInBulletListCommand.key)(ctx);
-              // Set the list_item's checked attribute to make it a task list
-              queueMicrotask(() => {
-                const { state, dispatch } = view;
-                const { $from } = state.selection;
-                for (let d = $from.depth; d >= 0; d--) {
-                  const node = $from.node(d);
-                  if (node.type.name === "list_item") {
-                    const pos = $from.before(d);
-                    dispatch(
-                      state.tr.setNodeMarkup(pos, undefined, {
-                        ...node.attrs,
-                        checked: false,
-                      }),
-                    );
-                    break;
-                  }
-                }
-              });
+              // Wrap each selected block in its own bullet_list item, then
+              // mark every new list_item with checked:false so they render
+              // as task-list checkboxes.
+              wrapSelectionAsList(view, "bullet_list", true);
             }
           });
           break;
