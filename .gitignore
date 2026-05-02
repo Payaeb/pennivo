@@ -42,3 +42,15 @@ coverage/
 docs/
 feature-planner.html
 mockup.html
+
+# Local-only archive for files set aside but not deleted
+.archive/
+
+# Playwright e2e
+packages/desktop/test-results/
+packages/desktop/playwright-report/
+
+# Claude Code internals (prompts/settings/worktrees stay local)
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.claude/settings.local.json
