@@ -104,7 +104,11 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     label: "View",
     items: [
-      { label: "Toggle Sidebar", action: "toggleSidebar", shortcut: "Ctrl+B" },
+      {
+        label: "Toggle Sidebar",
+        action: "toggleSidebar",
+        shortcut: "Ctrl+Shift+B",
+      },
       {
         label: "Toggle Outline",
         action: "toggleOutline",

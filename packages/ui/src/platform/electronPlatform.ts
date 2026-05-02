@@ -56,6 +56,7 @@ export function createElectronPlatform(): PennivoPlatform {
     chooseSidebarFolder: () => api.chooseSidebarFolder(),
     readDirectory: (folderPath) => api.readDirectory(folderPath),
     onSidebarFolderChanged: (cb) => api.onSidebarFolderChanged(cb),
+    showItemInFolder: (filePath) => api.showItemInFolder(filePath),
 
     // Toolbar config
     getToolbarConfig: () => api.getToolbarConfig(),
@@ -103,16 +104,12 @@ export function createElectronPlatform(): PennivoPlatform {
         "Not implemented: desktop uses sidebar for file management",
       );
     },
-    deleteFile: async () => {
-      throw new Error(
-        "Not implemented: desktop uses sidebar for file management",
-      );
-    },
-    renameFile: async () => {
-      throw new Error(
-        "Not implemented: desktop uses sidebar for file management",
-      );
-    },
+    deleteFile: (filePath, includeAssets = false) =>
+      api.deleteFile(filePath, includeAssets),
+    getAssetSummary: (filePath) => api.getAssetSummary(filePath),
+    renameFile: (oldPath, newName) => api.renameFile(oldPath, newName),
+    moveFile: (srcPath, destDir, overwrite = false) =>
+      api.moveFile(srcPath, destDir, overwrite),
 
     // Menu events
     onMenuPaste: (cb) => api.onMenuPaste(cb),

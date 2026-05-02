@@ -10,6 +10,7 @@
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(4px);
   animation: about-overlay-in 0.15s ease;
+  -webkit-app-region: no-drag;
 }
 
 .about-card {

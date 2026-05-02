@@ -543,6 +543,14 @@ export function createCapacitorPlatform(): PennivoPlatform {
     onSidebarFolderChanged: (_cb) => {
       notSupported("onSidebarFolderChanged");
     },
+    showItemInFolder: async (_filePath: string) => {
+      // Android has no equivalent of "show in file manager" — silent no-op.
+      return false;
+    },
+    moveFile: async () => {
+      // Mobile sidebar is a different surface; no in-app drag-and-drop in v1.
+      return { ok: false, reason: "error" as const };
+    },
 
     // Toolbar config
     getToolbarConfig: async () => {
@@ -672,6 +680,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
       }
     },
 
+    getAssetSummary: async () => ({ folders: [], assetCount: 0 }),
     deleteFile: async (filePath) => {
       try {
         const { Filesystem, Directory } = await getFilesystem();

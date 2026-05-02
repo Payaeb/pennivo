@@ -10,6 +10,10 @@
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(4px);
   animation: settings-overlay-in 0.15s ease;
+  /* Carve this overlay out of the Titlebar's drag region (top 36px) so the
+     close button isn't swallowed by the OS-level window-drag handle. Drag
+     regions are unioned, not z-index-aware. */
+  -webkit-app-region: no-drag;
 }
 
 .settings-panel {

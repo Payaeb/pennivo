@@ -167,6 +167,14 @@ export function createWebPlatform(): PennivoPlatform {
     },
     readDirectory: async () => [],
     onSidebarFolderChanged: () => noop,
+    showItemInFolder: async () => {
+      warnUnsupported("showItemInFolder");
+      return false;
+    },
+    moveFile: async () => {
+      warnUnsupported("moveFile");
+      return { ok: false, reason: "error" as const };
+    },
 
     // Toolbar config — persisted in localStorage
     getToolbarConfig: async () =>
@@ -211,6 +219,7 @@ export function createWebPlatform(): PennivoPlatform {
       warnUnsupported("createFile");
       return null;
     },
+    getAssetSummary: async () => ({ folders: [], assetCount: 0 }),
     deleteFile: async () => {
       warnUnsupported("deleteFile");
       return false;

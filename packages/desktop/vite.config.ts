@@ -17,6 +17,12 @@ export default defineConfig({
             },
           },
         },
+        // Restart the entire Electron process when main.ts changes —
+        // without this, IPC handlers added in main never get registered
+        // until the dev server is killed and re-launched.
+        onstart(args) {
+          args.startup();
+        },
       },
       {
         entry: 'src/main/preload.ts',

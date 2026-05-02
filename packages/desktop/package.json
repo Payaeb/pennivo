@@ -25,7 +25,9 @@
     "dist:dir": "electron-builder --dir --win --publish never",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "clean": "rm -rf dist release"
+    "clean": "rm -rf dist release",
+    "test:e2e": "playwright test",
+    "pretest:e2e": "pnpm build"
   },
   "build": {
     "appId": "com.pennivo.app",
@@ -46,7 +48,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico",
       "artifactName": "Pennivo-Setup-${version}.exe",
@@ -91,11 +98,13 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.4.0",
     "electron": "35.7.5",
     "electron-builder": "^26.8.1",
+    "playwright": "^1.59.1",
     "png2icons": "^2.0.1",
     "typescript": "^5.7.0",
     "vite": "^6.3.0",

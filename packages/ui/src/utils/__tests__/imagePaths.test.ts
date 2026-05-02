@@ -25,11 +25,25 @@ describe("resolveImagePaths", () => {
     expect(resolveImagePaths(md, "C:/docs/note.md")).toBe(md);
   });
 
-  it("spaces in paths are not matched (markdown image URLs cannot contain spaces)", () => {
-    // The regex uses \S+? for the URL, so spaces break the match — image is left unchanged
+  it("literal spaces in relative paths are accepted and %20-encoded in the resolved URL", () => {
+    // Files saved by older versions of Pennivo (or hand-edited) may have
+    // literal spaces in the URL. CommonMark forbids them, but Pennivo has
+    // to read them back without dropping the image — encode the spaces so
+    // Milkdown can render the image.
     const md = "![photo](./my images/photo.png)";
     const result = resolveImagePaths(md, "C:/docs/note.md");
-    expect(result).toBe(md);
+    expect(result).toBe(
+      "![photo](pennivo-file:///C:/docs/my%20images/photo.png)",
+    );
+  });
+
+  it("works for the production folder pattern with multiple spaces", () => {
+    const md =
+      "![](./how I feel about what pro war people say-md-images/paste.png)";
+    const result = resolveImagePaths(md, "C:/notes/note.md");
+    expect(result).toContain(
+      "pennivo-file:///C:/notes/how%20I%20feel%20about%20what%20pro%20war%20people%20say-md-images/paste.png",
+    );
   });
 
   it("percent-encoded spaces in paths are resolved correctly", () => {
@@ -127,13 +141,32 @@ describe("Roundtrip: resolve → relativize", () => {
     expect(roundtripped).toBe(original);
   });
 
-  it("works with paths containing spaces", () => {
+  it("%20-encoded paths roundtrip exactly", () => {
     const original = "![photo](./my%20images/photo.png)";
     const filePath = "C:/docs/note.md";
     const resolved = resolveImagePaths(original, filePath);
     const roundtripped = relativizeImagePaths(resolved, filePath);
-    // The spaces get decoded then re-encoded through the roundtrip
-    expect(roundtripped).toContain("my");
-    expect(roundtripped).toContain("photo.png");
+    expect(roundtripped).toBe(original);
+  });
+
+  it("literal-space paths heal to %20-encoded form on roundtrip", () => {
+    // Inbound: literal space (legacy / hand-edited).
+    // Outbound: %20-encoded (valid CommonMark, parseable by Milkdown).
+    const original = "![photo](./my images/photo.png)";
+    const filePath = "C:/docs/note.md";
+    const resolved = resolveImagePaths(original, filePath);
+    const roundtripped = relativizeImagePaths(resolved, filePath);
+    expect(roundtripped).toBe("![photo](./my%20images/photo.png)");
+  });
+
+  it("production-shape path with multiple spaces roundtrips cleanly", () => {
+    const original =
+      "![](./how I feel about what pro war people say-md-images/paste.png)";
+    const filePath = "C:/notes/note.md";
+    const resolved = resolveImagePaths(original, filePath);
+    const roundtripped = relativizeImagePaths(resolved, filePath);
+    expect(roundtripped).toBe(
+      "![](./how%20I%20feel%20about%20what%20pro%20war%20people%20say-md-images/paste.png)",
+    );
   });
 });

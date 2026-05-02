@@ -5,6 +5,9 @@ interface FileTreeEntry {
   path: string;
   type: "file" | "folder";
   children?: FileTreeEntry[];
+  size?: number;
+  mtimeMs?: number;
+  lastOpenedMs?: number;
 }
 
 contextBridge.exposeInMainWorld("pennivo", {
@@ -39,6 +42,8 @@ contextBridge.exposeInMainWorld("pennivo", {
     ipcRenderer.invoke("file:open") as Promise<{
       filePath: string;
       content: string;
+      fileSize?: number;
+      healed?: boolean;
     } | null>,
   saveFile: (filePath: string, content: string) =>
     ipcRenderer.invoke("file:save", { filePath, content }) as Promise<boolean>,
@@ -62,6 +67,8 @@ contextBridge.exposeInMainWorld("pennivo", {
     ipcRenderer.invoke("file:open-path", filePath) as Promise<{
       filePath: string;
       content: string;
+      fileSize?: number;
+      healed?: boolean;
     } | null>,
 
   // Export
@@ -93,6 +100,36 @@ contextBridge.exposeInMainWorld("pennivo", {
       ipcRenderer.removeListener("sidebar:folder-changed", handler);
     };
   },
+
+  // Sidebar file operations
+  showItemInFolder: (filePath: string) =>
+    ipcRenderer.invoke("sidebar:show-in-folder", filePath) as Promise<boolean>,
+  getAssetSummary: (filePath: string) =>
+    ipcRenderer.invoke("sidebar:get-asset-summary", filePath) as Promise<{
+      folders: string[];
+      assetCount: number;
+    }>,
+  deleteFile: (filePath: string, includeAssets: boolean = false) =>
+    ipcRenderer.invoke(
+      "sidebar:delete-file",
+      filePath,
+      includeAssets,
+    ) as Promise<boolean>,
+  renameFile: (oldPath: string, newName: string) =>
+    ipcRenderer.invoke("sidebar:rename-file", oldPath, newName) as Promise<
+      string | null
+    >,
+  moveFile: (srcPath: string, destDir: string, overwrite: boolean) =>
+    ipcRenderer.invoke(
+      "sidebar:move-file",
+      srcPath,
+      destDir,
+      overwrite,
+    ) as Promise<{
+      ok: boolean;
+      newPath?: string;
+      reason?: "collision" | "error";
+    }>,
 
   // Toolbar config
   getToolbarConfig: () =>

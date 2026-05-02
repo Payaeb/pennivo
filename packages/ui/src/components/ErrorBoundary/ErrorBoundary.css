@@ -6,6 +6,7 @@
   justify-content: center;
   background: var(--bg);
   z-index: 10000;
+  -webkit-app-region: no-drag;
 }
 
 .error-boundary-content {

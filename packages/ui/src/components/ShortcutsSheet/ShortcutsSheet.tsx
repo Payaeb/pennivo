@@ -40,7 +40,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { action: "Command Palette", keys: "Ctrl+Shift+P" },
       { action: "Outline Panel", keys: "Ctrl+Shift+O" },
       { action: "Find & Replace", keys: "Ctrl+F" },
-      { action: "Toggle Sidebar", keys: "Ctrl+B" },
+      { action: "Toggle Sidebar", keys: "Ctrl+Shift+B" },
     ],
   },
   {

@@ -47,6 +47,16 @@ export function createMockPennivoAPI() {
     chooseSidebarFolder: vi.fn(async () => null),
     readDirectory: vi.fn(async () => []),
     onSidebarFolderChanged: vi.fn(() => () => {}),
+    showItemInFolder: vi.fn(async () => true),
+    getAssetSummary: vi.fn(async () => ({ folders: [], assetCount: 0 })),
+    deleteFile: vi.fn(async () => true),
+    renameFile: vi.fn(async (_oldPath: string, newName: string) => newName),
+    moveFile: vi.fn(
+      async (_srcPath: string, _destDir: string, _overwrite?: boolean) => ({
+        ok: true,
+        newPath: `${_destDir}/${_srcPath.split("/").pop()}`,
+      }),
+    ),
 
     // Toolbar config
     getToolbarConfig: vi.fn(async () => null),

@@ -46,6 +46,12 @@ import { LinkPopover } from "./components/LinkPopover/LinkPopover";
 import { FindReplace } from "./components/FindReplace/FindReplace";
 import type { SaveStatus } from "./components/Statusbar/Statusbar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+import {
+  type SidebarSortKey,
+  DEFAULT_SORT,
+  isSidebarSortKey,
+  sortTree,
+} from "./utils/sortTree";
 import type {
   MenuAction,
   RecentFileEntry,
@@ -254,6 +260,67 @@ function AppContent() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
   const [sidebarTree, setSidebarTree] = useState<FileTreeEntry[]>([]);
+  const [sidebarSort, setSidebarSort] = useState<SidebarSortKey>(DEFAULT_SORT);
+  // Map of normalized file path → millisecond timestamp of last open in Pennivo.
+  // Powers the "Recently opened" sort. Persisted via settings.
+  const [fileOpenTimestamps, setFileOpenTimestamps] = useState<
+    Record<string, number>
+  >({});
+
+  const normalizeFilePath = useCallback(
+    (p: string) => p.replace(/\\/g, "/").toLowerCase(),
+    [],
+  );
+
+  const hydrateOpenTimestamps = useCallback(
+    (entries: FileTreeEntry[]): FileTreeEntry[] =>
+      entries.map((e) => {
+        const next: FileTreeEntry = { ...e };
+        if (e.type === "file") {
+          const ts = fileOpenTimestamps[normalizeFilePath(e.path)];
+          if (ts !== undefined) next.lastOpenedMs = ts;
+        }
+        if (e.children) next.children = hydrateOpenTimestamps(e.children);
+        return next;
+      }),
+    [fileOpenTimestamps, normalizeFilePath],
+  );
+
+  const sortedSidebarTree = useMemo(
+    () => sortTree(hydrateOpenTimestamps(sidebarTree), sidebarSort),
+    [sidebarTree, sidebarSort, hydrateOpenTimestamps],
+  );
+
+  const handleSidebarSortChange = useCallback((key: SidebarSortKey) => {
+    setSidebarSort(key);
+    platform.getSettings().then((saved) => {
+      platform.setSettings({ ...saved, sidebarSort: key });
+    });
+  }, []);
+
+  // Sidebar context-menu handlers — wired directly to platform.
+  // Toast feedback is surfaced via the existing showToast helper (defined later
+  // in this component) — accessed via ref to avoid a forward dependency.
+  const handleSidebarShowInExplorer = useCallback((absPath: string) => {
+    platform.showItemInFolder(absPath).catch((err) => {
+      console.error("[showItemInFolder] failed:", err);
+    });
+  }, []);
+
+  const recordFileOpen = useCallback(
+    (filePath: string) => {
+      const key = normalizeFilePath(filePath);
+      const now = Date.now();
+      setFileOpenTimestamps((prev) => {
+        const next = { ...prev, [key]: now };
+        platform.getSettings().then((saved) => {
+          platform.setSettings({ ...saved, fileOpenTimestamps: next });
+        });
+        return next;
+      });
+    },
+    [normalizeFilePath],
+  );
 
   // --- Toolbar config ---
   const [toolbarConfig, setToolbarConfig] = useState<ConfigurableAction[]>(
@@ -269,14 +336,48 @@ function AppContent() {
   // --- Settings-backed UI state ---
   const [showWordCount, setShowWordCount] = useState(true);
 
+  // Track whether the sidebar visibility has been hydrated from storage —
+  // gates the persistence effect to skip the initial render.
+  const sidebarVisibilityHydratedRef = useRef(false);
+
   // Load persisted settings on mount
   useEffect(() => {
     platform.getSettings().then((saved) => {
       if (saved && typeof saved.showWordCount === "boolean") {
         setShowWordCount(saved.showWordCount);
       }
+      if (saved && isSidebarSortKey(saved.sidebarSort)) {
+        setSidebarSort(saved.sidebarSort);
+      }
+      if (saved && typeof saved.sidebarVisible === "boolean") {
+        setSidebarVisible(saved.sidebarVisible);
+      }
+      if (
+        saved &&
+        saved.fileOpenTimestamps &&
+        typeof saved.fileOpenTimestamps === "object"
+      ) {
+        const raw = saved.fileOpenTimestamps as Record<string, unknown>;
+        const cleaned: Record<string, number> = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof v === "number" && Number.isFinite(v)) cleaned[k] = v;
+        }
+        setFileOpenTimestamps(cleaned);
+      }
     });
   }, []);
+
+  // Persist sidebar visibility on every toggle. Skip the very first render
+  // so we don't overwrite settings before they've had a chance to hydrate.
+  useEffect(() => {
+    if (!sidebarVisibilityHydratedRef.current) {
+      sidebarVisibilityHydratedRef.current = true;
+      return;
+    }
+    platform.getSettings().then((saved) => {
+      platform.setSettings({ ...saved, sidebarVisible });
+    });
+  }, [sidebarVisible]);
 
   const handleSettingsChange = useCallback(
     (settings: Record<string, unknown>) => {
@@ -330,14 +431,109 @@ function AppContent() {
     }
   }, [refreshSidebarTree]);
 
-  // Load persisted sidebar folder on mount
-  useEffect(() => {
-    platform.getSidebarFolder().then((folder) => {
-      if (folder) {
-        setSidebarFolder(folder);
-        refreshSidebarTree(folder);
+  // Forward-ref to the post-rename reload routine. Populated by an effect
+  // later in the component (after loadContent + showToast are declared) —
+  // lets handleSidebarRenameFile remain in this cluster of sidebar handlers
+  // without TDZ errors against the later-declared deps.
+  const reloadOpenFileRef = useRef<((newPath: string) => Promise<void>) | null>(
+    null,
+  );
+
+  const handleSidebarRenameFile = useCallback(
+    async (oldPath: string, newName: string): Promise<string | null> => {
+      const wasOpen =
+        !!filePath &&
+        filePath.replace(/\\/g, "/").toLowerCase() ===
+          oldPath.replace(/\\/g, "/").toLowerCase();
+      const newPath = await platform.renameFile(oldPath, newName);
+      if (newPath) {
+        if (wasOpen) {
+          setFilePath(newPath);
+          // Main process may have normalized the on-disk content (consolidating
+          // multiple *-md-images folders into the new convention name and
+          // rewriting references). Re-read so the editor sees the canonical
+          // version. Any unsaved changes at the moment of rename are lost —
+          // this is the trade-off for keeping the file's asset state coherent.
+          try {
+            await reloadOpenFileRef.current?.(newPath);
+          } catch (err) {
+            console.error("[rename] reload after rename failed:", err);
+          }
+        }
+        refreshSidebarTree(sidebarFolder);
       }
-    });
+      return newPath;
+    },
+    [filePath, sidebarFolder, refreshSidebarTree],
+  );
+
+  const handleSidebarDeleteFile = useCallback(
+    async (path: string, includeAssets: boolean): Promise<boolean> => {
+      const ok = await platform.deleteFile(path, includeAssets);
+      if (ok) {
+        // If the deleted file is currently open, detach it from the path —
+        // user's content stays in the editor as unsaved (so they can save-as elsewhere).
+        if (
+          filePath &&
+          filePath.replace(/\\/g, "/").toLowerCase() ===
+            path.replace(/\\/g, "/").toLowerCase()
+        ) {
+          setFilePath(null);
+          setIsDirty(true);
+        }
+        refreshSidebarTree(sidebarFolder);
+      }
+      return ok;
+    },
+    [filePath, sidebarFolder, refreshSidebarTree],
+  );
+
+  const handleSidebarMoveFile = useCallback(
+    async (
+      srcPath: string,
+      destDir: string,
+      overwrite = false,
+    ): Promise<{
+      ok: boolean;
+      newPath?: string;
+      reason?: "collision" | "error";
+    }> => {
+      const result = await platform.moveFile(srcPath, destDir, overwrite);
+      if (result.ok) {
+        // If the moved file is currently open, remap to the new path so saves
+        // continue to land in the right place (mirrors rename behavior).
+        if (
+          result.newPath &&
+          filePath &&
+          filePath.replace(/\\/g, "/").toLowerCase() ===
+            srcPath.replace(/\\/g, "/").toLowerCase()
+        ) {
+          setFilePath(result.newPath);
+        }
+        refreshSidebarTree(sidebarFolder);
+      }
+      return result;
+    },
+    [filePath, sidebarFolder, refreshSidebarTree],
+  );
+
+  // Load persisted sidebar folder on mount.
+  // If a folder is configured but the user has never explicitly toggled
+  // sidebar visibility (no `sidebarVisible` in settings), default to visible —
+  // otherwise the sort dropdown and right-click menu live on a hidden surface
+  // and the user thinks the features are missing.
+  useEffect(() => {
+    Promise.all([platform.getSidebarFolder(), platform.getSettings()]).then(
+      ([folder, saved]) => {
+        if (folder) {
+          setSidebarFolder(folder);
+          refreshSidebarTree(folder);
+          const explicitVisibility =
+            saved && typeof saved.sidebarVisible === "boolean";
+          if (!explicitVisibility) setSidebarVisible(true);
+        }
+      },
+    );
   }, [refreshSidebarTree]);
 
   // Load persisted toolbar config on mount
@@ -515,6 +711,27 @@ function AppContent() {
     [getInstance, showToast],
   );
 
+  // Populate the forward-ref used by handleSidebarRenameFile to reload the
+  // editor after a rename. We can only define this AFTER loadContent +
+  // showToast are declared above. Updated whenever those refs change so the
+  // closure stays current.
+  useEffect(() => {
+    reloadOpenFileRef.current = async (newPath: string) => {
+      const result = await platform.openFilePath(newPath);
+      if (!result) return;
+      const displayContent = resolveImagePaths(result.content, result.filePath);
+      markdownRef.current = displayContent;
+      savedMarkdownRef.current = displayContent;
+      loadContent(displayContent);
+      setOutlineMarkdown(displayContent);
+      setIsDirty(false);
+      setSaveStatus("saved");
+      if (result.healed) {
+        showToast("Asset folders cleaned up for this file");
+      }
+    };
+  }, [loadContent, showToast]);
+
   // --- Drain pending markdown when Milkdown finishes initializing ---
   // Pairs with loadContent above for the cold-start race: if a .md was
   // opened from Explorer before the editor was ready, markdownRef holds
@@ -563,6 +780,7 @@ function AppContent() {
 
     // Set file path first so loadContent can resolve/relativize against it
     setFilePath(result.filePath);
+    recordFileOpen(result.filePath);
 
     // Resolve relative image paths to pennivo-file:// for display
     const displayContent = resolveImagePaths(result.content, result.filePath);
@@ -601,7 +819,10 @@ function AppContent() {
     setIsDirty(false);
     setSaveStatus("saved");
     loadRecentFiles();
-  }, [doSave, loadRecentFiles, loadContent, showToast]);
+    if (result.healed) {
+      showToast("Asset folders cleaned up for this file");
+    }
+  }, [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen]);
 
   // --- Open recent file by path ---
   const openRecentFile = useCallback(
@@ -630,6 +851,7 @@ function AppContent() {
       fileSizeRef.current = size;
 
       setFilePath(result.filePath);
+      recordFileOpen(result.filePath);
       const displayContent = resolveImagePaths(result.content, result.filePath);
 
       if (size > FILE_SIZE_SOURCE_LOCKED) {
@@ -663,13 +885,30 @@ function AppContent() {
       setIsDirty(false);
       setSaveStatus("saved");
       loadRecentFiles();
+      if (result.healed) {
+        showToast("Asset folders cleaned up for this file");
+      }
     },
-    [doSave, loadRecentFiles, loadContent, showToast],
+    [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
   );
 
   // --- Sidebar file click ---
   const handleSidebarFileClick = useCallback(
     async (clickedPath: string) => {
+      // Clicking the file you're already on is a no-op. Without this guard
+      // we'd reload from disk and silently drop any in-flight changes that
+      // hadn't been autosaved yet (e.g. an image you just pasted), since
+      // autosave is debounced 3s. The image file would still be on disk,
+      // but the markdown reference to it would vanish from the editor.
+      const current = filePathRef.current;
+      if (
+        current &&
+        current.replace(/\\/g, "/").toLowerCase() ===
+          clickedPath.replace(/\\/g, "/").toLowerCase()
+      ) {
+        return;
+      }
+
       if (isDirtyRef.current) {
         const response = await platform.confirmDiscard();
         if (response === 2) return;
@@ -693,6 +932,7 @@ function AppContent() {
       fileSizeRef.current = size;
 
       setFilePath(result.filePath);
+      recordFileOpen(result.filePath);
       const displayContent = resolveImagePaths(result.content, result.filePath);
 
       if (size > FILE_SIZE_SOURCE_LOCKED) {
@@ -726,8 +966,11 @@ function AppContent() {
       setIsDirty(false);
       setSaveStatus("saved");
       loadRecentFiles();
+      if (result.healed) {
+        showToast("Asset folders cleaned up for this file");
+      }
     },
-    [doSave, loadRecentFiles, loadContent, showToast],
+    [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
   );
 
   // --- New file ---
@@ -1287,6 +1530,41 @@ function AppContent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [openLinkPopover]);
+
+  // Zoom shortcuts: Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0 / Ctrl+wheel.
+  // Electron's default zoom role accelerators don't fire reliably with a
+  // frameless window on Windows, so we wire them up explicitly in the renderer.
+  useEffect(() => {
+    if (platform.platformName !== "electron") return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        platform.zoomIn();
+      } else if (e.key === "-") {
+        e.preventDefault();
+        platform.zoomOut();
+      } else if (e.key === "0") {
+        e.preventDefault();
+        platform.resetZoom();
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      if (e.deltaY < 0) platform.zoomIn();
+      else if (e.deltaY > 0) platform.zoomOut();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, [platform]);
 
   // --- Image paste handler ---
   // Returns the src to use for the image node (file:// URL for display).
@@ -1972,14 +2250,14 @@ function AppContent() {
         } else if (e.key === "O") {
           e.preventDefault();
           setOutlineVisible((v) => !v);
+        } else if (e.key === "B") {
+          e.preventDefault();
+          setSidebarVisible((v) => !v);
         }
       } else {
         if (e.key === "f") {
           e.preventDefault();
           setFindReplaceOpen(true);
-        } else if (e.key === "b") {
-          e.preventDefault();
-          setSidebarVisible((v) => !v);
         } else if (e.key === "/") {
           e.preventDefault();
           setShortcutsOpen((v) => !v);
@@ -2132,7 +2410,7 @@ function AppContent() {
       {
         id: "toggleSidebar",
         label: "Toggle Sidebar",
-        shortcut: "Ctrl+B",
+        shortcut: "Ctrl+Shift+B",
         category: "View",
         keywords: "file tree panel",
       },
@@ -2475,10 +2753,18 @@ function AppContent() {
         <Sidebar
           visible={sidebarVisible}
           folderPath={sidebarFolder}
-          tree={sidebarTree}
+          tree={sortedSidebarTree}
           currentFilePath={filePath}
           onFileClick={handleSidebarFileClick}
           onChooseFolder={handleChooseFolder}
+          sortKey={sidebarSort}
+          onSortChange={handleSidebarSortChange}
+          onShowInExplorer={handleSidebarShowInExplorer}
+          onRenameFile={handleSidebarRenameFile}
+          onDeleteFile={handleSidebarDeleteFile}
+          onGetAssetSummary={(p) => platform.getAssetSummary(p)}
+          onMoveFile={handleSidebarMoveFile}
+          onShowToast={(msg) => showToast(msg)}
         />
       }
       outline={

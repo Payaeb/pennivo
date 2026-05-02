@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   dialog,
   Menu,
@@ -11,6 +12,13 @@ import {
   shell,
 } from "electron";
 import { autoUpdater } from "electron-updater";
+import {
+  buildContextMenu,
+  decodeImageUrlSpaces,
+  encodeImageUrlSpaces,
+  extractReferencedFolders,
+  planNormalize,
+} from "@pennivo/core";
 import path from "node:path";
 import fs from "node:fs/promises";
 import {
@@ -60,7 +68,11 @@ function getFilePathFromArgv(argv: readonly string[]): string | null {
   return null;
 }
 
-if (!app.requestSingleInstanceLock()) {
+// Skip the single-instance lock in dev so a dev build can run alongside an
+// installed production copy. In production we still enforce it so opening a
+// .md from Explorer routes argv to the running window instead of spawning a
+// second Pennivo.
+if (app.isPackaged && !app.requestSingleInstanceLock()) {
   // Another Pennivo instance is already running. The primary will receive
   // our argv via the 'second-instance' event below. Quit immediately.
   app.quit();
@@ -268,6 +280,9 @@ interface FileTreeEntry {
   path: string;
   type: "file" | "folder";
   children?: FileTreeEntry[];
+  size?: number;
+  mtimeMs?: number;
+  lastOpenedMs?: number;
 }
 
 async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
@@ -308,7 +323,22 @@ async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
     } else {
       const ext = path.extname(item.name).toLowerCase();
       if (SIDEBAR_EXTENSIONS.has(ext)) {
-        entries.push({ name: item.name, path: fullPath, type: "file" });
+        let size: number | undefined;
+        let mtimeMs: number | undefined;
+        try {
+          const stat = await fs.stat(path.join(dirPath, item.name));
+          size = stat.size;
+          mtimeMs = stat.mtimeMs;
+        } catch {
+          // stat failure is non-fatal — file still listed without sortable metadata
+        }
+        entries.push({
+          name: item.name,
+          path: fullPath,
+          type: "file",
+          size,
+          mtimeMs,
+        });
       }
     }
   }
@@ -587,36 +617,74 @@ function createWindow() {
   // Set default spellchecker languages
   mainWindow.webContents.session.setSpellCheckerLanguages(["en-US"]);
 
-  // Right-click context menu with spell check suggestions
+  // Right-click context menu — see `buildContextMenu` in @pennivo/core for
+  // the menu-spec logic; this block just adapts each spec item to an
+  // Electron MenuItem and wires the click handlers.
   mainWindow.webContents.on("context-menu", (_event, params) => {
-    if (!params.misspelledWord) return;
-
-    const menuItems: Electron.MenuItemConstructorOptions[] = [];
-
-    // Add spelling suggestions
-    for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
-      menuItems.push({
-        label: suggestion,
-        click: () => mainWindow?.webContents.replaceMisspelling(suggestion),
-      });
-    }
-
-    if (menuItems.length > 0) {
-      menuItems.push({ type: "separator" });
-    }
-
-    // Add to dictionary
-    menuItems.push({
-      label: `Add "${params.misspelledWord}" to dictionary`,
-      click: () => {
-        mainWindow?.webContents.session.addWordToSpellCheckerDictionary(
-          params.misspelledWord,
-        );
+    const wc = mainWindow?.webContents;
+    if (!wc) return;
+    const spec = buildContextMenu({
+      isEditable: params.isEditable,
+      misspelledWord: params.misspelledWord,
+      dictionarySuggestions: params.dictionarySuggestions,
+      linkURL: params.linkURL,
+      mediaType: params.mediaType,
+      srcURL: params.srcURL,
+      editFlags: {
+        canCut: params.editFlags.canCut,
+        canCopy: params.editFlags.canCopy,
+        canPaste: params.editFlags.canPaste,
+        canSelectAll: params.editFlags.canSelectAll,
       },
     });
+    if (spec.length === 0) return;
 
-    const contextMenu = Menu.buildFromTemplate(menuItems);
-    contextMenu.popup();
+    const menuItems: Electron.MenuItemConstructorOptions[] = spec.map(
+      (item) => {
+        switch (item.kind) {
+          case "separator":
+            return { type: "separator" };
+          case "suggestion":
+            return {
+              label: item.label,
+              click: () => wc.replaceMisspelling(item.word),
+            };
+          case "addToDictionary":
+            return {
+              label: item.label,
+              click: () =>
+                wc.session.addWordToSpellCheckerDictionary(item.word),
+            };
+          case "openLink":
+            return {
+              label: item.label,
+              click: () => shell.openExternal(item.url),
+            };
+          case "copyLink":
+          case "copyImageAddress":
+            return {
+              label: item.label,
+              click: () => clipboard.writeText(item.url),
+            };
+          case "cut":
+            return { role: "cut", enabled: item.enabled };
+          case "copy":
+            return { role: "copy", enabled: item.enabled };
+          case "paste":
+            // Custom Paste — send to renderer so ProseMirror's handlePaste
+            // fires and clipboard images go through the image-paste pipeline.
+            // The native paste role would bypass the DOM paste event entirely.
+            return {
+              label: item.label,
+              enabled: item.enabled,
+              click: () => wc.send("menu:paste"),
+            };
+          case "selectAll":
+            return { role: "selectAll", enabled: item.enabled };
+        }
+      },
+    );
+    Menu.buildFromTemplate(menuItems).popup();
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -831,9 +899,21 @@ function registerIpcHandlers() {
       const filePath = filePaths[0];
       const stat = await fs.stat(filePath);
       const fileSize = stat.size;
-      const content = await fs.readFile(filePath, "utf-8");
+      let content = await fs.readFile(filePath, "utf-8");
       await addRecentFile(filePath);
-      return { filePath, content, fileSize };
+      // Self-heal: if file was renamed/edited outside Pennivo and its asset
+      // folders / content references are out of sync, normalize them.
+      let healed = false;
+      try {
+        const result = await normalizeAssetsForFile(filePath);
+        if (result.healed) {
+          healed = true;
+          if (result.newContent !== undefined) content = result.newContent;
+        }
+      } catch (err) {
+        console.error("[file:open] normalizeAssetsForFile failed:", err);
+      }
+      return { filePath, content, fileSize, healed };
     } catch {
       return null;
     }
@@ -872,6 +952,220 @@ function registerIpcHandlers() {
   function imagesDirName(filePath: string): string {
     const base = path.basename(filePath); // e.g. "mynotes.md"
     return base.replace(/\./g, "-") + "-images"; // "mynotes-md-images"
+  }
+
+  // Find every "*-md-images/" asset folder that should travel with this .md
+  // file when it moves. Combines two sources:
+  //   1. The convention name derived from the current basename (catches the
+  //      case where the file content doesn't reference its assets).
+  //   2. Asset folders actually referenced inside the markdown content
+  //      (catches the rename case — file is "renamed.md" but content still
+  //      has links into "notes-md-images/", which is the real folder name).
+  // Returns only folders that actually exist on disk in the file's directory.
+  async function findAssetFoldersForFile(filePath: string): Promise<string[]> {
+    const dir = path.dirname(filePath);
+    const candidates = new Set<string>();
+    candidates.add(imagesDirName(filePath));
+
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      // The convention's `*-md-images/` suffix is specific enough that false
+      // positives are unlikely. Captures the folder-name segment.
+      const re = /([A-Za-z0-9._-]+-md-images)\//g;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(content)) !== null) {
+        candidates.add(match[1]);
+      }
+    } catch {
+      // File unreadable — convention candidate alone has to do
+    }
+
+    const existing: string[] = [];
+    for (const name of candidates) {
+      try {
+        await fs.access(path.join(dir, name));
+        existing.push(name);
+      } catch {
+        // Not on disk — nothing to move
+      }
+    }
+    return existing;
+  }
+
+  // Bring this .md file's asset folders into a coherent "one file → one folder
+  // (named per convention)" state. Used by:
+  //   - sidebar:rename-file, AFTER fs.rename(oldPath, newPath): consolidates
+  //     accumulated mismatched folders (notes-md-images, mid-md-images,
+  //     final-md-images) into the new convention name and rewrites content.
+  //   - file:open / file:open-path: heals files that were renamed or
+  //     hand-edited outside Pennivo and arrived in a fragmented state.
+  //
+  // Algorithm:
+  //   1. Read content; find every `*-md-images/` reference inside it.
+  //   2. List actual `*-md-images/` folders next to the file on disk.
+  //   3. Pick the canonical folder name = imagesDirName(filePath) (current basename).
+  //   4. Rename or merge any other (related) asset folders into the canonical one.
+  //   5. Rewrite every non-canonical reference inside content to the canonical name.
+  //   6. Write content back if it changed.
+  //
+  // "Related" = the folder is either content-referenced or already named with
+  // the canonical pattern. Folders matching `*-md-images/` that are unrelated
+  // to this file (no references, different stem) are left alone.
+  async function normalizeAssetsForFile(filePath: string): Promise<{
+    healed: boolean;
+    newContent?: string;
+  }> {
+    const dir = path.dirname(filePath);
+    const desiredFolder = imagesDirName(filePath);
+    const desiredFolderPath = path.join(dir, desiredFolder);
+
+    let content: string;
+    try {
+      content = await fs.readFile(filePath, "utf-8");
+    } catch {
+      return { healed: false };
+    }
+
+    let onDisk: string[];
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      onDisk = entries
+        .filter((e) => e.isDirectory() && e.name.endsWith("-md-images"))
+        .map((e) => e.name);
+    } catch {
+      return { healed: false };
+    }
+
+    // The planner expects literal-space folder names everywhere — that's
+    // how on-disk names look. Saved markdown uses `%20` for portability,
+    // so decode URLs before planning. We re-encode the rewritten content
+    // before writing it back below.
+    const decodedContent = decodeImageUrlSpaces(content);
+    const plan = planNormalize({
+      content: decodedContent,
+      onDiskFolders: onDisk,
+      desiredFolder,
+    });
+    if (!plan.changed) return { healed: false };
+
+    // Execute promote (rename, with copy+rm fallback for Windows EBUSY).
+    let promoteFailed = false;
+    if (plan.promote) {
+      const promotedSrc = path.join(dir, plan.promote.from);
+      const promotedDst = path.join(dir, plan.promote.to);
+      try {
+        await fs.rename(promotedSrc, promotedDst);
+      } catch (err) {
+        console.warn(
+          `[normalizeAssets] rename ${plan.promote.from} → ${plan.promote.to} failed (${(err as NodeJS.ErrnoException).code}), falling back to copy+rm`,
+        );
+        try {
+          await fs.cp(promotedSrc, promotedDst, {
+            recursive: true,
+            errorOnExist: false,
+            force: true,
+          });
+          try {
+            await fs.rm(promotedSrc, { recursive: true, force: true });
+          } catch (rmErr) {
+            console.error(
+              `[normalizeAssets] rm of ${plan.promote.from} after copy fallback failed (folder may still be locked):`,
+              rmErr,
+            );
+          }
+        } catch (cpErr) {
+          console.error(
+            `[normalizeAssets] copy fallback for ${plan.promote.from} → ${plan.promote.to} also failed:`,
+            cpErr,
+          );
+          promoteFailed = true;
+        }
+      }
+    }
+
+    // Execute merges (file by file, conflict-safe).
+    for (const folderName of plan.mergeFrom) {
+      const srcFolder = path.join(dir, folderName);
+      let items: string[];
+      try {
+        items = await fs.readdir(srcFolder);
+      } catch {
+        continue;
+      }
+      for (const item of items) {
+        const srcItem = path.join(srcFolder, item);
+        const destItem = path.join(desiredFolderPath, item);
+        try {
+          await fs.access(destItem);
+          console.warn(
+            `[normalizeAssets] ${item} already in ${desiredFolder}; left ${folderName}/${item} in place`,
+          );
+        } catch {
+          try {
+            await fs.rename(srcItem, destItem);
+          } catch (err) {
+            console.error(
+              `[normalizeAssets] move ${folderName}/${item} failed:`,
+              err,
+            );
+          }
+        }
+      }
+      try {
+        await fs.rmdir(srcFolder);
+      } catch {
+        // Not empty (had conflicts) — leave it.
+      }
+    }
+
+    // Re-encode before comparing/writing — file on disk is %20-encoded.
+    const newContentEncoded = encodeImageUrlSpaces(plan.newContent);
+
+    // If content actually changed, verify against the post-op disk state
+    // before writing. We only abort on NEWLY broken refs — refs that were
+    // valid before and aren't anymore. Pre-existing broken refs (left over
+    // from earlier corruption or files the user copy-pasted in) are
+    // preserved as-is; we don't second-guess them, and they shouldn't
+    // block a legitimate rewrite of a different ref. Without this nuance,
+    // a single stale ref in the file would block every rename after it.
+    if (newContentEncoded !== content) {
+      let finalOnDisk: Set<string>;
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        finalOnDisk = new Set(
+          entries
+            .filter((e) => e.isDirectory() && e.name.endsWith("-md-images"))
+            .map((e) => e.name),
+        );
+      } catch {
+        return { healed: false };
+      }
+      const onDiskBefore = new Set(onDisk);
+      // Use the decoded form for both checks so folder-name comparisons line
+      // up with on-disk literal-space names.
+      const referencedBefore = extractReferencedFolders(decodedContent);
+      const preExistingBroken = new Set<string>();
+      for (const ref of referencedBefore) {
+        if (!onDiskBefore.has(ref)) preExistingBroken.add(ref);
+      }
+      const referencedAfter = extractReferencedFolders(plan.newContent);
+      for (const ref of referencedAfter) {
+        if (!finalOnDisk.has(ref) && !preExistingBroken.has(ref)) {
+          console.error(
+            `[normalizeAssets] aborting rewrite — would NEWLY break ref "${ref}" (promoteFailed=${promoteFailed})`,
+          );
+          return { healed: false };
+        }
+      }
+      try {
+        await fs.writeFile(filePath, newContentEncoded, "utf-8");
+      } catch (err) {
+        console.error("[normalizeAssets] writeFile failed:", err);
+        return { healed: false };
+      }
+      return { healed: true, newContent: newContentEncoded };
+    }
+    return { healed: true, newContent: content };
   }
 
   // Save image to per-file images subfolder next to the current .md file
@@ -969,9 +1263,19 @@ function registerIpcHandlers() {
     try {
       const stat = await fs.stat(filePath);
       const fileSize = stat.size;
-      const content = await fs.readFile(filePath, "utf-8");
+      let content = await fs.readFile(filePath, "utf-8");
       await addRecentFile(filePath);
-      return { filePath, content, fileSize };
+      let healed = false;
+      try {
+        const result = await normalizeAssetsForFile(filePath);
+        if (result.healed) {
+          healed = true;
+          if (result.newContent !== undefined) content = result.newContent;
+        }
+      } catch (err) {
+        console.error("[file:open-path] normalizeAssetsForFile failed:", err);
+      }
+      return { filePath, content, fileSize, healed };
     } catch {
       return null;
     }
@@ -1047,6 +1351,214 @@ function registerIpcHandlers() {
   ipcMain.handle("sidebar:read-directory", async (_e, folderPath: string) => {
     return readDirectoryTree(folderPath);
   });
+
+  // --- Sidebar file operations ---
+  ipcMain.handle("sidebar:show-in-folder", async (_e, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath);
+      return true;
+    } catch (err) {
+      console.error("[sidebar:show-in-folder] failed:", err);
+      return false;
+    }
+  });
+
+  // Quick lookup used by the delete-confirm dialog: returns the names of the
+  // asset folders this file owns (content-referenced or convention-named) and
+  // a total count of files inside them.
+  ipcMain.handle(
+    "sidebar:get-asset-summary",
+    async (
+      _e,
+      filePath: string,
+    ): Promise<{ folders: string[]; assetCount: number }> => {
+      try {
+        const dir = path.dirname(filePath);
+        const folders = await findAssetFoldersForFile(filePath);
+        let assetCount = 0;
+        for (const folder of folders) {
+          try {
+            const entries = await fs.readdir(path.join(dir, folder));
+            assetCount += entries.length;
+          } catch {
+            // Folder vanished between findAssetFoldersForFile and now — skip
+          }
+        }
+        return { folders, assetCount };
+      } catch (err) {
+        console.error("[sidebar:get-asset-summary] failed:", err);
+        return { folders: [], assetCount: 0 };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "sidebar:delete-file",
+    async (_e, filePath: string, includeAssets: boolean = false) => {
+      try {
+        // Discover asset folders BEFORE unlinking — once the .md is gone,
+        // findAssetFoldersForFile can't read its content to find references.
+        let foldersToDelete: string[] = [];
+        if (includeAssets) {
+          try {
+            foldersToDelete = await findAssetFoldersForFile(filePath);
+          } catch (err) {
+            console.error(
+              "[sidebar:delete-file] failed to discover assets:",
+              err,
+            );
+          }
+        }
+        await fs.unlink(filePath);
+        if (includeAssets && foldersToDelete.length > 0) {
+          const dir = path.dirname(filePath);
+          for (const folder of foldersToDelete) {
+            try {
+              await fs.rm(path.join(dir, folder), {
+                recursive: true,
+                force: true,
+              });
+            } catch (err) {
+              console.error(
+                `[sidebar:delete-file] failed to remove asset folder ${folder}:`,
+                err,
+              );
+            }
+          }
+        }
+        return true;
+      } catch (err) {
+        console.error("[sidebar:delete-file] failed:", err);
+        return false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "sidebar:move-file",
+    async (
+      _e,
+      srcPath: string,
+      destDir: string,
+      overwrite: boolean,
+    ): Promise<{
+      ok: boolean;
+      newPath?: string;
+      reason?: "collision" | "error";
+    }> => {
+      try {
+        const filename = path.basename(srcPath);
+        const newPath = path.join(destDir, filename);
+        // No-op if already in target dir
+        if (path.resolve(newPath) === path.resolve(srcPath)) {
+          return { ok: true, newPath: srcPath.replace(/\\/g, "/") };
+        }
+
+        // Discover asset folders to move alongside the .md. The convention is
+        // "<name>-md-images/" but a renamed file's actual folder may have a
+        // different name — we scan content references too.
+        const srcDir = path.dirname(srcPath);
+        const assetFolderNames = await findAssetFoldersForFile(srcPath);
+
+        // Collision check: file
+        let fileExists = false;
+        try {
+          await fs.access(newPath);
+          fileExists = true;
+        } catch {
+          // ENOENT — destination is free
+        }
+
+        // Collision check: any of the asset folders already at destination?
+        const collidingAssetFolders: string[] = [];
+        for (const name of assetFolderNames) {
+          try {
+            await fs.access(path.join(destDir, name));
+            collidingAssetFolders.push(name);
+          } catch {
+            // Not at destination — no collision for this folder
+          }
+        }
+
+        if (fileExists || collidingAssetFolders.length > 0) {
+          if (!overwrite) return { ok: false, reason: "collision" };
+          if (fileExists) await fs.unlink(newPath);
+          for (const name of collidingAssetFolders) {
+            await fs.rm(path.join(destDir, name), {
+              recursive: true,
+              force: true,
+            });
+          }
+        }
+
+        // Move the file first (the user's primary intent), then each asset folder.
+        await fs.rename(srcPath, newPath);
+        for (const name of assetFolderNames) {
+          try {
+            await fs.rename(path.join(srcDir, name), path.join(destDir, name));
+          } catch (imgErr) {
+            // Best-effort: the .md file is at its new location. If an asset
+            // folder failed to move (rare — usually disk/permission), log and
+            // continue. Relative image links inside the .md will break and the
+            // user can manually move the folder. Surfacing as an error here
+            // would suggest the move failed, which is misleading.
+            console.error(
+              `[sidebar:move-file] asset folder "${name}" move failed:`,
+              imgErr,
+            );
+          }
+        }
+        return { ok: true, newPath: newPath.replace(/\\/g, "/") };
+      } catch (err) {
+        console.error("[sidebar:move-file] failed:", err);
+        return { ok: false, reason: "error" };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "sidebar:rename-file",
+    async (_e, oldPath: string, newName: string) => {
+      // Collision-safe rename: refuse if the destination already exists.
+      // newName is just the filename (no path); preserve the directory.
+      try {
+        if (
+          newName.includes("/") ||
+          newName.includes("\\") ||
+          newName.includes("\0") ||
+          newName.trim() === ""
+        ) {
+          return null;
+        }
+        const dir = path.dirname(oldPath);
+        const newPath = path.join(dir, newName);
+        if (newPath === oldPath) return oldPath;
+        try {
+          await fs.access(newPath);
+          // File exists — refuse rather than overwrite
+          return null;
+        } catch {
+          // ENOENT — destination is free, proceed
+        }
+        await fs.rename(oldPath, newPath);
+        // After rename, normalize asset folders so the renamed file's images
+        // live in the new convention-named folder and content references match.
+        // Best-effort: any error here doesn't undo the rename.
+        try {
+          await normalizeAssetsForFile(newPath);
+        } catch (err) {
+          console.error(
+            "[sidebar:rename-file] normalizeAssetsForFile failed:",
+            err,
+          );
+        }
+        return newPath.replace(/\\/g, "/");
+      } catch (err) {
+        console.error("[sidebar:rename-file] failed:", err);
+        return null;
+      }
+    },
+  );
 
   // --- Toolbar config ---
   ipcMain.handle("toolbar-config:get", async () => {

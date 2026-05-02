@@ -3,6 +3,9 @@ interface FileTreeEntry {
   path: string;
   type: "file" | "folder";
   children?: FileTreeEntry[];
+  size?: number;
+  mtimeMs?: number;
+  lastOpenedMs?: number;
 }
 
 interface PennivoAPI {
@@ -32,6 +35,7 @@ interface PennivoAPI {
     filePath: string;
     content: string;
     fileSize?: number;
+    healed?: boolean;
   } | null>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
   saveFileAs: (content: string, defaultPath?: string) => Promise<string | null>;
@@ -43,9 +47,12 @@ interface PennivoAPI {
   getRecentFiles: () => Promise<string[]>;
   addRecentFile: (filePath: string) => Promise<string[]>;
   clearRecentFiles: () => Promise<string[]>;
-  openFilePath: (
-    filePath: string,
-  ) => Promise<{ filePath: string; content: string; fileSize?: number } | null>;
+  openFilePath: (filePath: string) => Promise<{
+    filePath: string;
+    content: string;
+    fileSize?: number;
+    healed?: boolean;
+  } | null>;
 
   // Export
   exportHtml: (html: string, title: string) => Promise<string | null>;
@@ -60,6 +67,23 @@ interface PennivoAPI {
   chooseSidebarFolder: () => Promise<string | null>;
   readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
+
+  // Sidebar file operations
+  showItemInFolder: (filePath: string) => Promise<boolean>;
+  getAssetSummary: (
+    filePath: string,
+  ) => Promise<{ folders: string[]; assetCount: number }>;
+  deleteFile: (filePath: string, includeAssets?: boolean) => Promise<boolean>;
+  renameFile: (oldPath: string, newName: string) => Promise<string | null>;
+  moveFile: (
+    srcPath: string,
+    destDir: string,
+    overwrite: boolean,
+  ) => Promise<{
+    ok: boolean;
+    newPath?: string;
+    reason?: "collision" | "error";
+  }>;
 
   // Toolbar config
   getToolbarConfig: () => Promise<string[] | null>;

@@ -19,3 +19,18 @@ export {
   parseKanbanMarkdown,
   kanbanDataToMarkdown,
 } from "./kanban";
+
+export {
+  type ContextMenuInput,
+  type ContextMenuItem,
+  buildContextMenu,
+} from "./contextMenu";
+
+export {
+  type NormalizePlanInput,
+  type NormalizePlan,
+  planNormalize,
+  extractReferencedFolders,
+  decodeImageUrlSpaces,
+  encodeImageUrlSpaces,
+} from "./assetNormalizer";

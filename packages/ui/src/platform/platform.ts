@@ -3,6 +3,9 @@ export interface FileTreeEntry {
   path: string;
   type: "file" | "folder";
   children?: FileTreeEntry[];
+  size?: number;
+  mtimeMs?: number;
+  lastOpenedMs?: number;
 }
 
 export interface PennivoPlatform {
@@ -41,6 +44,7 @@ export interface PennivoPlatform {
     filePath: string;
     content: string;
     fileSize?: number;
+    healed?: boolean;
   } | null>;
   saveFile: (filePath: string, content: string) => Promise<boolean>;
   saveFileAs: (content: string, defaultPath?: string) => Promise<string | null>;
@@ -52,9 +56,12 @@ export interface PennivoPlatform {
   getRecentFiles: () => Promise<string[]>;
   addRecentFile: (filePath: string) => Promise<string[]>;
   clearRecentFiles: () => Promise<string[]>;
-  openFilePath: (
-    filePath: string,
-  ) => Promise<{ filePath: string; content: string; fileSize?: number } | null>;
+  openFilePath: (filePath: string) => Promise<{
+    filePath: string;
+    content: string;
+    fileSize?: number;
+    healed?: boolean;
+  } | null>;
 
   // Export
   exportHtml: (html: string, title: string) => Promise<string | null>;
@@ -69,6 +76,24 @@ export interface PennivoPlatform {
   chooseSidebarFolder: () => Promise<string | null>;
   readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
+
+  // Reveal a file in the OS file manager (Electron-only; no-op on web/mobile).
+  // Returns true if the call succeeded.
+  showItemInFolder: (filePath: string) => Promise<boolean>;
+
+  // Move a file into a different folder. Returns ok=true with the new
+  // absolute path on success. On a name collision in destDir, returns
+  // ok=false with reason="collision" — caller may retry with overwrite=true
+  // to replace the existing file. Other failures return reason="error".
+  moveFile: (
+    srcPath: string,
+    destDir: string,
+    overwrite?: boolean,
+  ) => Promise<{
+    ok: boolean;
+    newPath?: string;
+    reason?: "collision" | "error";
+  }>;
 
   // Toolbar config
   getToolbarConfig: () => Promise<string[] | null>;
@@ -111,7 +136,15 @@ export interface PennivoPlatform {
   createFile: (
     fileName: string,
   ) => Promise<{ filePath: string; content: string } | null>;
-  deleteFile: (filePath: string) => Promise<boolean>;
+  deleteFile: (filePath: string, includeAssets?: boolean) => Promise<boolean>;
+
+  // Summarize what owns this file's assets — used by the delete-confirm
+  // dialog to ask "Also delete N asset file(s)?". Lists owned `*-md-images/`
+  // folders (content-referenced + convention-named) and total file count
+  // across them. Electron-only (web/mobile return zeros).
+  getAssetSummary: (
+    filePath: string,
+  ) => Promise<{ folders: string[]; assetCount: number }>;
   renameFile: (oldPath: string, newName: string) => Promise<string | null>;
 
   // Menu events (returns cleanup function)
