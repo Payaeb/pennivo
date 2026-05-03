@@ -1,6 +1,6 @@
 {
   "name": "@pennivo/android",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Pennivo Android app (Capacitor shell)",
   "author": "Paya Ebrahimi <payaeb@gmail.com>",
