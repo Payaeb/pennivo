@@ -79,6 +79,7 @@ import {
   kanbanDataToMarkdown,
   createDefaultKanbanData,
   type KanbanData,
+  suggestFilenameFromContent,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -669,7 +670,10 @@ function AppContent() {
     const content = markdownRef.current;
     setSaveStatus("saving");
     try {
-      // Build a default path: if a file is open, suggest "name (copy).md"
+      // Build a default name:
+      //   - If a file is already open: suggest "name (copy).md" alongside it.
+      //   - If brand-new: derive from the doc's first line (heading or plain
+      //     text), falling back to "Untitled" when the doc is empty.
       let defaultSavePath: string | undefined;
       const currentPath = filePathRef.current;
       if (currentPath) {
@@ -680,6 +684,8 @@ function AppContent() {
         const dir = currentPath.slice(0, lastSep + 1);
         const base = currentPath.slice(lastSep + 1).replace(/\.md$/i, "");
         defaultSavePath = `${dir}${base} (copy).md`;
+      } else {
+        defaultSavePath = `${suggestFilenameFromContent(content)}.md`;
       }
       // Relativize image paths before writing to disk
       const saveContent = currentPath

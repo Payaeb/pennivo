@@ -34,3 +34,5 @@ export {
   decodeImageUrlSpaces,
   encodeImageUrlSpaces,
 } from "./assetNormalizer";
+
+export { suggestFilenameFromContent } from "./filenameSuggest";
