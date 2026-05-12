@@ -1,0 +1,119 @@
+/* ─── Line Diff (unified, prose-friendly) ───
+ *
+ * The aesthetic is intentionally not GitHub-flavored. GitHub uses monospace
+ * everywhere because it reviews code; we review writing, so we lead with
+ * --font-editor (serif) and only swap to --font-mono inside fenced code
+ * blocks. That tiny choice is the difference between "feels like a dev tool"
+ * and "feels like a writing tool."
+ */
+
+.line-diff {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 0;
+  font-family: var(--font-editor);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg);
+}
+
+.line-diff::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.line-diff::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.line-diff::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 3px;
+}
+
+.line-diff--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.line-diff-empty-text {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.line-diff-hunk + .line-diff-hunk {
+  margin-top: 4px;
+}
+
+.line-diff-hunk-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 18px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  margin: 6px 0;
+}
+
+.line-diff-row {
+  display: grid;
+  grid-template-columns: 36px 36px 18px 1fr;
+  align-items: baseline;
+  padding: 1px 18px;
+}
+
+.line-diff-row--code .line-diff-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.line-diff-row--context {
+  background: transparent;
+}
+
+.line-diff-row--add {
+  background: var(--accent-soft);
+}
+
+.line-diff-row--remove {
+  background: var(--danger-soft);
+}
+
+.line-diff-linenum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: right;
+  padding-right: 8px;
+  user-select: none;
+}
+
+.line-diff-gutter {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  user-select: none;
+  color: var(--text-muted);
+}
+
+.line-diff-row--add .line-diff-gutter {
+  color: var(--accent);
+}
+
+.line-diff-row--remove .line-diff-gutter {
+  color: var(--danger);
+}
+
+.line-diff-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

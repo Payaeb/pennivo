@@ -1,0 +1,140 @@
+/* ─── Privacy Dialog ───
+ *
+ * Modal that renders the bundled privacy notice. Mirrors the AboutDialog
+ * overlay treatment (blurred backdrop, fade-in card) but uses a wider
+ * card to accommodate prose with headings + nested lists.
+ */
+
+.privacy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  animation: privacy-overlay-in 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.privacy-card {
+  width: min(620px, calc(100vw - 48px));
+  max-height: min(80vh, 720px);
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 24px 28px 18px;
+  display: flex;
+  flex-direction: column;
+  animation: privacy-card-in 0.18s ease;
+}
+
+.privacy-body {
+  overflow-y: auto;
+  padding-right: 10px;
+  flex: 1;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.privacy-h1 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+}
+
+.privacy-h2 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.privacy-p {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+}
+
+.privacy-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.privacy-list--nested {
+  margin: 4px 0 4px;
+}
+
+.privacy-li {
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.privacy-strong {
+  font-weight: 600;
+}
+
+.privacy-code {
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 12px;
+  background: var(--bg-overlay);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+.privacy-link {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.privacy-link:hover {
+  text-decoration: underline;
+}
+
+.privacy-close {
+  margin-top: 14px;
+  align-self: flex-end;
+  padding: 5px 20px;
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.privacy-close:hover {
+  background: var(--bg-overlay);
+}
+
+@keyframes privacy-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes privacy-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

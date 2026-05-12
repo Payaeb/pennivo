@@ -41,7 +41,8 @@ export type MenuAction =
   | "customizeToolbar"
   | "openSettings"
   | "showShortcuts"
-  | "showAbout";
+  | "showAbout"
+  | "openHistory";
 
 export interface RecentFileEntry {
   filePath: string;
@@ -75,6 +76,11 @@ const MENU_SECTIONS: MenuSection[] = [
       { label: "Open\u2026", action: "open", shortcut: "Ctrl+O" },
       { label: "Save", action: "save", shortcut: "Ctrl+S" },
       { label: "Save As\u2026", action: "saveAs", shortcut: "Ctrl+Shift+S" },
+      {
+        label: "History\u2026",
+        action: "openHistory",
+        shortcut: "Ctrl+Alt+H",
+      },
       { separator: true, label: "" },
       {
         label: "Export as HTML",

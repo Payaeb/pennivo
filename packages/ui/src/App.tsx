@@ -36,16 +36,29 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import { AppShell } from "./components/AppShell/AppShell";
 import { Editor } from "./components/Editor/Editor";
+import { Toolbar } from "./components/Toolbar/Toolbar";
 import {
-  Toolbar,
   type ToolbarAction,
   type ConfigurableAction,
   DEFAULT_TOOLBAR_CONFIG,
-} from "./components/Toolbar/Toolbar";
+} from "./components/Toolbar/Toolbar.constants";
 import { LinkPopover } from "./components/LinkPopover/LinkPopover";
 import { FindReplace } from "./components/FindReplace/FindReplace";
 import type { SaveStatus } from "./components/Statusbar/Statusbar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+import {
+  RecoveryModal,
+  HistoryView,
+  TrashView,
+  CapExceededBanner,
+  CapExceededToast,
+  CompareMergeView,
+  ExternalChangeToast,
+  RecoveryModalWidthMeasurer,
+  type RecoveryModalMode,
+  type CapWarning,
+  type CompareMergeSelection,
+} from "./components/RecoveryModal";
 import {
   type SidebarSortKey,
   DEFAULT_SORT,
@@ -80,6 +93,7 @@ import {
   createDefaultKanbanData,
   type KanbanData,
   suggestFilenameFromContent,
+  shouldShowCapBanner,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -245,6 +259,8 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
   return active;
 }
 
+const DROPPABLE_EXTENSIONS = new Set(["md", "markdown", "txt"]);
+
 function AppContent() {
   const platform = getPlatform();
   const { toggleTheme, colorScheme, cycleColorScheme, setColorScheme } =
@@ -300,6 +316,75 @@ function AppContent() {
   // --- Auto-update banner state (set when main fires update:available) ---
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
 
+  // --- Recovery modal state (Phase 13a — first UI slice) ---
+  // `recoveryModalOpen` toggles visibility; `recoveryModalMode` swaps between
+  // History / Trash / Compare-merge bodies inside the same shell. Trash body
+  // and Compare-merge body land in subsequent slices; this slice only wires
+  // the History body for real.
+  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false);
+  const [recoveryModalMode, setRecoveryModalMode] =
+    useState<RecoveryModalMode>("history");
+  // Compare & merge selection — the two snapshot IDs picked in History.
+  // Cleared when the modal closes; preserved when the user temporarily
+  // backs out to History (so re-clicking Compare & merge re-uses the pair).
+  const [compareMergeSelection, setCompareMergeSelection] =
+    useState<CompareMergeSelection | null>(null);
+  // Persisted layout settings for the History modal panes. Defaults match
+  // `defaultRecoverySettings()` from @pennivo/core.
+  const [recoveryHistoryLayout, setRecoveryHistoryLayout] = useState<{
+    timelineWidth: number;
+    timelineCollapsed: boolean;
+    previewCollapsed: boolean;
+  }>({
+    timelineWidth: 340,
+    timelineCollapsed: false,
+    previewCollapsed: false,
+  });
+  // Live modal width (re-measured via ResizeObserver) so HistoryView can
+  // auto-collapse the timeline below 800px without persisting the change.
+  const [recoveryModalWidth, setRecoveryModalWidth] = useState(0);
+
+  // --- Cap-exceeded notification state (Phase 13a §2.6) ---
+  // `capWarning` mirrors the most-recent `recovery:cap-exceeded` event payload
+  // (or `null` when none has fired this session / cap is honored). The toast
+  // is one-time-per-session; the banner inside the recovery modal persists
+  // across opens until the user dismisses it for the current overage.
+  const [capWarning, setCapWarning] = useState<CapWarning | null>(null);
+  const [capToastVisible, setCapToastVisible] = useState(false);
+  const capToastShownRef = useRef(false);
+  const [capBannerDismissedAt, setCapBannerDismissedAt] = useState<
+    number | null
+  >(null);
+  const [lastCapWarningOverageBytes, setLastCapWarningOverageBytes] =
+    useState<number | null>(null);
+
+  // --- Trash count state (drives sidebar Trash entry visibility) ---
+  const [trashCount, setTrashCount] = useState(0);
+
+  // --- External-change toast state (Phase 13a §2.7) ---
+  // Renders bottom-right when `recovery:external-change-detected` fires. We
+  // dedupe per-file with a 1s window so a single open doesn't spawn two
+  // toasts (e.g. file:open + file:open-path firing back-to-back).
+  const [externalChangeToast, setExternalChangeToast] = useState<{
+    absolutePath: string;
+  } | null>(null);
+  const externalChangeLastShownRef = useRef<Record<string, number>>({});
+
+  // --- Archive-status state (Phase 13a §2.7) ---
+  // The titlebar chip renders only when this is non-null and indicates a
+  // problem (`unavailable` or queued > 0). `'ok'` clears the chip.
+  const [archiveStatus, setArchiveStatus] = useState<{
+    status: "ok" | "unavailable" | "queued";
+    count: number;
+  } | null>(null);
+
+  // --- Settings panel deep-link state ---
+  const [settingsScrollSection, setSettingsScrollSection] = useState<
+    "recovery" | null
+  >(null);
+  const [highlightRecoveryRetention, setHighlightRecoveryRetention] =
+    useState(false);
+
   // --- Sidebar state ---
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
@@ -340,6 +425,8 @@ function AppContent() {
     platform.getSettings().then((saved) => {
       platform.setSettings({ ...saved, sidebarSort: key });
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sidebar context-menu handlers — wired directly to platform.
@@ -349,6 +436,8 @@ function AppContent() {
     platform.showItemInFolder(absPath).catch((err) => {
       console.error("[showItemInFolder] failed:", err);
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recordFileOpen = useCallback(
@@ -363,6 +452,8 @@ function AppContent() {
         return next;
       });
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [normalizeFilePath],
   );
 
@@ -409,6 +500,8 @@ function AppContent() {
         setFileOpenTimestamps(cleaned);
       }
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist sidebar visibility on every toggle. Skip the very first render
@@ -421,6 +514,8 @@ function AppContent() {
     platform.getSettings().then((saved) => {
       platform.setSettings({ ...saved, sidebarVisible });
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarVisible]);
 
   const handleSettingsChange = useCallback(
@@ -429,6 +524,182 @@ function AppContent() {
         setShowWordCount(settings.showWordCount);
       }
     },
+    [],
+  );
+
+  // --- Recovery layout settings (Phase 13a, first UI slice) ---
+  // One-shot load on mount. Defaults are already in state; we just merge
+  // anything the user has previously persisted.
+  const recoveryLayoutHydratedRef = useRef(false);
+  useEffect(() => {
+    platform.getSettings().then((saved) => {
+      const recovery = (saved?.recovery ?? {}) as Record<string, unknown>;
+      setRecoveryHistoryLayout((prev) => ({
+        timelineWidth:
+          typeof recovery.historyTimelineWidth === "number" &&
+          recovery.historyTimelineWidth >= 200
+            ? (recovery.historyTimelineWidth as number)
+            : prev.timelineWidth,
+        timelineCollapsed:
+          typeof recovery.historyTimelineCollapsed === "boolean"
+            ? (recovery.historyTimelineCollapsed as boolean)
+            : prev.timelineCollapsed,
+        previewCollapsed:
+          typeof recovery.historyPreviewCollapsed === "boolean"
+            ? (recovery.historyPreviewCollapsed as boolean)
+            : prev.previewCollapsed,
+      }));
+      recoveryLayoutHydratedRef.current = true;
+    });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist recovery layout on change (skip the initial hydration tick).
+  useEffect(() => {
+    if (!recoveryLayoutHydratedRef.current) return;
+    platform.getSettings().then((saved) => {
+      const prevRecovery = (saved?.recovery ?? {}) as Record<string, unknown>;
+      platform.setSettings({
+        ...saved,
+        recovery: {
+          ...prevRecovery,
+          historyTimelineWidth: recoveryHistoryLayout.timelineWidth,
+          historyTimelineCollapsed: recoveryHistoryLayout.timelineCollapsed,
+          historyPreviewCollapsed: recoveryHistoryLayout.previewCollapsed,
+        },
+      });
+    });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recoveryHistoryLayout]);
+
+  // Hydrate cap-banner dismissal state from persisted settings.
+  // platform is a stable singleton — same convention as every other settings
+  // load in this file. Suppress the dep-array nag on the array line itself.
+  useEffect(() => {
+    platform.getSettings().then((saved) => {
+      const recovery = (saved?.recovery ?? {}) as Record<string, unknown>;
+      if (typeof recovery.capBannerDismissedAt === "number") {
+        setCapBannerDismissedAt(recovery.capBannerDismissedAt as number);
+      }
+      if (typeof recovery.lastCapWarningOverageBytes === "number") {
+        setLastCapWarningOverageBytes(
+          recovery.lastCapWarningOverageBytes as number,
+        );
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Subscribe to cap-exceeded events. The toast fires once per session;
+  // the in-modal banner re-appears whenever the overage grows past the
+  // previously-dismissed value.
+  useEffect(() => {
+    // Pre-populate the warning if the engine has one cached from before the
+    // renderer mounted (e.g. a save fired during hot reload).
+    platform.snapshot.getCapStatus().then((status) => {
+      if (status && typeof status === "object") {
+        setCapWarning(status as CapWarning);
+      }
+    });
+    const unsub = platform.snapshot.onCapExceeded((w) => {
+      const warning = w as CapWarning;
+      setCapWarning(warning);
+      if (!capToastShownRef.current) {
+        capToastShownRef.current = true;
+        setCapToastVisible(true);
+      }
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Subscribe to external-change-detected events. Dedupe per-file with a
+  // 1s window so back-to-back open events (file:open + file:open-path) don't
+  // double-toast.
+  useEffect(() => {
+    const unsub = platform.snapshot.onExternalChangeDetected((payload) => {
+      const now = Date.now();
+      const last =
+        externalChangeLastShownRef.current[payload.absolutePath] ?? 0;
+      if (now - last < 1000) return;
+      externalChangeLastShownRef.current[payload.absolutePath] = now;
+      setExternalChangeToast({ absolutePath: payload.absolutePath });
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Subscribe to archive-status events. The titlebar chip renders based on
+  // this state. We seed `null` and only show the chip when the engine has
+  // told us something is wrong.
+  useEffect(() => {
+    const unsub = platform.snapshot.onArchiveStatus((status) => {
+      if (status && typeof status === "object") {
+        const s = status as { status?: string; count?: number };
+        if (s.status === "ok") {
+          setArchiveStatus({ status: "ok", count: 0 });
+        } else if (s.status === "unavailable") {
+          setArchiveStatus({
+            status: "unavailable",
+            count: typeof s.count === "number" ? s.count : 0,
+          });
+        } else if (s.status === "queued") {
+          setArchiveStatus({
+            status: "queued",
+            count: typeof s.count === "number" ? s.count : 0,
+          });
+        }
+      }
+    });
+    // Pull current state right after subscribing — the engine emits a
+    // boot-time status before the renderer is wired up, so we'd otherwise
+    // miss it until the next save. The probe re-emits the current state.
+    platform.snapshot.probeArchiveStatus().catch(() => {});
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Subscribe to trash-count changes (drives sidebar Trash entry visibility).
+  useEffect(() => {
+    let cancelled = false;
+    platform.trash
+      .list()
+      .then((rows) => {
+        if (!cancelled) setTrashCount(rows.length);
+      })
+      .catch(() => {});
+    const unsub = platform.trash.onCountChanged?.((n) => {
+      setTrashCount(n);
+    });
+    return () => {
+      cancelled = true;
+      if (unsub) unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist cap-banner dismissal — caller passes the overage at dismissal
+  // time so future warnings can decide whether to re-surface (overage grew →
+  // banner returns; same overage → stays hidden).
+  const persistCapBannerDismissal = useCallback(
+    async (overageBytes: number) => {
+      const dismissedAt = Date.now();
+      setCapBannerDismissedAt(dismissedAt);
+      setLastCapWarningOverageBytes(overageBytes);
+      const saved = await platform.getSettings();
+      const prevRecovery = (saved?.recovery ?? {}) as Record<string, unknown>;
+      await platform.setSettings({
+        ...saved,
+        recovery: {
+          ...prevRecovery,
+          capBannerDismissedAt: dismissedAt,
+          lastCapWarningOverageBytes: overageBytes,
+        },
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -449,6 +720,8 @@ function AppContent() {
         return { filePath: fp, filename, truncatedPath: dir };
       }),
     );
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load recent files on mount
@@ -464,6 +737,8 @@ function AppContent() {
     }
     const tree = await platform.readDirectory(folder);
     if (tree) setSidebarTree(tree);
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChooseFolder = useCallback(async () => {
@@ -473,6 +748,8 @@ function AppContent() {
       setSidebarVisible(true);
       refreshSidebarTree(folder);
     }
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSidebarTree]);
 
   // Forward-ref to the post-rename reload routine. Populated by an effect
@@ -508,6 +785,8 @@ function AppContent() {
       }
       return newPath;
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filePath, sidebarFolder, refreshSidebarTree],
   );
 
@@ -529,6 +808,8 @@ function AppContent() {
       }
       return ok;
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filePath, sidebarFolder, refreshSidebarTree],
   );
 
@@ -558,6 +839,8 @@ function AppContent() {
       }
       return result;
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filePath, sidebarFolder, refreshSidebarTree],
   );
 
@@ -578,6 +861,8 @@ function AppContent() {
         }
       },
     );
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSidebarTree]);
 
   // Load persisted toolbar config on mount
@@ -585,6 +870,8 @@ function AppContent() {
     platform.getToolbarConfig().then((saved) => {
       if (saved) setToolbarConfig(saved as ConfigurableAction[]);
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToolbarConfigUpdate = useCallback(
@@ -592,6 +879,8 @@ function AppContent() {
       setToolbarConfig(config);
       platform.setToolbarConfig(config);
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -606,6 +895,8 @@ function AppContent() {
       clearTimeout(debounce);
       cleanup();
     };
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarFolder, refreshSidebarTree]);
 
   const setFilePath = (p: string | null) => {
@@ -664,6 +955,8 @@ function AppContent() {
       setSaveStatus("unsaved");
       return false;
     }
+  // doSaveAs is intentionally not a dep — invoked through a stable wrapper; platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const doSaveAs = useCallback(async (): Promise<boolean> => {
@@ -707,6 +1000,8 @@ function AppContent() {
       setSaveStatus("unsaved");
       return false;
     }
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRecentFiles]);
 
   // --- Load content into the active editor ---
@@ -757,6 +1052,8 @@ function AppContent() {
         );
       }
     },
+    // setSourceMode is a useCallback with [] deps — its identity is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [getInstance, showToast],
   );
 
@@ -779,6 +1076,8 @@ function AppContent() {
         showToast("Asset folders cleaned up for this file");
       }
     };
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadContent, showToast]);
 
   // --- Drain pending markdown when Milkdown finishes initializing ---
@@ -871,6 +1170,8 @@ function AppContent() {
     if (result.healed) {
       showToast("Asset folders cleaned up for this file");
     }
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen]);
 
   // --- Open recent file by path ---
@@ -938,6 +1239,8 @@ function AppContent() {
         showToast("Asset folders cleaned up for this file");
       }
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
   );
 
@@ -1019,6 +1322,8 @@ function AppContent() {
         showToast("Asset folders cleaned up for this file");
       }
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
   );
 
@@ -1039,6 +1344,8 @@ function AppContent() {
     savedMarkdownRef.current = "";
     setIsDirty(false);
     setSaveStatus("saved");
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSave, loadContent]);
 
   // --- Auto-save ---
@@ -1063,6 +1370,8 @@ function AppContent() {
         setSaveStatus("unsaved");
       }
     }, AUTO_SAVE_DELAY);
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Periodic draft save to localStorage ---
@@ -1109,6 +1418,8 @@ function AppContent() {
     setDraftRecovery(null);
     clearDraft();
     showToast("Draft recovered");
+  // setIsDirty is a stable in-component helper that only touches refs + stable setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftRecovery, loadContent, showToast]);
 
   const handleDiscardDraft = useCallback(() => {
@@ -1149,6 +1460,8 @@ function AppContent() {
         300,
       );
     },
+    // setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [scheduleAutoSave],
   );
 
@@ -1159,6 +1472,8 @@ function AppContent() {
       platform.setFullScreen(next);
       return next;
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Typewriter mode toggle ---
@@ -1204,6 +1519,8 @@ function AppContent() {
     if (!html) return;
     const result = await platform.exportHtml(html, filename);
     if (result) showToast("Exported as HTML");
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getEditorHtml, filename, showToast]);
 
   const doExportPdf = useCallback(async () => {
@@ -1211,6 +1528,8 @@ function AppContent() {
     if (!html) return;
     const result = await platform.exportPdf(html, filename);
     if (result) showToast("Exported as PDF");
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getEditorHtml, filename, showToast]);
 
   // --- Link popover state ---
@@ -1488,9 +1807,12 @@ function AppContent() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+    // platform is the project-wide stable singleton; reference identity never changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     focusMode,
     linkPopover,
+    ganttEditor,
     findReplaceOpen,
     commandPaletteOpen,
     kanbanEditor,
@@ -1646,6 +1968,8 @@ function AppContent() {
         return null;
       }
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [showToast, doSaveAs],
   );
 
@@ -1688,6 +2012,8 @@ function AppContent() {
       // Clipboard API not available or no image — fall through to text paste
     }
     platform.paste();
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleImagePaste, insertImage]);
 
   // --- Menu event listeners ---
@@ -1707,8 +2033,14 @@ function AppContent() {
       platform.onMenuNewFile(() => doNewFile()),
       platform.onMenuExportHtml(() => doExportHtml()),
       platform.onMenuExportPdf(() => doExportPdf()),
+      platform.onMenuOpenHistory(() => {
+        setRecoveryModalMode("history");
+        setRecoveryModalOpen(true);
+      }),
     ];
     return () => cleanups.forEach((cleanup) => cleanup());
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     doOpen,
     doSave,
@@ -1732,6 +2064,8 @@ function AppContent() {
       });
     }
     return platform.onFileOpenFromOS((filePath) => openRecentFile(filePath));
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRecentFile]);
 
   // --- Auto-update available banner ---
@@ -1739,13 +2073,13 @@ function AppContent() {
   // fully downloaded, so dev runs never see the banner.
   useEffect(() => {
     return platform.onUpdateAvailable((version) => setUpdateAvailable(version));
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Drag-and-drop .md files to open ---
   const [showDropZone, setShowDropZone] = useState(false);
   const dragCounterRef = useRef(0);
-
-  const DROPPABLE_EXTENSIONS = new Set(["md", "markdown", "txt"]);
 
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
@@ -1808,6 +2142,8 @@ function AppContent() {
       document.removeEventListener("dragover", handleDragOver);
       document.removeEventListener("drop", handleDrop);
     };
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRecentFile]);
 
   // Set window title (taskbar) when filename changes
@@ -1816,6 +2152,8 @@ function AppContent() {
       ? `${extractFilename(filePath)} \u2014 Pennivo`
       : "untitled \u2014 Pennivo";
     platform.setTitle(title);
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath]);
 
   // Cleanup timers on unmount
@@ -2179,6 +2517,8 @@ function AppContent() {
           break;
       }
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setSourceMode is a useCallback with [] deps — its identity is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       loading,
       getInstance,
@@ -2561,6 +2901,10 @@ function AppContent() {
         case "saveAs":
           doSaveAs();
           break;
+        case "openHistory":
+          setRecoveryModalMode("history");
+          setRecoveryModalOpen(true);
+          break;
         case "quit":
           platform.close();
           break;
@@ -2680,6 +3024,8 @@ function AppContent() {
         }
       }
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       doOpen,
       doSave,
@@ -2771,6 +3117,14 @@ function AppContent() {
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
+      archiveStatus={archiveStatus}
+      onArchiveStatusClick={() => {
+        // Open Settings → Recovery → "Where snapshots are stored". Reuses
+        // the slice 2 deep-link plumbing.
+        setSettingsScrollSection("recovery");
+        setHighlightRecoveryRetention(false);
+        setSettingsOpen(true);
+      }}
       toolbar={
         <Toolbar
           activeFormats={toolbarFormats}
@@ -2791,6 +3145,15 @@ function AppContent() {
           sortKey={sidebarSort}
           onSortChange={handleSidebarSortChange}
           onShowInExplorer={handleSidebarShowInExplorer}
+          onShowHistory={(_p) => {
+            setRecoveryModalMode("history");
+            setRecoveryModalOpen(true);
+          }}
+          onShowTrash={() => {
+            setRecoveryModalMode("trash");
+            setRecoveryModalOpen(true);
+          }}
+          trashCount={trashCount}
           onRenameFile={handleSidebarRenameFile}
           onDeleteFile={handleSidebarDeleteFile}
           onGetAssetSummary={(p) => platform.getAssetSummary(p)}
@@ -2883,6 +3246,158 @@ function AppContent() {
         onSelect={handleCommandSelect}
         onClose={() => setCommandPaletteOpen(false)}
       />
+      <RecoveryModal
+        open={recoveryModalOpen}
+        mode={recoveryModalMode}
+        title={
+          recoveryModalMode === "history" && filePath
+            ? `History — ${extractFilename(filePath)}`
+            : recoveryModalMode === "compare-merge" && filePath
+              ? `Compare & merge — ${extractFilename(filePath)}`
+              : undefined
+        }
+        onModeChange={(m) => setRecoveryModalMode(m)}
+        onClose={() => {
+          setRecoveryModalOpen(false);
+          setCompareMergeSelection(null);
+        }}
+        onBack={
+          recoveryModalMode === "compare-merge"
+            ? () => {
+                // Esc / back-button: drop back to History but preserve the
+                // selection so re-entering Compare reuses the same pair.
+                setRecoveryModalMode("history");
+              }
+            : undefined
+        }
+      >
+        {shouldShowCapBanner(capWarning, {
+          capBannerDismissedAt,
+          lastCapWarningOverageBytes,
+        }) &&
+          capWarning &&
+          recoveryModalMode !== "compare-merge" && (
+            <CapExceededBanner
+              warning={capWarning}
+              onOpenSettings={() => {
+                setRecoveryModalOpen(false);
+                setSettingsScrollSection("recovery");
+                setHighlightRecoveryRetention(false);
+                setSettingsOpen(true);
+              }}
+              onChangeRules={() => {
+                setRecoveryModalOpen(false);
+                setSettingsScrollSection("recovery");
+                setHighlightRecoveryRetention(true);
+                setSettingsOpen(true);
+              }}
+              onManageManually={() => {
+                if (capWarning) void persistCapBannerDismissal(capWarning.overageBytes);
+                showToast("We'll wait — delete snapshots from the timeline.");
+              }}
+              onDismiss={() => {
+                if (capWarning) void persistCapBannerDismissal(capWarning.overageBytes);
+              }}
+            />
+          )}
+        {recoveryModalMode === "history" ? (
+          <RecoveryModalWidthMeasurer onWidth={setRecoveryModalWidth}>
+            <HistoryView
+              filePath={filePath}
+              filename={filePath ? extractFilename(filePath) : null}
+              currentContent={markdownRef.current ?? ""}
+              onOpenFilePath={(p) => openRecentFile(p)}
+              onShowToast={(msg, isError) =>
+                isError ? showToast(msg) : showToast(msg)
+              }
+              timelineWidth={recoveryHistoryLayout.timelineWidth}
+              timelineCollapsed={recoveryHistoryLayout.timelineCollapsed}
+              previewCollapsed={recoveryHistoryLayout.previewCollapsed}
+              onLayoutChange={(next) =>
+                setRecoveryHistoryLayout((prev) => ({ ...prev, ...next }))
+              }
+              modalWidth={recoveryModalWidth}
+              onEnterCompareMerge={(sel) => {
+                setCompareMergeSelection(sel);
+                setRecoveryModalMode("compare-merge");
+              }}
+            />
+          </RecoveryModalWidthMeasurer>
+        ) : recoveryModalMode === "trash" ? (
+          <RecoveryModalWidthMeasurer onWidth={setRecoveryModalWidth}>
+            <TrashView
+              onShowToast={(msg, isError) =>
+                isError ? showToast(msg) : showToast(msg)
+              }
+              timelineWidth={recoveryHistoryLayout.timelineWidth}
+              timelineCollapsed={recoveryHistoryLayout.timelineCollapsed}
+              previewCollapsed={recoveryHistoryLayout.previewCollapsed}
+              onLayoutChange={(next) =>
+                setRecoveryHistoryLayout((prev) => ({ ...prev, ...next }))
+              }
+              modalWidth={recoveryModalWidth}
+            />
+          </RecoveryModalWidthMeasurer>
+        ) : compareMergeSelection && filePath ? (
+          <CompareMergeView
+            filePath={filePath}
+            filename={extractFilename(filePath)}
+            selection={compareMergeSelection}
+            currentContent={markdownRef.current ?? ""}
+            onShowToast={(msg) => showToast(msg)}
+            onOpenFilePath={(p) => openRecentFile(p)}
+            onClose={() => {
+              setRecoveryModalOpen(false);
+              setCompareMergeSelection(null);
+            }}
+            onBack={() => setRecoveryModalMode("history")}
+            onAfterReplace={() => {
+              if (filePath) void openRecentFile(filePath);
+            }}
+          />
+        ) : (
+          <div className="recovery-modal-placeholder">
+            <span className="recovery-modal-placeholder-title">
+              No comparison selected
+            </span>
+            <span className="recovery-modal-placeholder-sub">
+              Pick two snapshots in History and click Compare &amp; merge to
+              open the merge view.
+            </span>
+          </div>
+        )}
+      </RecoveryModal>
+      {capToastVisible && capWarning && (
+        <CapExceededToast
+          warning={capWarning}
+          onOpenSettings={() => {
+            setCapToastVisible(false);
+            setSettingsScrollSection("recovery");
+            setHighlightRecoveryRetention(false);
+            setSettingsOpen(true);
+          }}
+          onDismiss={() => setCapToastVisible(false)}
+        />
+      )}
+      {externalChangeToast && (
+        <ExternalChangeToast
+          absolutePath={externalChangeToast.absolutePath}
+          onViewHistory={() => {
+            // Open the recovery modal in History mode for the affected
+            // file. Note: we don't auto-switch the editor's open file —
+            // the user might be looking at a different document right now.
+            // The History view's `filePath` prop comes from the editor's
+            // current path, so the user gets the timeline of whichever file
+            // they're presently editing. If they want to inspect the
+            // externally-changed file specifically, they open it in the
+            // sidebar first.
+            setExternalChangeToast(null);
+            setRecoveryModalMode("history");
+            setRecoveryModalOpen(true);
+          }}
+          onDismiss={() => setExternalChangeToast(null)}
+        />
+      )}
       {draftRecovery && (
         <div className="draft-recovery-banner">
           <span>
@@ -2982,13 +3497,20 @@ function AppContent() {
       <Suspense fallback={null}>
         <LazySettingsPanel
           visible={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            setSettingsOpen(false);
+            setSettingsScrollSection(null);
+            setHighlightRecoveryRetention(false);
+          }}
           typewriterMode={typewriterMode}
           onTypewriterModeChange={(v) => {
             setTypewriterMode(v);
             typewriterModeRef.current = v;
           }}
           onChange={handleSettingsChange}
+          scrollToSection={settingsScrollSection}
+          highlightRecoveryRetention={highlightRecoveryRetention}
+          onShowToast={(msg) => showToast(msg)}
         />
       </Suspense>
     </AppShell>

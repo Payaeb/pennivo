@@ -504,12 +504,17 @@ function LabelsInput({
   labels?: string[];
   onChange: (labels: string[]) => void;
 }) {
+  const labelsKey = labels?.join(",");
   const [text, setText] = useState(labels?.join(", ") || "");
 
-  // Sync from parent when switching cards
+  // Sync from parent when switching cards. We intentionally key on the joined
+  // string (not the array reference) so a parent re-render with a fresh array
+  // of the same labels doesn't clobber in-progress edits.
   useEffect(() => {
     setText(labels?.join(", ") || "");
-  }, [labels?.join(",")]);
+    // labelsKey is the join() of labels; that's the intended key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labelsKey]);
 
   const commit = useCallback(() => {
     const parsed = text

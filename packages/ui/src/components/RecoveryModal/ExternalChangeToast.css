@@ -1,0 +1,70 @@
+/* ─── External-change toast (one-time per file) ───
+ *
+ * Same visual family as the cap-exceeded toast — warm amber accent on the
+ * left edge, bottom-right anchor above the statusbar, 360 px wide. Slightly
+ * higher z-index than the cap toast (rare to see both at once, but if it
+ * happens the external-change toast takes the visible slot).
+ */
+
+.external-change-toast {
+  position: fixed;
+  right: 18px;
+  bottom: calc(var(--statusbar-height) + 12px);
+  width: 360px;
+  max-width: calc(100vw - 36px);
+  z-index: 1110;
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  animation: external-change-toast-in 0.2s ease;
+}
+
+.external-change-toast-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.external-change-toast-message {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.external-change-toast-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.external-change-toast-btn {
+  border: 1px solid var(--border-mid);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.external-change-toast-btn:hover {
+  background: var(--bg-overlay);
+}
+
+@keyframes external-change-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

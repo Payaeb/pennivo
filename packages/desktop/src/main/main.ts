@@ -13,14 +13,42 @@ import {
 } from "electron";
 import { autoUpdater } from "electron-updater";
 import {
+  applyArchiveDefaults,
   buildContextMenu,
   decodeImageUrlSpaces,
   encodeImageUrlSpaces,
   extractReferencedFolders,
+  migrateRecoverySettings,
   planNormalize,
+  type RecoverySettings,
 } from "@pennivo/core";
 import path from "node:path";
 import fs from "node:fs/promises";
+import {
+  deviceNameFromSettings,
+  getDeviceRecord,
+} from "./deviceIdentity";
+import {
+  drainArchiveQueue,
+  getLastCapWarning,
+  listSnapshots,
+  probeArchiveStatus,
+  reconcileOnOpen,
+  readSnapshot,
+  restoreSnapshot,
+  setSnapshotEnvironment,
+  setSnapshotMainWindow,
+  writeSnapshot,
+} from "./snapshotStore";
+import {
+  listTrash,
+  moveToTrash,
+  permanentlyDelete as permanentlyDeleteTrashEntry,
+  readTrashContent,
+  restoreFromTrash,
+  setTrashMainWindow,
+  sweepExpired as sweepExpiredTrash,
+} from "./trashStore";
 import {
   readFileSync,
   writeFileSync,
@@ -155,6 +183,40 @@ function isPositionOnScreen(x: number, y: number): boolean {
   });
 }
 
+/**
+ * Sum the byte size of every regular file in a directory tree. Returns 0 if
+ * the root doesn't exist. Used by `snapshot:get-storage-usage` to render the
+ * Settings → Recovery "127 MB of 200 MB used." sub-label without forcing the
+ * renderer to do a tree walk via IPC.
+ */
+async function sumDirectoryBytes(root: string): Promise<number> {
+  let total = 0;
+  let entries: { name: string; isDirectory: () => boolean; isFile: () => boolean }[];
+  try {
+    entries = (await fs.readdir(root, { withFileTypes: true })) as unknown as {
+      name: string;
+      isDirectory: () => boolean;
+      isFile: () => boolean;
+    }[];
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    const full = path.join(root, e.name);
+    if (e.isDirectory()) {
+      total += await sumDirectoryBytes(full);
+    } else if (e.isFile()) {
+      try {
+        const st = statSync(full);
+        total += st.size;
+      } catch {
+        // file vanished between readdir and stat — skip
+      }
+    }
+  }
+  return total;
+}
+
 // --- Settings persistence ---
 interface AppSettings {
   firstRun?: boolean;
@@ -165,6 +227,12 @@ interface AppSettings {
   spellcheck?: boolean;
   showWordCount?: boolean;
   typewriterMode?: boolean;
+  /**
+   * Phase 13a recovery configuration. Always migrated through
+   * `migrateRecoverySettings` on read so missing keys fill from defaults
+   * without clobbering user-set values.
+   */
+  recovery?: RecoverySettings;
 }
 
 function getSettingsPath(): string {
@@ -186,6 +254,37 @@ async function writeSettings(settings: AppSettings): Promise<void> {
     JSON.stringify(settings, null, 2),
     "utf-8",
   );
+}
+
+/**
+ * Read settings + migrate the recovery sub-section to a fully-populated
+ * shape. Always returns a `recovery` field so downstream code can treat it
+ * as required.
+ */
+function readSettingsWithRecovery(): AppSettings & {
+  recovery: RecoverySettings;
+} {
+  const raw = readSettings();
+  const recovery = migrateRecoverySettings(raw.recovery);
+  return { ...raw, recovery };
+}
+
+/**
+ * Refresh the cached recovery environment from disk. Called on launch and
+ * whenever the renderer pushes new settings. Also drains the archive queue
+ * if the cache change made the archive folder reachable.
+ */
+async function refreshSnapshotEnvironment(): Promise<void> {
+  const settings = readSettingsWithRecovery();
+  const device = await getDeviceRecord(app.getPath("userData"));
+  setSnapshotEnvironment(settings.recovery, device.deviceId);
+  // Drain any queued archive writes — the archive may have just become
+  // reachable (drive plugged in, settings updated).
+  await drainArchiveQueue();
+  // Probe the archive folder for reachability so the titlebar chip
+  // surfaces immediately when the user has pointed at a bogus path,
+  // before any save is attempted.
+  await probeArchiveStatus();
 }
 
 // --- Recent files persistence ---
@@ -772,6 +871,12 @@ function createMenu() {
         },
         { type: "separator" },
         {
+          label: "History\u2026",
+          accelerator: "CmdOrCtrl+Alt+H",
+          click: () => mainWindow?.webContents.send("menu:open-history"),
+        },
+        { type: "separator" },
+        {
           label: "Export as HTML",
           accelerator: "CmdOrCtrl+Shift+E",
           click: () => mainWindow?.webContents.send("menu:export-html"),
@@ -825,6 +930,37 @@ function createMenu() {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/**
+ * Fire-and-log snapshot scheduler. Runs after the user-visible save IPC has
+ * already returned — `setImmediate` defers to the next tick so the renderer
+ * gets its `true` / file-path response without waiting on the snapshot
+ * write. Errors are logged but never propagated.
+ */
+function scheduleSnapshotWrite(
+  absolutePath: string,
+  content: string,
+  author: "user" | "external" | "mcp" | "inline-ai" | "sync",
+  agentName?: string,
+): void {
+  setImmediate(async () => {
+    try {
+      const settings = readSettingsWithRecovery().recovery;
+      const device = await getDeviceRecord(app.getPath("userData"));
+      await writeSnapshot({
+        absolutePath,
+        content,
+        author,
+        agentName,
+        settings,
+        deviceId: device.deviceId,
+        deviceName: deviceNameFromSettings(settings),
+      });
+    } catch (err) {
+      console.error("[main] scheduled snapshot write failed:", err);
+    }
+  });
 }
 
 function registerIpcHandlers() {
@@ -913,6 +1049,10 @@ function registerIpcHandlers() {
       } catch (err) {
         console.error("[file:open] normalizeAssetsForFile failed:", err);
       }
+      // External-change reconciliation — fire-and-log; never blocks the open.
+      void reconcileOnOpen(filePath, content).catch((err) => {
+        console.error("[file:open] reconcileOnOpen failed:", err);
+      });
       return { filePath, content, fileSize, healed };
     } catch {
       return null;
@@ -924,6 +1064,8 @@ function registerIpcHandlers() {
     "file:save",
     async (_e, args: { filePath: string; content: string }) => {
       await fs.writeFile(args.filePath, args.content, "utf-8");
+      // Fire-and-log snapshot capture — runs after IPC returns. Don't await.
+      scheduleSnapshotWrite(args.filePath, args.content, "user");
       return true;
     },
   );
@@ -944,6 +1086,7 @@ function registerIpcHandlers() {
 
       await fs.writeFile(filePath, args.content, "utf-8");
       await addRecentFile(filePath);
+      scheduleSnapshotWrite(filePath, args.content, "user");
       return filePath;
     },
   );
@@ -1275,6 +1418,9 @@ function registerIpcHandlers() {
       } catch (err) {
         console.error("[file:open-path] normalizeAssetsForFile failed:", err);
       }
+      void reconcileOnOpen(filePath, content).catch((err) => {
+        console.error("[file:open-path] reconcileOnOpen failed:", err);
+      });
       return { filePath, content, fileSize, healed };
     } catch {
       return null;
@@ -1395,16 +1541,56 @@ function registerIpcHandlers() {
   ipcMain.handle(
     "sidebar:delete-file",
     async (_e, filePath: string, includeAssets: boolean = false) => {
+      // Phase 13a soft-delete: move to trash instead of `fs.unlink`. The
+      // renderer keeps the same call signature; we just route through the
+      // trash store.
       try {
-        // Discover asset folders BEFORE unlinking — once the .md is gone,
+        // Discover asset folders BEFORE moving — once the .md is in trash,
         // findAssetFoldersForFile can't read its content to find references.
+        let assetFolderNames: string[] = [];
+        if (includeAssets) {
+          try {
+            assetFolderNames = await findAssetFoldersForFile(filePath);
+          } catch (err) {
+            console.error(
+              "[sidebar:delete-file] failed to discover assets:",
+              err,
+            );
+          }
+        }
+        const settings = readSettingsWithRecovery().recovery;
+        const device = await getDeviceRecord(app.getPath("userData"));
+        await moveToTrash({
+          absolutePath: filePath,
+          includeAssets,
+          assetFolderNames,
+          settings,
+          deviceId: device.deviceId,
+          deviceName: deviceNameFromSettings(settings),
+        });
+        return true;
+      } catch (err) {
+        console.error("[sidebar:delete-file] failed:", err);
+        return false;
+      }
+    },
+  );
+
+  // Hard-delete bypass — used by the future "Delete permanently" right-click
+  // option. Same shape as `sidebar:delete-file` but skips the trash. This is
+  // the old `fs.unlink` code path preserved verbatim so users / tests can
+  // request a true hard-delete when they need it.
+  ipcMain.handle(
+    "sidebar:delete-permanently",
+    async (_e, filePath: string, includeAssets: boolean = false) => {
+      try {
         let foldersToDelete: string[] = [];
         if (includeAssets) {
           try {
             foldersToDelete = await findAssetFoldersForFile(filePath);
           } catch (err) {
             console.error(
-              "[sidebar:delete-file] failed to discover assets:",
+              "[sidebar:delete-permanently] failed to discover assets:",
               err,
             );
           }
@@ -1420,7 +1606,7 @@ function registerIpcHandlers() {
               });
             } catch (err) {
               console.error(
-                `[sidebar:delete-file] failed to remove asset folder ${folder}:`,
+                `[sidebar:delete-permanently] failed to remove asset folder ${folder}:`,
                 err,
               );
             }
@@ -1428,7 +1614,7 @@ function registerIpcHandlers() {
         }
         return true;
       } catch (err) {
-        console.error("[sidebar:delete-file] failed:", err);
+        console.error("[sidebar:delete-permanently] failed:", err);
         return false;
       }
     },
@@ -1588,11 +1774,263 @@ function registerIpcHandlers() {
 
   // --- Settings ---
   ipcMain.handle("settings:get", () => {
-    return readSettings();
+    // Always migrate the recovery section so the renderer sees a fully
+    // populated shape (matches the pure defaults in @pennivo/core).
+    const raw = readSettings();
+    const recovery = migrateRecoverySettings(raw.recovery);
+    return { ...raw, recovery };
   });
 
-  ipcMain.handle("settings:set", async (_e, settings: AppSettings) => {
-    await writeSettings(settings);
+  ipcMain.handle("settings:set", async (_e, incoming: AppSettings) => {
+    // Detect first-time archive folder pick → apply daily-and-older
+    // archive routing defaults (without overriding any user-set tier).
+    const previous = readSettingsWithRecovery();
+    const prevArchive = previous.recovery.archiveFolder;
+    let nextRecovery: RecoverySettings | undefined;
+    if (incoming.recovery) {
+      nextRecovery = migrateRecoverySettings(incoming.recovery);
+      const justAddedArchive =
+        !prevArchive &&
+        nextRecovery.archiveFolder &&
+        nextRecovery.archiveFolder.length > 0;
+      if (justAddedArchive) {
+        nextRecovery = {
+          ...nextRecovery,
+          tierDestinations: applyArchiveDefaults(nextRecovery),
+        };
+      }
+    }
+    const merged: AppSettings = {
+      ...incoming,
+      recovery: nextRecovery ?? previous.recovery,
+    };
+    await writeSettings(merged);
+    await refreshSnapshotEnvironment();
+  });
+
+  // --- Snapshot recovery (Phase 13a) ---
+
+  ipcMain.handle("snapshot:list", async (_e, absolutePath: string) => {
+    return listSnapshots(absolutePath);
+  });
+
+  ipcMain.handle(
+    "snapshot:read",
+    async (_e, absolutePath: string, snapshotId: string) => {
+      return readSnapshot(absolutePath, snapshotId);
+    },
+  );
+
+  ipcMain.handle(
+    "snapshot:restore",
+    async (
+      _e,
+      args: {
+        absolutePath: string;
+        snapshotId: string;
+        mode: "overwrite" | "as-new-file";
+        targetPath?: string;
+      },
+    ) => {
+      return restoreSnapshot(args.absolutePath, {
+        snapshotId: args.snapshotId,
+        mode: args.mode,
+        targetPath: args.targetPath,
+      });
+    },
+  );
+
+  ipcMain.handle("snapshot:get-cap-status", () => {
+    return getLastCapWarning();
+  });
+
+  // Renderer-driven probe — called on mount so the titlebar chip reflects
+  // current archive reachability even if the renderer wasn't subscribed
+  // when the boot-time refresh fired.
+  ipcMain.handle("snapshot:probe-archive-status", async () => {
+    await probeArchiveStatus();
+    return true;
+  });
+
+  // --- Compare & merge save handler ---
+  //
+  // Compare & merge produces a new merged document. `overwrite` writes back
+  // to the original file path; we take a pre-restore snapshot of the current
+  // on-disk content first (tagged with `mergedFrom: { left, right }` so the
+  // user can see in History which two versions were combined). `as-new-file`
+  // writes alongside the original as `<name> (merged YYYY-MM-DD).md`, with
+  // a counter on collision.
+  ipcMain.handle(
+    "snapshot:save-merged",
+    async (
+      _e,
+      args: {
+        filePath: string;
+        content: string;
+        mode: "overwrite" | "as-new-file";
+        left: string | null;
+        right: string | null;
+      },
+    ) => {
+      try {
+        const settings = readSettingsWithRecovery().recovery;
+        const device = await getDeviceRecord(app.getPath("userData"));
+        const deviceName = deviceNameFromSettings(settings);
+
+        if (args.mode === "overwrite") {
+          // Pre-restore snapshot of the current on-disk content so the
+          // merge is reversible. Tag the meta with mergedFrom hints.
+          let current = "";
+          try {
+            current = await fs.readFile(args.filePath, "utf-8");
+          } catch {
+            current = "";
+          }
+          if (current.length > 0) {
+            await writeSnapshot({
+              absolutePath: args.filePath,
+              content: current,
+              author: "user",
+              settings,
+              deviceId: device.deviceId,
+              deviceName,
+              // Reuse `restoredFrom` to record the merge lineage. This keeps
+              // the on-disk meta shape stable; the field already documents
+              // "this snapshot is the pre-state for a recovery action."
+              restoredFrom: `merged:${args.left ?? "current"}+${args.right ?? "current"}`,
+            });
+          }
+          await fs.writeFile(args.filePath, args.content, "utf-8");
+          // Snapshot the merged result too — just like a normal save would.
+          scheduleSnapshotWrite(args.filePath, args.content, "user");
+          return { savedPath: args.filePath.replace(/\\/g, "/") };
+        }
+
+        // as-new-file: derive a sibling path with the merge date.
+        const dir = path.dirname(args.filePath);
+        const ext = path.extname(args.filePath) || ".md";
+        const stem = path.basename(args.filePath, ext);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        let target = path.join(dir, `${stem} (merged ${dateStr})${ext}`);
+        let counter = 1;
+        // Collision walk: append " 2", " 3", etc.
+        while (true) {
+          try {
+            await fs.access(target);
+            counter += 1;
+            target = path.join(
+              dir,
+              `${stem} (merged ${dateStr} ${counter})${ext}`,
+            );
+            if (counter > 50) break;
+          } catch {
+            break;
+          }
+        }
+        await fs.writeFile(target, args.content, "utf-8");
+        scheduleSnapshotWrite(target, args.content, "user");
+        return { savedPath: target.replace(/\\/g, "/") };
+      } catch (err) {
+        console.error("[snapshot:save-merged] failed:", err);
+        return null;
+      }
+    },
+  );
+
+  // --- Trash (Phase 13a soft-delete) ---
+
+  ipcMain.handle("trash:list", async () => {
+    return listTrash();
+  });
+
+  ipcMain.handle("trash:restore", async (_e, trashId: string) => {
+    try {
+      return await restoreFromTrash(trashId);
+    } catch (err) {
+      console.error("[trash:restore] failed:", err);
+      return null;
+    }
+  });
+
+  ipcMain.handle(
+    "trash:permanently-delete",
+    async (_e, trashId: string) => {
+      try {
+        await permanentlyDeleteTrashEntry(trashId);
+        return true;
+      } catch (err) {
+        console.error("[trash:permanently-delete] failed:", err);
+        return false;
+      }
+    },
+  );
+
+  ipcMain.handle("trash:sweep", async () => {
+    try {
+      return await sweepExpiredTrash();
+    } catch (err) {
+      console.error("[trash:sweep] failed:", err);
+      return { removedCount: 0 };
+    }
+  });
+
+  ipcMain.handle("trash:read", async (_e, trashId: string) => {
+    try {
+      const content = await readTrashContent(trashId);
+      return content === null ? null : { content };
+    } catch (err) {
+      console.error("[trash:read] failed:", err);
+      return null;
+    }
+  });
+
+  // --- Snapshot folder helpers (Phase 13a Settings → Recovery) ---
+
+  ipcMain.handle("snapshot:get-storage-usage", async () => {
+    try {
+      const root = path.join(app.getPath("userData"), "snapshots");
+      const bytes = await sumDirectoryBytes(root);
+      return { bytes };
+    } catch (err) {
+      console.error("[snapshot:get-storage-usage] failed:", err);
+      return { bytes: 0 };
+    }
+  });
+
+  ipcMain.handle("snapshot:open-folder", async () => {
+    try {
+      const root = path.join(app.getPath("userData"), "snapshots");
+      await fs.mkdir(root, { recursive: true });
+      await shell.openPath(root);
+      return true;
+    } catch (err) {
+      console.error("[snapshot:open-folder] failed:", err);
+      return false;
+    }
+  });
+
+  ipcMain.handle("snapshot:clear-all", async () => {
+    try {
+      const root = path.join(app.getPath("userData"), "snapshots");
+      await fs.rm(root, { recursive: true, force: true });
+      return true;
+    } catch (err) {
+      console.error("[snapshot:clear-all] failed:", err);
+      return false;
+    }
+  });
+
+  // Folder picker for the Settings → Recovery archive folder. Reuses the
+  // sidebar's open-directory pattern but doesn't persist anything itself —
+  // the renderer hands the chosen path back into `settings:set`.
+  ipcMain.handle("dialog:open-folder", async () => {
+    if (!mainWindow) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory", "createDirectory"],
+      title: "Choose Folder",
+    });
+    if (canceled || filePaths.length === 0) return null;
+    return filePaths[0];
   });
 
   // --- App info ---
@@ -1717,6 +2155,37 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   createMenu();
   createWindow();
+  // Wire the snapshot store to the active window so it can emit
+  // recovery events to the renderer.
+  setSnapshotMainWindow(mainWindow);
+  setTrashMainWindow(mainWindow);
+
+  // Initialize device identity + push the recovery settings into the
+  // snapshot writer's cache. Best-effort: any failure is logged. The cache
+  // is also refreshed whenever the renderer pushes a settings update.
+  refreshSnapshotEnvironment().catch((err) => {
+    console.error("[main] refreshSnapshotEnvironment failed:", err);
+  });
+
+  // Trash sweep: prune expired entries on launch (fire-and-log; never blocks
+  // the window) and schedule a daily sweep for long-running sessions.
+  sweepExpiredTrash()
+    .then((r) => {
+      if (r.removedCount > 0) {
+        console.log(`[main] trash sweep removed ${r.removedCount} expired entries`);
+      }
+    })
+    .catch((err) => {
+      console.error("[main] initial trash sweep failed:", err);
+    });
+  setInterval(
+    () => {
+      sweepExpiredTrash().catch((err) => {
+        console.error("[main] periodic trash sweep failed:", err);
+      });
+    },
+    24 * 60 * 60 * 1000,
+  );
 
   // Restore folder watcher for sidebar if one was persisted
   readSidebarFolder().then((folder) => {

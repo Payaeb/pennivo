@@ -224,8 +224,55 @@ export function createWebPlatform(): PennivoPlatform {
       warnUnsupported("deleteFile");
       return false;
     },
+    deleteFilePermanently: async () => {
+      warnUnsupported("deleteFilePermanently");
+      return false;
+    },
     renameFile: async () => {
       warnUnsupported("renameFile");
+      return null;
+    },
+
+    // Snapshot recovery (Phase 13a) — no-op stubs for browser preview.
+    snapshot: {
+      list: async () => [],
+      read: async () => null,
+      restore: async () => null,
+      getCapStatus: async () => null,
+      getStorageUsage: async () => ({ bytes: 0 }),
+      openFolder: async () => {
+        warnUnsupported("snapshot.openFolder");
+        return false;
+      },
+      clearAll: async () => {
+        warnUnsupported("snapshot.clearAll");
+        return false;
+      },
+      onCapExceeded: () => noop,
+      onArchiveStatus: () => noop,
+      probeArchiveStatus: async () => false,
+      onExternalChangeDetected: () => noop,
+      saveMerged: async () => null,
+    },
+
+    // Trash (Phase 13a) — no-op stubs for browser preview.
+    trash: {
+      list: async () => [],
+      restore: async () => {
+        warnUnsupported("trash.restore");
+        return null;
+      },
+      permanentlyDelete: async () => {
+        warnUnsupported("trash.permanentlyDelete");
+        return false;
+      },
+      sweep: async () => ({ removedCount: 0 }),
+      read: async () => null,
+      onCountChanged: () => noop,
+    },
+
+    openFolderDialog: async () => {
+      warnUnsupported("openFolderDialog");
       return null;
     },
 
@@ -239,5 +286,6 @@ export function createWebPlatform(): PennivoPlatform {
     onMenuNewFile: () => noop,
     onMenuExportHtml: () => noop,
     onMenuExportPdf: () => noop,
+    onMenuOpenHistory: () => noop,
   };
 }

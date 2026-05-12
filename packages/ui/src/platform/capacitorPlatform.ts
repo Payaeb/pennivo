@@ -694,6 +694,20 @@ export function createCapacitorPlatform(): PennivoPlatform {
         return false;
       }
     },
+    deleteFilePermanently: async (filePath) => {
+      // Capacitor doesn't have soft-delete trash in v1 — same code path.
+      try {
+        const { Filesystem, Directory } = await getFilesystem();
+        await Filesystem.deleteFile({
+          path: filePath,
+          directory: Directory.Documents,
+        });
+        return true;
+      } catch (err) {
+        console.error("[Pennivo] deleteFilePermanently failed:", err);
+        return false;
+      }
+    },
 
     renameFile: async (oldPath, newName) => {
       try {
@@ -729,6 +743,39 @@ export function createCapacitorPlatform(): PennivoPlatform {
       }
     },
 
+    // Snapshot recovery (Phase 13a) — Android does not support snapshots in
+    // v1. The surface is stubbed so the renderer is platform-branch-free.
+    // Android disk access requires SAF-aware writes outside the app's
+    // workspace, which Phase 13a's design (sha1-keyed userData layout) was
+    // not built to handle. Revisit when Phase 13b cloud sync ships.
+    snapshot: {
+      list: async () => [],
+      read: async () => null,
+      restore: async () => null,
+      getCapStatus: async () => null,
+      getStorageUsage: async () => ({ bytes: 0 }),
+      openFolder: async () => false,
+      clearAll: async () => false,
+      onCapExceeded: () => noop,
+      onArchiveStatus: () => noop,
+      probeArchiveStatus: async () => false,
+      onExternalChangeDetected: () => noop,
+      saveMerged: async () => null,
+    },
+
+    // Trash (Phase 13a) — Android does not support trash in v1; mirrors the
+    // snapshot stub above. Revisit when SAF-aware storage lands.
+    trash: {
+      list: async () => [],
+      restore: async () => null,
+      permanentlyDelete: async () => false,
+      sweep: async () => ({ removedCount: 0 }),
+      read: async () => null,
+      onCountChanged: () => noop,
+    },
+
+    openFolderDialog: async () => null,
+
     // Menu events — no-op on mobile (no native menu bar)
     onMenuPaste: (_cb) => noop,
     onMenuOpen: (_cb) => noop,
@@ -739,5 +786,6 @@ export function createCapacitorPlatform(): PennivoPlatform {
     onMenuNewFile: (_cb) => noop,
     onMenuExportHtml: (_cb) => noop,
     onMenuExportPdf: (_cb) => noop,
+    onMenuOpenHistory: (_cb) => noop,
   };
 }

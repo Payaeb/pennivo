@@ -1,0 +1,321 @@
+/* ─── Settings → Recovery section ─── */
+
+.recovery-section {
+  /* Matches the existing section spacing. */
+}
+
+/* Indented sub-panel that wraps the retention table + the
+   "Where snapshots are stored" routing matrix. */
+.recovery-subpanel {
+  margin: 8px 0 0 0;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.recovery-subpanel--highlight {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+}
+
+.recovery-subpanel-title {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.recovery-subpanel-desc {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+
+/* Retention tier table */
+
+.recovery-tier-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.recovery-tier-row {
+  display: grid;
+  grid-template-columns: 1fr 160px 28px;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 4px 0;
+}
+
+.recovery-tier-row--head {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.recovery-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 12px;
+  background: var(--bg);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.recovery-tier-select {
+  min-width: 160px;
+  width: 100%;
+}
+
+.recovery-tier-remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.recovery-tier-row:hover .recovery-tier-remove {
+  opacity: 1;
+}
+
+.recovery-tier-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.recovery-add-tier {
+  align-self: flex-start;
+  margin-top: 4px;
+  border: 1px dashed var(--border-mid);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.recovery-add-tier:hover {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.recovery-add-tier-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+}
+
+.recovery-add-tier-label {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.recovery-add-tier-count {
+  width: 56px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-mid);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.recovery-add-tier-unit,
+.recovery-add-tier-granularity {
+  min-width: 96px;
+  font-size: 11.5px;
+}
+
+.recovery-add-tier-btn {
+  border: 1px solid var(--border-mid);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.recovery-add-tier-btn:hover {
+  background: var(--bg-overlay);
+}
+
+.recovery-add-tier-btn--ghost {
+  background: transparent;
+}
+
+/* Routing matrix */
+
+.recovery-routing-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+}
+
+.recovery-routing-row {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, 0.6fr);
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+
+.recovery-routing-row--head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.recovery-routing-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recovery-routing-row .recovery-routing-cell:first-child {
+  justify-content: flex-start;
+}
+
+/* Archive folder picker */
+
+.recovery-archive-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 60%;
+}
+
+.recovery-archive-path {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.recovery-archive-btn {
+  border: 1px solid var(--border-mid);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.recovery-archive-btn:hover {
+  background: var(--bg-overlay);
+}
+
+.recovery-archive-btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+/* Text input — match the existing select chrome. */
+
+.settings-text-input {
+  flex-shrink: 0;
+  min-width: 140px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+
+.settings-text-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Secondary / destructive buttons */
+
+.recovery-secondary-btn {
+  border: 1px solid var(--border-mid);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.recovery-secondary-btn:hover {
+  background: var(--bg-overlay);
+}
+
+.recovery-danger-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--danger);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.recovery-danger-btn:hover {
+  background: var(--danger-soft);
+}

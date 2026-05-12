@@ -78,6 +78,60 @@
   height: 14px;
 }
 
+/* ─── Trash entry (Phase 13a) — only when trash is non-empty ─── */
+
+.sidebar-trash-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.sidebar-trash-entry:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.sidebar-trash-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.sidebar-trash-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar-trash-label {
+  font-weight: 500;
+}
+
+.sidebar-trash-sep {
+  color: var(--text-faint);
+}
+
+.sidebar-trash-count {
+  color: var(--text-muted);
+}
+
 /* ─── Tree ─── */
 
 .sidebar-tree {

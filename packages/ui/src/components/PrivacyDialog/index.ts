@@ -1,0 +1,1 @@
+export { PrivacyDialog } from "./PrivacyDialog";

@@ -19,6 +19,18 @@ interface SidebarProps {
   onSortChange?: (key: SidebarSortKey) => void;
   /** "Show in Explorer / Finder / Files" — reveal in OS file manager. */
   onShowInExplorer?: (filePath: string) => void;
+  /** "Show history" — open the recovery modal in History mode for this file. */
+  onShowHistory?: (filePath: string) => void;
+  /**
+   * Open the recovery modal in Trash mode. When set + `trashCount > 0`, the
+   * sidebar header surfaces a small "Trash · N" entry.
+   */
+  onShowTrash?: () => void;
+  /**
+   * Live trash count from the desktop platform. The Trash entry is hidden
+   * when this is 0 (per the locked design, §4.1).
+   */
+  trashCount?: number;
   /** Rename a file. Returns the new path on success, or null on failure (e.g. name collision). */
   onRenameFile?: (oldPath: string, newName: string) => Promise<string | null>;
   /** Delete a file. If includeAssets is true, also remove the file's
@@ -70,6 +82,9 @@ export function Sidebar({
   sortKey = DEFAULT_SORT,
   onSortChange,
   onShowInExplorer,
+  onShowHistory,
+  onShowTrash,
+  trashCount = 0,
   onRenameFile,
   onDeleteFile,
   onGetAssetSummary,
@@ -113,13 +128,19 @@ export function Sidebar({
   const handleContextMenuOpen = useCallback(
     (entry: FileTreeEntry, e: React.MouseEvent) => {
       // Only show menu when at least one action is available
-      if (!onShowInExplorer && !onRenameFile && !onDeleteFile && !onShowToast) {
+      if (
+        !onShowInExplorer &&
+        !onShowHistory &&
+        !onRenameFile &&
+        !onDeleteFile &&
+        !onShowToast
+      ) {
         return;
       }
       e.preventDefault();
       setContextMenu({ entry, x: e.clientX, y: e.clientY });
     },
-    [onShowInExplorer, onRenameFile, onDeleteFile, onShowToast],
+    [onShowInExplorer, onShowHistory, onRenameFile, onDeleteFile, onShowToast],
   );
 
   const handleCopyPath = useCallback(
@@ -306,6 +327,13 @@ export function Sidebar({
         onClick: () => onShowInExplorer(entry.path),
       });
     }
+    if (onShowHistory && entry.type === "file") {
+      items.push({
+        type: "item",
+        label: "Show history",
+        onClick: () => onShowHistory(entry.path),
+      });
+    }
     if (onRenameFile) {
       items.push({
         type: "item",
@@ -392,6 +420,24 @@ export function Sidebar({
         </button>
       </div>
 
+      {trashCount > 0 && onShowTrash && (
+        <button
+          type="button"
+          className="sidebar-trash-entry"
+          onClick={onShowTrash}
+          title={`${trashCount} file${trashCount === 1 ? "" : "s"} in trash`}
+        >
+          <span className="sidebar-trash-icon" aria-hidden="true">
+            <TrashIcon />
+          </span>
+          <span className="sidebar-trash-label">Trash</span>
+          <span className="sidebar-trash-sep" aria-hidden="true">
+            ·
+          </span>
+          <span className="sidebar-trash-count">{trashCount}</span>
+        </button>
+      )}
+
       {folderPath && tree.length > 0 ? (
         <TreeContainer
           tree={tree}
@@ -450,7 +496,7 @@ export function Sidebar({
         title="Delete file?"
         message={
           pendingDelete
-            ? `"${pendingDelete.entry.name}" will be permanently deleted from disk. This cannot be undone.`
+            ? `"${pendingDelete.entry.name}" will be moved to Trash. Deleted files can be restored from Trash for 30 days.`
             : ""
         }
         confirmLabel={
@@ -1064,6 +1110,23 @@ function FolderOpenIcon() {
       strokeLinejoin="round"
     >
       <path d="M2 4v8a1 1 0 001 1h10a1 1 0 001-1V6a1 1 0 00-1-1H8L6.5 3.5A1 1 0 005.8 3H3a1 1 0 00-1 1z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 4.5h10" />
+      <path d="M6.5 4.5V3.5a1 1 0 011-1h1a1 1 0 011 1v1" />
+      <path d="M4.5 4.5l.5 8a1 1 0 001 1h4a1 1 0 001-1l.5-8" />
     </svg>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import logo from "../../assets/logo-32.png";
 import { getPlatform } from "../../platform";
+import { PrivacyDialog } from "../PrivacyDialog";
 import "./AboutDialog.css";
 
 interface AboutDialogProps {
@@ -12,11 +13,14 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
   const platform = getPlatform();
   const overlayRef = useRef<HTMLDivElement>(null);
   const [version, setVersion] = useState("1.0.0");
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
     platform.getAppInfo().then((info) => {
       if (info?.version) setVersion(info.version);
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   useEffect(() => {
@@ -55,6 +59,18 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
           <div>&copy; 2026 Paya Ebrahimi</div>
           <div>Licensed under MIT</div>
         </div>
+        <p className="about-privacy">
+          Snapshots and trash are stored locally. Configure an archive folder
+          in Settings &rarr; Recovery to mirror older snapshots to a backup
+          location.{" "}
+          <button
+            type="button"
+            className="about-link about-link--button"
+            onClick={() => setPrivacyOpen(true)}
+          >
+            Privacy
+          </button>
+        </p>
         <button
           className="about-primary"
           onClick={handleLinkClick("https://pennivo.app/#download")}
@@ -97,6 +113,10 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
           Close
         </button>
       </div>
+      <PrivacyDialog
+        visible={privacyOpen}
+        onClose={() => setPrivacyOpen(false)}
+      />
     </div>
   );
 }

@@ -640,4 +640,43 @@ describe("Sidebar", () => {
       expect(onShowToast).toHaveBeenCalledWith("Move failed", true);
     });
   });
+
+  describe("Trash entry", () => {
+    it("does not render when trashCount is 0", () => {
+      const { container } = render(
+        <Sidebar {...defaultProps} trashCount={0} onShowTrash={vi.fn()} />,
+      );
+      expect(container.querySelector(".sidebar-trash-entry")).toBeNull();
+    });
+
+    it("renders 'Trash · N' when trashCount > 0 and onShowTrash is wired", () => {
+      const { container } = render(
+        <Sidebar {...defaultProps} trashCount={3} onShowTrash={vi.fn()} />,
+      );
+      const entry = container.querySelector(".sidebar-trash-entry");
+      expect(entry).toBeInTheDocument();
+      expect(entry?.textContent).toContain("Trash");
+      expect(entry?.textContent).toContain("3");
+    });
+
+    it("clicking the Trash entry fires onShowTrash", () => {
+      const onShowTrash = vi.fn();
+      const { container } = render(
+        <Sidebar {...defaultProps} trashCount={1} onShowTrash={onShowTrash} />,
+      );
+      const entry = container.querySelector(
+        ".sidebar-trash-entry",
+      ) as HTMLButtonElement;
+      expect(entry).toBeInTheDocument();
+      fireEvent.click(entry);
+      expect(onShowTrash).toHaveBeenCalledOnce();
+    });
+
+    it("does not render when onShowTrash is missing (defensive)", () => {
+      const { container } = render(
+        <Sidebar {...defaultProps} trashCount={5} />,
+      );
+      expect(container.querySelector(".sidebar-trash-entry")).toBeNull();
+    });
+  });
 });

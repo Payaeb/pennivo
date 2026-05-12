@@ -5,7 +5,7 @@ import {
   DEFAULT_TOOLBAR_CONFIG,
   TOOLTIP_DATA,
   ACTION_CATEGORY,
-} from "../Toolbar/Toolbar";
+} from "../Toolbar/Toolbar.constants";
 import "./ToolbarCustomizer.css";
 
 interface ToolbarCustomizerProps {

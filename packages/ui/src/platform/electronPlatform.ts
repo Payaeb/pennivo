@@ -106,10 +106,43 @@ export function createElectronPlatform(): PennivoPlatform {
     },
     deleteFile: (filePath, includeAssets = false) =>
       api.deleteFile(filePath, includeAssets),
+    deleteFilePermanently: (filePath, includeAssets = false) =>
+      api.deleteFilePermanently(filePath, includeAssets),
     getAssetSummary: (filePath) => api.getAssetSummary(filePath),
     renameFile: (oldPath, newName) => api.renameFile(oldPath, newName),
     moveFile: (srcPath, destDir, overwrite = false) =>
       api.moveFile(srcPath, destDir, overwrite),
+
+    // Snapshot recovery (Phase 13a) — wired to the preload `snapshot` bridge
+    snapshot: {
+      list: (absolutePath) => api.snapshot.list(absolutePath),
+      read: (absolutePath, snapshotId) =>
+        api.snapshot.read(absolutePath, snapshotId),
+      restore: (absolutePath, snapshotId, mode, targetPath) =>
+        api.snapshot.restore(absolutePath, snapshotId, mode, targetPath),
+      getCapStatus: () => api.snapshot.getCapStatus(),
+      getStorageUsage: () => api.snapshot.getStorageUsage(),
+      openFolder: () => api.snapshot.openFolder(),
+      clearAll: () => api.snapshot.clearAll(),
+      onCapExceeded: (cb) => api.snapshot.onCapExceeded(cb),
+      onArchiveStatus: (cb) => api.snapshot.onArchiveStatus(cb),
+      probeArchiveStatus: () => api.snapshot.probeArchiveStatus(),
+      onExternalChangeDetected: (cb) =>
+        api.snapshot.onExternalChangeDetected(cb),
+      saveMerged: (args) => api.snapshot.saveMerged(args),
+    },
+
+    // Trash (Phase 13a soft-delete) — wired to the preload `trash` bridge
+    trash: {
+      list: () => api.trash.list(),
+      restore: (trashId) => api.trash.restore(trashId),
+      permanentlyDelete: (trashId) => api.trash.permanentlyDelete(trashId),
+      sweep: () => api.trash.sweep(),
+      read: (trashId) => api.trash.read(trashId),
+      onCountChanged: (cb) => api.trash.onCountChanged(cb),
+    },
+
+    openFolderDialog: () => api.openFolderDialog(),
 
     // Menu events
     onMenuPaste: (cb) => api.onMenuPaste(cb),
@@ -121,5 +154,6 @@ export function createElectronPlatform(): PennivoPlatform {
     onMenuNewFile: (cb) => api.onMenuNewFile(cb),
     onMenuExportHtml: (cb) => api.onMenuExportHtml(cb),
     onMenuExportPdf: (cb) => api.onMenuExportPdf(cb),
+    onMenuOpenHistory: (cb) => api.onMenuOpenHistory(cb),
   };
 }

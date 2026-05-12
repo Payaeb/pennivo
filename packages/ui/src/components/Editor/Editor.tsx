@@ -22,7 +22,7 @@ import {
 import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
 import { tablePlugin } from "./tablePlugin";
-import { createFindReplacePlugin } from "../FindReplace/FindReplace";
+import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
 import { getPlatform } from "../../platform";
 import "./Editor.css";
 

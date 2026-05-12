@@ -50,6 +50,7 @@ export function createMockPennivoAPI() {
     showItemInFolder: vi.fn(async () => true),
     getAssetSummary: vi.fn(async () => ({ folders: [], assetCount: 0 })),
     deleteFile: vi.fn(async () => true),
+    deleteFilePermanently: vi.fn(async () => true),
     renameFile: vi.fn(async (_oldPath: string, newName: string) => newName),
     moveFile: vi.fn(
       async (_srcPath: string, _destDir: string, _overwrite?: boolean) => ({
@@ -93,6 +94,7 @@ export function createMockPennivoAPI() {
     onMenuNewFile: vi.fn(() => () => {}),
     onMenuExportHtml: vi.fn(() => () => {}),
     onMenuExportPdf: vi.fn(() => () => {}),
+    onMenuOpenHistory: vi.fn(() => () => {}),
   };
 }
 

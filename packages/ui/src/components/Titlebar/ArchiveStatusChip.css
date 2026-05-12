@@ -1,0 +1,52 @@
+/* ─── Archive-status titlebar chip ───
+ *
+ * Small inline element that surfaces archive queue health. Same warm-amber
+ * tone as the cap-exceeded / external-change family — informational, not
+ * alarming. Carves out of the titlebar drag region so clicks land.
+ */
+
+.archive-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  color: var(--warning);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter var(--transition-fast);
+  flex-shrink: 0;
+  /* Carve out of the OS-level titlebar drag region. */
+  -webkit-app-region: no-drag;
+}
+
+.archive-status-chip:hover {
+  filter: brightness(1.05);
+}
+
+.archive-status-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex-shrink: 0;
+  /* Subtle pulse so the chip is noticed without being noisy. */
+  animation: archive-status-chip-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes archive-status-chip-pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.archive-status-chip-label {
+  white-space: nowrap;
+}

@@ -3,6 +3,7 @@ import {
   type MenuAction,
   type RecentFileEntry,
 } from "./TitlebarMenu";
+import { ArchiveStatusChip } from "./ArchiveStatusChip";
 import logoSrc from "../../assets/logo-32.png";
 import { getPlatform } from "../../platform";
 import "./Titlebar.css";
@@ -13,6 +14,13 @@ interface TitlebarProps {
   onMenuAction?: (action: MenuAction) => void;
   recentFiles?: RecentFileEntry[];
   onOpenRecentFile?: (filePath: string) => void;
+  /**
+   * Archive queue health, drives the inline `Archive offline` chip. Hidden
+   * in the `'ok'` state. `null` while the engine hasn't reported anything.
+   */
+  archiveStatus?: { status: "ok" | "unavailable" | "queued"; count: number } | null;
+  /** Click handler for the archive chip — opens Settings → Recovery. */
+  onArchiveStatusClick?: () => void;
 }
 
 export type { MenuAction, RecentFileEntry };
@@ -23,6 +31,8 @@ export function Titlebar({
   onMenuAction,
   recentFiles,
   onOpenRecentFile,
+  archiveStatus,
+  onArchiveStatusClick,
 }: TitlebarProps) {
   const platform = getPlatform();
   const handleMinimize = () => platform.minimize();
@@ -49,6 +59,13 @@ export function Titlebar({
           {filename === "untitled.md" ? "untitled" : filename}
         </span>
         <span className="titlebar-appname">&mdash; Pennivo</span>
+        {archiveStatus && onArchiveStatusClick && (
+          <ArchiveStatusChip
+            status={archiveStatus.status}
+            count={archiveStatus.count}
+            onClick={onArchiveStatusClick}
+          />
+        )}
         {isDirty && <span className="titlebar-dirty" title="Unsaved changes" />}
       </div>
 

@@ -115,6 +115,12 @@ contextBridge.exposeInMainWorld("pennivo", {
       filePath,
       includeAssets,
     ) as Promise<boolean>,
+  deleteFilePermanently: (filePath: string, includeAssets: boolean = false) =>
+    ipcRenderer.invoke(
+      "sidebar:delete-permanently",
+      filePath,
+      includeAssets,
+    ) as Promise<boolean>,
   renameFile: (oldPath: string, newName: string) =>
     ipcRenderer.invoke("sidebar:rename-file", oldPath, newName) as Promise<
       string | null
@@ -185,6 +191,112 @@ contextBridge.exposeInMainWorld("pennivo", {
   },
   installUpdate: () => ipcRenderer.send("update:install"),
 
+  // Snapshot recovery (Phase 13a)
+  snapshot: {
+    list: (absolutePath: string) =>
+      ipcRenderer.invoke("snapshot:list", absolutePath) as Promise<unknown[]>,
+    read: (absolutePath: string, snapshotId: string) =>
+      ipcRenderer.invoke("snapshot:read", absolutePath, snapshotId) as Promise<{
+        content: string;
+        meta: unknown;
+      } | null>,
+    restore: (
+      absolutePath: string,
+      snapshotId: string,
+      mode: "overwrite" | "as-new-file",
+      targetPath?: string,
+    ) =>
+      ipcRenderer.invoke("snapshot:restore", {
+        absolutePath,
+        snapshotId,
+        mode,
+        targetPath,
+      }) as Promise<{ newPath: string } | null>,
+    getCapStatus: () =>
+      ipcRenderer.invoke("snapshot:get-cap-status") as Promise<unknown | null>,
+    getStorageUsage: () =>
+      ipcRenderer.invoke("snapshot:get-storage-usage") as Promise<{
+        bytes: number;
+      }>,
+    openFolder: () =>
+      ipcRenderer.invoke("snapshot:open-folder") as Promise<boolean>,
+    clearAll: () =>
+      ipcRenderer.invoke("snapshot:clear-all") as Promise<boolean>,
+    onCapExceeded: (cb: (warning: unknown) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, warning: unknown) =>
+        cb(warning);
+      ipcRenderer.on("recovery:cap-exceeded", handler);
+      return () => {
+        ipcRenderer.removeListener("recovery:cap-exceeded", handler);
+      };
+    },
+    onArchiveStatus: (cb: (status: unknown) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, status: unknown) =>
+        cb(status);
+      ipcRenderer.on("recovery:archive-status", handler);
+      return () => {
+        ipcRenderer.removeListener("recovery:archive-status", handler);
+      };
+    },
+    probeArchiveStatus: () =>
+      ipcRenderer.invoke("snapshot:probe-archive-status") as Promise<boolean>,
+    onExternalChangeDetected: (
+      cb: (payload: { absolutePath: string; snapshotId: string }) => void,
+    ) => {
+      const handler = (
+        _e: Electron.IpcRendererEvent,
+        payload: { absolutePath: string; snapshotId: string },
+      ) => cb(payload);
+      ipcRenderer.on("recovery:external-change-detected", handler);
+      return () => {
+        ipcRenderer.removeListener(
+          "recovery:external-change-detected",
+          handler,
+        );
+      };
+    },
+    saveMerged: (args: {
+      filePath: string;
+      content: string;
+      mode: "overwrite" | "as-new-file";
+      left: string | null;
+      right: string | null;
+    }) =>
+      ipcRenderer.invoke("snapshot:save-merged", args) as Promise<{
+        savedPath: string;
+      } | null>,
+  },
+
+  // Trash (Phase 13a soft-delete)
+  trash: {
+    list: () => ipcRenderer.invoke("trash:list") as Promise<unknown[]>,
+    restore: (trashId: string) =>
+      ipcRenderer.invoke("trash:restore", trashId) as Promise<{
+        restoredPath: string;
+      } | null>,
+    permanentlyDelete: (trashId: string) =>
+      ipcRenderer.invoke("trash:permanently-delete", trashId) as Promise<boolean>,
+    sweep: () =>
+      ipcRenderer.invoke("trash:sweep") as Promise<{ removedCount: number }>,
+    read: (trashId: string) =>
+      ipcRenderer.invoke("trash:read", trashId) as Promise<{
+        content: string;
+      } | null>,
+    onCountChanged: (cb: (count: number) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, count: number) =>
+        cb(count);
+      ipcRenderer.on("trash:count-changed", handler);
+      return () => {
+        ipcRenderer.removeListener("trash:count-changed", handler);
+      };
+    },
+  },
+
+  // Folder picker for Settings → Recovery archive folder. Reuses the same
+  // showOpenDialog as `sidebar:choose-folder` but doesn't persist anything.
+  openFolderDialog: () =>
+    ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,
+
   // Menu events from main process
   onMenuPaste: (cb: () => void) => {
     const handler = () => cb();
@@ -247,6 +359,13 @@ contextBridge.exposeInMainWorld("pennivo", {
     ipcRenderer.on("menu:export-pdf", handler);
     return () => {
       ipcRenderer.removeListener("menu:export-pdf", handler);
+    };
+  },
+  onMenuOpenHistory: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("menu:open-history", handler);
+    return () => {
+      ipcRenderer.removeListener("menu:open-history", handler);
     };
   },
 });

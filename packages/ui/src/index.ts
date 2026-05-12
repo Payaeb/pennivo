@@ -9,12 +9,12 @@ export { getPlatform } from "./platform";
 export type { PennivoPlatform } from "./platform";
 export type { Theme, ThemeMode, ColorScheme } from "./hooks/useTheme";
 export type { SaveStatus } from "./components/Statusbar/Statusbar";
-export type { ToolbarAction } from "./components/Toolbar/Toolbar";
+export type { ToolbarAction } from "./components/Toolbar/Toolbar.constants";
+export { FindReplace } from "./components/FindReplace/FindReplace";
 export {
-  FindReplace,
   findReplacePluginKey,
   createFindReplacePlugin,
-} from "./components/FindReplace/FindReplace";
+} from "./components/FindReplace/FindReplace.plugin";
 export {
   updateCmFind,
   cmFindField,

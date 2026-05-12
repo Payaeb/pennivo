@@ -1,0 +1,357 @@
+/* ─── Compare & merge view ───
+ *
+ * Single CSS-Grid scroll container with two equal columns (left pane | right
+ * pane). Per-hunk action chips render in a full-width row spanning both
+ * columns, immediately below the hunk's content rows — so the visual link
+ * between a hunk and its action row is unambiguous. Diff color tokens mirror
+ * the unified line-diff (`--danger-soft` for removed/left, `--accent-soft`
+ * for added/right) so the two views feel like the same family.
+ */
+
+.compare-merge-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.compare-merge-loading,
+.compare-merge-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+}
+
+.compare-merge-empty-title {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.compare-merge-empty-sub {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* ─── Body: shared scroll container + 2-column grid ─── */
+
+.compare-merge-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.compare-merge-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.compare-merge-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+  border-radius: 3px;
+}
+
+.compare-merge-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  font-family: var(--font-editor);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+/* ─── Pane headers (sticky at the top of the scroll container) ─── */
+
+.compare-merge-pane-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-ui);
+}
+
+.compare-merge-pane-header--left {
+  border-right: 1px solid var(--border);
+}
+
+.compare-merge-side-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+
+.compare-merge-side-chip--external {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.compare-merge-side-chip--mcp,
+.compare-merge-side-chip--inline-ai {
+  border-color: var(--accent-purple);
+  color: var(--accent-purple);
+}
+
+.compare-merge-side-chip--current {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.compare-merge-side-chip-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.compare-merge-side-chip-sep {
+  color: var(--text-faint);
+}
+
+/* ─── Line cells ─── */
+
+.compare-merge-line {
+  padding: 1px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.compare-merge-cell--left {
+  border-right: 1px solid var(--border);
+}
+
+.compare-merge-line--context {
+  color: var(--text-primary);
+}
+
+.compare-merge-line--remove {
+  background: var(--danger-soft);
+}
+
+.compare-merge-line--add {
+  background: var(--accent-soft);
+}
+
+.compare-merge-line--phantom {
+  /* Phantom rows hold space so both columns stay row-aligned within a hunk.
+     They render a non-breaking space and a faint dotted baseline so the
+     user can still see "this side has no content at this position." */
+  color: var(--text-faint);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 6px,
+    var(--bg-surface) 6px,
+    var(--bg-surface) 8px
+  );
+}
+
+.compare-merge-line--dimmed {
+  opacity: 0.45;
+}
+
+.compare-merge-line--both {
+  outline: 1px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.compare-merge-line--edited {
+  /* When the user edited the hunk, both sides dim — the canonical version
+     is the user's text, shown in the action row. */
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.compare-merge-line-text {
+  display: inline;
+}
+
+/* ─── Hunk caption (── Hunk N ──) ─── */
+
+.compare-merge-hunk-caption {
+  padding: 6px 14px 2px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.compare-merge-hunk-caption.compare-merge-cell--left {
+  border-right: 1px solid var(--border);
+}
+
+.compare-merge-hunk-caption-text {
+  display: inline;
+}
+
+/* ─── Inline action row (full-width strip beneath each hunk) ─── */
+
+.compare-merge-action-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-surface);
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  font-family: var(--font-ui);
+}
+
+.compare-merge-action-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding-top: 4px;
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+}
+
+.compare-merge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.compare-merge-chip {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: 1px solid var(--border-mid);
+  background: var(--bg);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.compare-merge-chip:hover {
+  background: var(--bg-overlay);
+}
+
+.compare-merge-chip--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.compare-merge-chip--primary {
+  background: var(--accent);
+  color: var(--bg-surface);
+  border-color: var(--accent);
+}
+
+.compare-merge-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.compare-merge-edit-textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.compare-merge-edit-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ─── Footer ─── */
+
+.compare-merge-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.compare-merge-counter {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-merge-footer-spacer {
+  flex: 1;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compare-merge-footer-btn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border: 1px solid var(--border-mid);
+  background: var(--bg);
+  color: var(--text-primary);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.compare-merge-footer-btn:hover:not(:disabled) {
+  background: var(--bg-overlay);
+}
+
+.compare-merge-footer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.compare-merge-footer-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-surface);
+}
+
+.compare-merge-footer-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}

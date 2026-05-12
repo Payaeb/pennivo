@@ -26,6 +26,12 @@ interface AppShellProps {
   onMenuAction?: (action: MenuAction) => void;
   recentFiles?: RecentFileEntry[];
   onOpenRecentFile?: (filePath: string) => void;
+  /** Drives the inline `Archive offline` chip in the titlebar. */
+  archiveStatus?:
+    | { status: "ok" | "unavailable" | "queued"; count: number }
+    | null;
+  /** Click handler for the archive chip. */
+  onArchiveStatusClick?: () => void;
   toolbar: ReactNode;
   findReplace?: ReactNode;
   sidebar?: ReactNode;
@@ -46,6 +52,8 @@ export function AppShell({
   onMenuAction,
   recentFiles,
   onOpenRecentFile,
+  archiveStatus,
+  onArchiveStatusClick,
   toolbar,
   findReplace,
   sidebar,
@@ -118,6 +126,8 @@ export function AppShell({
           onMenuAction={onMenuAction}
           recentFiles={recentFiles}
           onOpenRecentFile={onOpenRecentFile}
+          archiveStatus={archiveStatus}
+          onArchiveStatusClick={onArchiveStatusClick}
         />
       </header>
       <div className="app-toolbar-row">{toolbar}</div>

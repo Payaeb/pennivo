@@ -1,10 +1,10 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+import { Toolbar } from "../Toolbar/Toolbar";
 import {
-  Toolbar,
   DEFAULT_TOOLBAR_CONFIG,
   TOOLTIP_DATA,
-} from "../Toolbar/Toolbar";
+} from "../Toolbar/Toolbar.constants";
 
 describe("Toolbar", () => {
   describe("Rendering", () => {

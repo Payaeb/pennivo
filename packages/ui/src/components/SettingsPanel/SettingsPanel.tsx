@@ -2,6 +2,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import type { ThemeMode, ColorScheme } from "../../hooks/useTheme";
 import { getPlatform } from "../../platform";
+import {
+  migrateRecoverySettings,
+  type RecoverySettings,
+} from "@pennivo/core";
+import { RecoverySection } from "./RecoverySection";
 import "./SettingsPanel.css";
 
 export interface AppSettings {
@@ -30,6 +35,20 @@ interface SettingsPanelProps {
   typewriterMode: boolean;
   onTypewriterModeChange: (v: boolean) => void;
   onChange?: (settings: Record<string, unknown>) => void;
+  /**
+   * When set, scroll the panel to the named section on open. Currently
+   * supports `"recovery"`. The section also visually highlights when paired
+   * with `highlightRecoveryRetention`.
+   */
+  scrollToSection?: "recovery" | null;
+  /**
+   * When true and `scrollToSection === "recovery"`, the retention-tier
+   * sub-panel briefly highlights to draw the user's eye. Used by the
+   * cap-exceeded banner's "Change rules" deep link.
+   */
+  highlightRecoveryRetention?: boolean;
+  /** Surface a transient toast — same channel App.tsx uses. */
+  onShowToast?: (message: string, isError?: boolean) => void;
 }
 
 export function SettingsPanel({
@@ -38,12 +57,18 @@ export function SettingsPanel({
   typewriterMode,
   onTypewriterModeChange,
   onChange,
+  scrollToSection,
+  highlightRecoveryRetention,
+  onShowToast,
 }: SettingsPanelProps) {
   const platform = getPlatform();
   const overlayRef = useRef<HTMLDivElement>(null);
   const { mode, setMode, colorScheme, setColorScheme } = useTheme();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
+  const [recoverySettings, setRecoverySettings] =
+    useState<RecoverySettings | null>(null);
+  const recoverySectionRef = useRef<HTMLDivElement>(null);
 
   // Load settings from disk on open
   useEffect(() => {
@@ -51,10 +76,46 @@ export function SettingsPanel({
     platform.getSettings().then((saved: Record<string, unknown>) => {
       if (saved && typeof saved === "object") {
         setSettings((prev) => ({ ...prev, ...saved }));
+        const recRaw = (saved as Record<string, unknown>).recovery;
+        setRecoverySettings(migrateRecoverySettings(recRaw));
+      } else {
+        setRecoverySettings(migrateRecoverySettings(undefined));
       }
       setLoaded(true);
     });
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // Persist a partial recovery update through the same `settings:set`
+  // pipeline the rest of SettingsPanel uses.
+  const persistRecovery = useCallback(
+    async (patch: Partial<RecoverySettings>) => {
+      if (!recoverySettings) return;
+      const next: RecoverySettings = { ...recoverySettings, ...patch };
+      setRecoverySettings(next);
+      const fresh = await platform.getSettings();
+      const merged = { ...(fresh ?? {}), recovery: next };
+      await platform.setSettings(merged);
+      onChange?.(merged);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recoverySettings, onChange],
+  );
+
+  // Scroll-to-section / highlight on open
+  useEffect(() => {
+    if (!visible || !loaded) return;
+    if (scrollToSection === "recovery" && recoverySectionRef.current) {
+      // Defer one frame so layout has settled.
+      requestAnimationFrame(() => {
+        recoverySectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+  }, [visible, loaded, scrollToSection]);
 
   const persistSettings = useCallback(
     (updated: AppSettings) => {
@@ -62,6 +123,8 @@ export function SettingsPanel({
       platform.setSettings(updated as unknown as Record<string, unknown>);
       onChange?.(updated as unknown as Record<string, unknown>);
     },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onChange],
   );
 
@@ -95,6 +158,8 @@ export function SettingsPanel({
     } else {
       platform.setSpellCheckLanguages([]);
     }
+  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.spellcheck, loaded]);
 
   useEffect(() => {
@@ -319,6 +384,22 @@ export function SettingsPanel({
               </button>
             </div>
           </div>
+
+          {/* Recovery (Phase 13a) */}
+          {recoverySettings && (
+            <div ref={recoverySectionRef}>
+              <RecoverySection
+                initial={recoverySettings}
+                onChange={(patch) => {
+                  void persistRecovery(patch);
+                }}
+                onShowToast={onShowToast}
+                highlightRetention={
+                  scrollToSection === "recovery" && !!highlightRecoveryRetention
+                }
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

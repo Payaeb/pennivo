@@ -74,6 +74,10 @@ interface PennivoAPI {
     filePath: string,
   ) => Promise<{ folders: string[]; assetCount: number }>;
   deleteFile: (filePath: string, includeAssets?: boolean) => Promise<boolean>;
+  deleteFilePermanently: (
+    filePath: string,
+    includeAssets?: boolean,
+  ) => Promise<boolean>;
   renameFile: (oldPath: string, newName: string) => Promise<string | null>;
   moveFile: (
     srcPath: string,
@@ -110,6 +114,51 @@ interface PennivoAPI {
   onUpdateAvailable: (cb: (version: string) => void) => () => void;
   installUpdate: () => void;
 
+  // Snapshot recovery (Phase 13a)
+  snapshot: {
+    list: (absolutePath: string) => Promise<unknown[]>;
+    read: (
+      absolutePath: string,
+      snapshotId: string,
+    ) => Promise<{ content: string; meta: unknown } | null>;
+    restore: (
+      absolutePath: string,
+      snapshotId: string,
+      mode: "overwrite" | "as-new-file",
+      targetPath?: string,
+    ) => Promise<{ newPath: string } | null>;
+    getCapStatus: () => Promise<unknown | null>;
+    getStorageUsage: () => Promise<{ bytes: number }>;
+    openFolder: () => Promise<boolean>;
+    clearAll: () => Promise<boolean>;
+    onCapExceeded: (cb: (warning: unknown) => void) => () => void;
+    onArchiveStatus: (cb: (status: unknown) => void) => () => void;
+    probeArchiveStatus: () => Promise<boolean>;
+    onExternalChangeDetected: (
+      cb: (payload: { absolutePath: string; snapshotId: string }) => void,
+    ) => () => void;
+    saveMerged: (args: {
+      filePath: string;
+      content: string;
+      mode: "overwrite" | "as-new-file";
+      left: string | null;
+      right: string | null;
+    }) => Promise<{ savedPath: string } | null>;
+  };
+
+  // Trash (Phase 13a soft-delete)
+  trash: {
+    list: () => Promise<unknown[]>;
+    restore: (trashId: string) => Promise<{ restoredPath: string } | null>;
+    permanentlyDelete: (trashId: string) => Promise<boolean>;
+    sweep: () => Promise<{ removedCount: number }>;
+    read: (trashId: string) => Promise<{ content: string } | null>;
+    onCountChanged: (cb: (count: number) => void) => () => void;
+  };
+
+  // Folder picker (Settings → Recovery archive folder)
+  openFolderDialog: () => Promise<string | null>;
+
   // Menu events (returns cleanup function)
   onMenuPaste: (cb: () => void) => () => void;
   onMenuOpen: (cb: () => void) => () => void;
@@ -120,6 +169,7 @@ interface PennivoAPI {
   onMenuNewFile: (cb: () => void) => () => void;
   onMenuExportHtml: (cb: () => void) => () => void;
   onMenuExportPdf: (cb: () => void) => () => void;
+  onMenuOpenHistory: (cb: () => void) => () => void;
 }
 
 declare interface Window {
