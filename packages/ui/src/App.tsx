@@ -343,6 +343,11 @@ function AppContent() {
   // Live modal width (re-measured via ResizeObserver) so HistoryView can
   // auto-collapse the timeline below 800px without persisting the change.
   const [recoveryModalWidth, setRecoveryModalWidth] = useState(0);
+  // Compare-merge body publishes its discard-confirm guard here so the
+  // shell's × / overlay-click can route through it. Null when not in
+  // compare-merge mode (or no progress yet); a callable when an interactive
+  // close attempt should trigger the discard-confirm.
+  const compareMergeCloseGuardRef = useRef<(() => void) | null>(null);
 
   // --- Cap-exceeded notification state (Phase 13a §2.6) ---
   // `capWarning` mirrors the most-recent `recovery:cap-exceeded` event payload
@@ -3261,6 +3266,22 @@ function AppContent() {
           setRecoveryModalOpen(false);
           setCompareMergeSelection(null);
         }}
+        onCloseRequest={
+          recoveryModalMode === "compare-merge"
+            ? () => {
+                // Compare-merge mode: route × / overlay-click through the
+                // body's discard-confirm guard when one is published. With
+                // no published guard (selection unset, etc.) fall through
+                // to a plain close.
+                const guard = compareMergeCloseGuardRef.current;
+                if (guard) guard();
+                else {
+                  setRecoveryModalOpen(false);
+                  setCompareMergeSelection(null);
+                }
+              }
+            : undefined
+        }
         onBack={
           recoveryModalMode === "compare-merge"
             ? () => {
@@ -3354,6 +3375,7 @@ function AppContent() {
             onAfterReplace={() => {
               if (filePath) void openRecentFile(filePath);
             }}
+            closeGuardRef={compareMergeCloseGuardRef}
           />
         ) : (
           <div className="recovery-modal-placeholder">

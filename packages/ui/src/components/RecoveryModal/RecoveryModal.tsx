@@ -34,6 +34,15 @@ interface RecoveryModalProps {
    */
   onClose: () => void;
   /**
+   * Optional close-request interceptor. When provided, the shell's × button
+   * and overlay click route through this instead of `onClose`. Lets the body
+   * (e.g. CompareMergeView's discard-confirm guard) veto a close attempt
+   * without changing the underlying close machinery. Esc handling is NOT
+   * affected — the Esc contract (single Esc closes; or first Esc → back when
+   * `onBack` is set) stays unchanged.
+   */
+  onCloseRequest?: () => void;
+  /**
    * When provided, a small `← Back` button renders to the left of the title.
    * Compare-merge mode uses this to return to History without closing the
    * modal. Esc handling: when `onBack` is set, the FIRST Esc fires `onBack`
@@ -60,6 +69,7 @@ export function RecoveryModal({
   onModeChange,
   title,
   onClose,
+  onCloseRequest,
   onBack,
   children,
 }: RecoveryModalProps) {
@@ -84,8 +94,13 @@ export function RecoveryModal({
 
   if (!open) return null;
 
+  const requestClose = () => {
+    if (onCloseRequest) onCloseRequest();
+    else onClose();
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === overlayRef.current) onClose();
+    if (e.target === overlayRef.current) requestClose();
   };
 
   const resolvedTitle =
@@ -171,7 +186,7 @@ export function RecoveryModal({
           <button
             type="button"
             className="recovery-modal-close-btn"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
           >
             <svg

@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type MutableRefObject,
 } from "react";
 import {
   computeMergeSegments,
@@ -75,6 +76,15 @@ interface CompareMergeViewProps {
    * current file — the editor's loaded content is now stale.
    */
   onAfterReplace?: () => void;
+  /**
+   * Optional ref slot the body uses to publish its guarded close handler so
+   * the modal shell's × / overlay can route through the discard-confirm.
+   * The body writes its current `guardedClose` into `ref.current` whenever
+   * progress state changes, and clears it on unmount. The shell's
+   * `onCloseRequest` (in `App.tsx`) reads this ref to decide whether to
+   * intercept or fall through to a plain close.
+   */
+  closeGuardRef?: MutableRefObject<(() => void) | null>;
 }
 
 /** Lightweight view of a snapshot's identity, used in the pane header chip. */
@@ -96,6 +106,7 @@ export function CompareMergeView({
   onClose,
   onBack,
   onAfterReplace,
+  closeGuardRef,
 }: CompareMergeViewProps) {
   const platform = getPlatform();
 
@@ -282,27 +293,25 @@ export function CompareMergeView({
     await performSave("as-new-file");
   }, [allResolved, performSave]);
 
-  // Close-with-unresolved guard: when there's progress, intercept onBack /
-  // onClose with a discard confirm.
+  // Close-with-unresolved guard: when there's progress, intercept the shell's
+  // × / overlay-click with a discard confirm. The body publishes its current
+  // guarded handler into `closeGuardRef` so `App.tsx` can route the modal
+  // shell's `onCloseRequest` through it. When there's no progress (or
+  // everything is resolved), the ref still publishes a handler that calls
+  // `onClose` directly — the shell's × closes immediately, same as today.
   const hasProgress = resolvedCount > 0 && !allResolved;
   const guardedClose = useCallback(() => {
     if (hasProgress) setPendingDiscard(true);
     else onClose();
   }, [hasProgress, onClose]);
 
-  // Wire the body-level close to be guarded; the modal shell still has its
-  // own close button which calls our `onClose`. We can't replace that from
-  // here, but we can intercept by wrapping onClose. Instead: the parent
-  // (App.tsx) passes `onClose={() => setRecoveryModalOpen(false)}`; we
-  // expose `guardedClose` via the back button equivalent the modal shell
-  // owns. Since the design says `×` shows the discard confirm too, we
-  // surface the guard in the body's footer instead — and we handle the
-  // shell's close by hooking onBeforeClose-style. For pragmatism: we honor
-  // the design via the back button path. The shell's × is allowed to
-  // close — same outcome (data loss is symbolic; resolved hunks aren't
-  // committed anywhere yet). Documented trade-off.
-
-  void guardedClose;
+  useEffect(() => {
+    if (!closeGuardRef) return;
+    closeGuardRef.current = guardedClose;
+    return () => {
+      closeGuardRef.current = null;
+    };
+  }, [closeGuardRef, guardedClose]);
 
   // ----- Render -----
 

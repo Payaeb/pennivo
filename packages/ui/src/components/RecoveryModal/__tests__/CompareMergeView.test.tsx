@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ReactNode } from "react";
+import { createRef, type MutableRefObject, type ReactNode } from "react";
 
 vi.mock("../../../platform", () => ({
   getPlatform: () => mockPlatform,
@@ -71,6 +71,7 @@ function renderCompareMergeView(
   overrides: Partial<{
     selection: { left: string; right: string };
     currentContent: string;
+    closeGuardRef: MutableRefObject<(() => void) | null>;
   }> = {},
 ): {
   onClose: ReturnType<typeof vi.fn>;
@@ -96,6 +97,7 @@ function renderCompareMergeView(
       onClose={onClose}
       onBack={onBack}
       onAfterReplace={onAfterReplace}
+      closeGuardRef={overrides.closeGuardRef}
     />,
   );
   return {
@@ -227,6 +229,142 @@ describe("CompareMergeView", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalled();
+  });
+
+  it("publishes a closeGuardRef handler that fires the discard-confirm when there's progress", async () => {
+    // Use a 2-hunk diff so resolving ONE leaves the body in
+    // hasProgress=true (resolvedCount=1, !allResolved).
+    mockPlatform.snapshot.read = vi.fn(async (_p: string, id: string) => ({
+      content:
+        id === "snap-left"
+          ? "alpha\nB\ngamma\nC\nepsilon"
+          : "alpha\nx\ngamma\ny\nepsilon",
+      meta: {
+        id,
+        ts: 0,
+        author: "user",
+        deviceId: "d",
+        contentHash: "h",
+        sizeBytes: 4,
+      },
+    }));
+    const closeGuardRef = createRef<(() => void) | null>() as MutableRefObject<
+      (() => void) | null
+    >;
+    closeGuardRef.current = null;
+    const { onClose } = renderCompareMergeView({ closeGuardRef });
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Take left" }).length,
+      ).toBeGreaterThanOrEqual(2),
+    );
+
+    // No progress yet: invoking the published guard should close immediately.
+    expect(typeof closeGuardRef.current).toBe("function");
+    act(() => {
+      closeGuardRef.current!();
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+
+    onClose.mockClear();
+
+    // Resolve ONE of the two hunks → progress without allResolved.
+    fireEvent.click(screen.getAllByRole("button", { name: "Take left" })[0]);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("compare-merge-counter").textContent,
+      ).toMatch(/1 resolved · 1 remaining/),
+    );
+
+    // With progress, the guard should NOT close immediately — instead it
+    // surfaces the discard confirm.
+    act(() => {
+      closeGuardRef.current!();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("alertdialog", { name: /Discard merge progress/ }),
+      ).toBeInTheDocument(),
+    );
+
+    // Confirming Discard fires onClose; cancelling keeps the modal open.
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("Keep editing dismisses the discard-confirm without closing", async () => {
+    mockPlatform.snapshot.read = vi.fn(async (_p: string, id: string) => ({
+      content:
+        id === "snap-left"
+          ? "alpha\nB\ngamma\nC\nepsilon"
+          : "alpha\nx\ngamma\ny\nepsilon",
+      meta: {
+        id,
+        ts: 0,
+        author: "user",
+        deviceId: "d",
+        contentHash: "h",
+        sizeBytes: 4,
+      },
+    }));
+    const closeGuardRef = createRef<(() => void) | null>() as MutableRefObject<
+      (() => void) | null
+    >;
+    closeGuardRef.current = null;
+    const { onClose } = renderCompareMergeView({ closeGuardRef });
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Take left" }).length,
+      ).toBeGreaterThanOrEqual(2),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Take left" })[0]);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("compare-merge-counter").textContent,
+      ).toMatch(/1 resolved · 1 remaining/),
+    );
+
+    act(() => {
+      closeGuardRef.current!();
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("alertdialog", { name: /Discard merge progress/ }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("alertdialog", { name: /Discard merge progress/ }),
+    ).toBeNull();
+  });
+
+  it("clears the closeGuardRef on unmount", async () => {
+    const closeGuardRef = createRef<(() => void) | null>() as MutableRefObject<
+      (() => void) | null
+    >;
+    closeGuardRef.current = null;
+    const onClose = vi.fn();
+    const { unmount } = render(
+      <CompareMergeView
+        filePath="/path/test.md"
+        filename="test.md"
+        selection={{ left: "snap-left", right: "snap-right" }}
+        currentContent=""
+        onShowToast={vi.fn()}
+        onOpenFilePath={vi.fn()}
+        onClose={onClose}
+        onBack={vi.fn()}
+        closeGuardRef={closeGuardRef}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+    );
+    expect(typeof closeGuardRef.current).toBe("function");
+    unmount();
+    expect(closeGuardRef.current).toBeNull();
   });
 
   it("supports 'current' as the right side and uses currentContent prop", async () => {

@@ -283,6 +283,86 @@ test("Compare & merge button enables on 2 selected and switches to compare-merge
   ).toBeVisible();
 });
 
+test("Compare-merge × honors discard-confirm when a hunk has been resolved", async () => {
+  const { window } = await setup();
+  const filePath = path.join(workspaceDir, "alpha.md");
+
+  await window.locator(".tree-item", { hasText: "alpha.md" }).first().click();
+  await window.waitForFunction(
+    () => document.querySelector(".ProseMirror") !== null,
+    { timeout: 10_000 },
+  );
+
+  // Revisions chosen so the two most-recent snapshots differ in TWO
+  // distinct sections — produces ≥ 2 hunks. Resolving one leaves the body
+  // in `hasProgress=true` so the discard guard fires when × is clicked.
+  await saveFile(
+    window,
+    filePath,
+    "# Alpha\n\nintro line A\n\nbody A\n\noutro line A\n",
+  );
+  await saveFile(
+    window,
+    filePath,
+    "# Alpha\n\nintro line B\n\nbody A\n\noutro line B\n",
+  );
+
+  await waitForCondition(async () => {
+    const list = await window.evaluate((fp) => {
+      // @ts-expect-error renderer global
+      return window.pennivo.snapshot.list(fp);
+    }, filePath);
+    return Array.isArray(list) && list.length >= 2 ? list : null;
+  });
+
+  if (app) {
+    await app.evaluate(async ({ BrowserWindow }) => {
+      const all = BrowserWindow.getAllWindows();
+      const w = all[0];
+      if (w) w.webContents.send("menu:open-history");
+    });
+  }
+  await window.waitForSelector(".history-view", { timeout: 10_000 });
+
+  const rows = window.locator(".history-view-row");
+  await expect(rows.nth(1)).toBeVisible({ timeout: 10_000 });
+  await rows.nth(1).click({ modifiers: ["Control"] });
+
+  await window
+    .locator(".history-view-footer-btn", { hasText: /Compare & merge/ })
+    .click();
+  await expect(window.locator(".compare-merge-view")).toBeVisible({
+    timeout: 5000,
+  });
+
+  // Resolve hunk 1 ("Take left") so the body has progress without
+  // being fully resolved.
+  await window
+    .locator(".compare-merge-chip", { hasText: "Take left" })
+    .first()
+    .click();
+  await expect(window.locator('[data-testid="compare-merge-counter"]')).toContainText(
+    /1 resolved · [1-9]\d* remaining/,
+  );
+
+  // Click the modal × — instead of closing immediately, the discard-confirm
+  // alertdialog should surface.
+  await window.locator(".recovery-modal-close-btn").click();
+  await expect(
+    window.locator('[role="alertdialog"]', { hasText: /Discard merge progress/ }),
+  ).toBeVisible({ timeout: 5000 });
+
+  // Recovery modal should still be on-screen.
+  await expect(window.locator(".recovery-modal-card")).toBeVisible();
+
+  // Cancel the confirm ("Keep editing") — modal stays, merge survives.
+  await window.locator(".confirm-dialog-btn--cancel").click();
+  await expect(window.locator(".compare-merge-view")).toBeVisible();
+  await expect(window.locator('[data-testid="compare-merge-counter"]')).toContainText(
+    /1 resolved/,
+  );
+});
+
 test("Restore as new file creates a fresh file beside the original", async () => {
   const { window } = await setup();
   const filePath = path.join(workspaceDir, "alpha.md");

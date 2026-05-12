@@ -148,4 +148,83 @@ describe("RecoveryModal", () => {
     fireEvent.click(screen.getByText("body"));
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("when onCloseRequest is set, the × button routes through it instead of onClose", () => {
+    const onClose = vi.fn();
+    const onCloseRequest = vi.fn();
+    render(
+      <RecoveryModal
+        open
+        mode="compare-merge"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+        onCloseRequest={onCloseRequest}
+      >
+        <div>body</div>
+      </RecoveryModal>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onCloseRequest).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("when onCloseRequest is set, clicking the overlay routes through it instead of onClose", () => {
+    const onClose = vi.fn();
+    const onCloseRequest = vi.fn();
+    render(
+      <RecoveryModal
+        open
+        mode="compare-merge"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+        onCloseRequest={onCloseRequest}
+      >
+        <div>body</div>
+      </RecoveryModal>,
+    );
+    const overlay = document.querySelector(
+      ".recovery-modal-overlay",
+    ) as HTMLElement;
+    fireEvent.click(overlay, { target: overlay });
+    expect(onCloseRequest).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Esc behavior is unchanged when onCloseRequest is set (Esc → onBack first if set, else onClose; never onCloseRequest)", () => {
+    const onClose = vi.fn();
+    const onBack = vi.fn();
+    const onCloseRequest = vi.fn();
+    const { rerender } = render(
+      <RecoveryModal
+        open
+        mode="compare-merge"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+        onCloseRequest={onCloseRequest}
+        onBack={onBack}
+      >
+        <div>body</div>
+      </RecoveryModal>,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(onCloseRequest).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    onBack.mockClear();
+    rerender(
+      <RecoveryModal
+        open
+        mode="history"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+        onCloseRequest={onCloseRequest}
+      >
+        <div>body</div>
+      </RecoveryModal>,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onCloseRequest).not.toHaveBeenCalled();
+  });
 });
