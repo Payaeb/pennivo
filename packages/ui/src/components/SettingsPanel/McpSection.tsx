@@ -41,9 +41,10 @@ export function McpSection({
   const [settings, setSettings] = useState<McpSettings>(initial);
   const [audit, setAudit] = useState<McpAuditEntry[]>([]);
   const [auditLoaded, setAuditLoaded] = useState(false);
-  const [confirmConnect, setConfirmConnect] = useState<{ path: string } | null>(
-    null,
-  );
+  const [connectInfo, setConnectInfo] = useState<{
+    found: boolean;
+    path: string;
+  } | null>(null);
 
   const refreshAudit = useCallback(async () => {
     try {
@@ -70,33 +71,35 @@ export function McpSection({
 
   const updateTool = useCallback(
     (tool: McpToolName, value: boolean) => {
-      setSettings((prev) => {
-        const tools = { ...prev.tools, [tool]: value };
-        onChange({ tools });
-        return { ...prev, tools };
-      });
+      // Call onChange in the event handler — never inside the setSettings
+      // updater (that runs during render → "setState while rendering").
+      const tools = { ...settings.tools, [tool]: value };
+      setSettings((prev) => ({
+        ...prev,
+        tools: { ...prev.tools, [tool]: value },
+      }));
+      onChange({ tools });
     },
-    [onChange],
+    [settings.tools, onChange],
   );
 
   const handleConnect = useCallback(async () => {
     try {
       const result = await getPlatform().mcp.detectClaude();
-      if (result.found) {
-        setConfirmConnect({ path: result.path });
-      } else {
+      // When Claude Desktop isn't found, copy the snippet so the not-found
+      // dialog's "paste it in" instruction is actionable immediately.
+      if (!result.found) {
         await getPlatform().mcp.copyConfigSnippet();
-        onShowToast?.(
-          "MCP config copied to clipboard — paste it into your client's config, then restart it.",
-        );
       }
+      // Always surface a dialog so there's clear, unmissable feedback.
+      setConnectInfo({ found: result.found, path: result.path });
     } catch {
       onShowToast?.("Couldn't reach the MCP connector.", true);
     }
   }, [onShowToast]);
 
   const confirmWriteConfig = useCallback(async () => {
-    setConfirmConnect(null);
+    setConnectInfo(null);
     try {
       const result = await getPlatform().mcp.writeClaudeConfig();
       if (result.ok) {
@@ -244,13 +247,28 @@ export function McpSection({
       </div>
 
       <ConfirmDialog
-        open={confirmConnect !== null}
-        title="Connect to Claude Desktop"
-        message={`Add Pennivo to your Claude Desktop config at:\n${confirmConnect?.path ?? ""}\n\nOther MCP servers are preserved. Restart Claude Desktop to use it.`}
-        confirmLabel="Add to Claude"
-        cancelLabel="Cancel"
-        onConfirm={() => void confirmWriteConfig()}
-        onCancel={() => setConfirmConnect(null)}
+        open={connectInfo !== null}
+        title={
+          connectInfo?.found
+            ? "Connect to Claude Desktop"
+            : "Connect your MCP client"
+        }
+        message={
+          connectInfo?.found
+            ? `Add Pennivo to your Claude Desktop config at:\n${connectInfo.path}\n\nOther MCP servers are preserved. Restart Claude Desktop to use it.`
+            : "Claude Desktop's config wasn't found, so the connection snippet has been copied to your clipboard. Paste it into your MCP client's config (the mcpServers section), then restart the client."
+        }
+        confirmLabel={connectInfo?.found ? "Add to Claude" : "Copy again"}
+        cancelLabel={connectInfo?.found ? "Cancel" : "Done"}
+        onConfirm={() => {
+          if (connectInfo?.found) {
+            void confirmWriteConfig();
+          } else {
+            void copySnippet();
+            setConnectInfo(null);
+          }
+        }}
+        onCancel={() => setConnectInfo(null)}
       />
     </div>
   );
