@@ -86,12 +86,9 @@ export function McpSection({
   const handleConnect = useCallback(async () => {
     try {
       const result = await getPlatform().mcp.detectClaude();
-      // When Claude Desktop isn't found, copy the snippet so the not-found
-      // dialog's "paste it in" instruction is actionable immediately.
-      if (!result.found) {
-        await getPlatform().mcp.copyConfigSnippet();
-      }
-      // Always surface a dialog so there's clear, unmissable feedback.
+      // Always surface a dialog. Whether or not the config exists yet,
+      // writeClaudeConfig can create-or-merge it, so both paths offer a
+      // one-click write (the wording just differs).
       setConnectInfo({ found: result.found, path: result.path });
     } catch {
       onShowToast?.("Couldn't reach the MCP connector.", true);
@@ -251,23 +248,16 @@ export function McpSection({
         title={
           connectInfo?.found
             ? "Connect to Claude Desktop"
-            : "Connect your MCP client"
+            : "Set up Claude Desktop"
         }
         message={
           connectInfo?.found
-            ? `Add Pennivo to your Claude Desktop config at:\n${connectInfo.path}\n\nOther MCP servers are preserved. Restart Claude Desktop to use it.`
-            : "Claude Desktop's config wasn't found, so the connection snippet has been copied to your clipboard. Paste it into your MCP client's config (the mcpServers section), then restart the client."
+            ? `Add Pennivo to your Claude Desktop config at:\n${connectInfo.path}\n\nOther MCP servers are preserved. Fully quit and reopen Claude Desktop afterward.`
+            : `Claude Desktop has no MCP config yet. Pennivo will create one at:\n${connectInfo?.path ?? ""}\n\nFully quit and reopen Claude Desktop afterward to connect.`
         }
-        confirmLabel={connectInfo?.found ? "Add to Claude" : "Copy again"}
-        cancelLabel={connectInfo?.found ? "Cancel" : "Done"}
-        onConfirm={() => {
-          if (connectInfo?.found) {
-            void confirmWriteConfig();
-          } else {
-            void copySnippet();
-            setConnectInfo(null);
-          }
-        }}
+        confirmLabel={connectInfo?.found ? "Add to Claude" : "Create config"}
+        cancelLabel="Cancel"
+        onConfirm={() => void confirmWriteConfig()}
         onCancel={() => setConnectInfo(null)}
       />
     </div>

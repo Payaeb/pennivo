@@ -83,14 +83,15 @@ describe("McpSection", () => {
     expect(onShowToast).toHaveBeenCalled();
   });
 
-  it("Connect copies the snippet when no Claude config is detected", async () => {
+  it("Connect opens a setup dialog and creates config when none is detected", async () => {
     renderSection();
     fireEvent.click(screen.getByRole("button", { name: "Connect to Claude" }));
     await waitFor(() =>
-      expect(mockPlatform.mcp.detectClaude).toHaveBeenCalled(),
+      expect(screen.getByText("Set up Claude Desktop")).toBeInTheDocument(),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Create config" }));
     await waitFor(() =>
-      expect(mockPlatform.mcp.copyConfigSnippet).toHaveBeenCalled(),
+      expect(mockPlatform.mcp.writeClaudeConfig).toHaveBeenCalled(),
     );
   });
 
