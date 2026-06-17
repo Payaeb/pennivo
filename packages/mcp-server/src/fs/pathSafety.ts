@@ -46,9 +46,11 @@ function assertInsideRoot(root: string, candidate: string): void {
   const rel = path.posix.relative(nRoot, nCandidate);
   if (rel === "") return;
   if (rel === ".." || rel.startsWith("../") || path.posix.isAbsolute(rel)) {
+    // Deliberately do NOT echo the resolved absolute path — that would reveal
+    // the workspace's location on disk to the calling agent.
     throw new WorkspacePathError(
       "OUTSIDE_WORKSPACE",
-      `Path is outside the workspace: ${candidate}`,
+      "Path is outside the workspace.",
     );
   }
 }

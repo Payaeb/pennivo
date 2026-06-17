@@ -4,9 +4,31 @@
 
 import path from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { normalizeAbsolutePath } from "@pennivo/core";
 import type { ServerDeps } from "../deps.js";
 import type { ToolName } from "../config.js";
 import { WorkspacePathError, toWorkspaceRelative } from "../fs/pathSafety.js";
+
+/**
+ * Replace any occurrence of the workspace root's absolute path with
+ * "<workspace>" so error messages (which can come from raw fs errors like
+ * ENOENT/EPERM and would otherwise echo `C:\Users\…`) never reveal where the
+ * workspace lives on disk. Privacy guard for everything returned to the agent
+ * AND written to the audit log.
+ */
+export function redactRoot(message: string, root: string): string {
+  const variants = [
+    root,
+    root.replace(/\\/g, "/"),
+    root.replace(/\//g, "\\"),
+    normalizeAbsolutePath(root),
+  ];
+  let out = message;
+  for (const v of variants) {
+    if (v) out = out.split(v).join("<workspace>");
+  }
+  return out;
+}
 
 /** A tool result in the exact shape the MCP SDK expects. */
 export type ToolResult = CallToolResult;
@@ -75,12 +97,15 @@ export function guardedTool<Args>(
       });
       return result;
     } catch (err) {
-      const detail =
+      const raw =
         err instanceof WorkspacePathError
           ? err.message
           : err instanceof Error
             ? err.message
             : String(err);
+      // Scrub the workspace's absolute path out of any raw fs error before it
+      // reaches the agent or the audit log.
+      const detail = redactRoot(raw, deps.root);
       deps.audit.record({
         ts: deps.now(),
         agent,
