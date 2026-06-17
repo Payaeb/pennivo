@@ -774,6 +774,17 @@ export function createCapacitorPlatform(): PennivoPlatform {
       onCountChanged: () => noop,
     },
 
+    mcp: {
+      getAudit: async () => [],
+      detectClaude: async () => ({ found: false, path: "", snippet: "" }),
+      writeClaudeConfig: async () => ({
+        ok: false,
+        path: "",
+        error: "unsupported",
+      }),
+      copyConfigSnippet: async () => "",
+    },
+
     openFolderDialog: async () => null,
 
     // Menu events — no-op on mobile (no native menu bar)

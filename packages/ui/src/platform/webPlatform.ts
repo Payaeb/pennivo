@@ -271,6 +271,19 @@ export function createWebPlatform(): PennivoPlatform {
       onCountChanged: () => noop,
     },
 
+    mcp: {
+      getAudit: async () => [],
+      detectClaude: async () => ({ found: false, path: "", snippet: "" }),
+      writeClaudeConfig: async () => {
+        warnUnsupported("mcp.writeClaudeConfig");
+        return { ok: false, path: "", error: "unsupported" };
+      },
+      copyConfigSnippet: async () => {
+        warnUnsupported("mcp.copyConfigSnippet");
+        return "";
+      },
+    },
+
     openFolderDialog: async () => {
       warnUnsupported("openFolderDialog");
       return null;

@@ -156,6 +156,22 @@ interface PennivoAPI {
     onCountChanged: (cb: (count: number) => void) => () => void;
   };
 
+  // MCP server (Phase 12a)
+  mcp: {
+    getAudit: (limit?: number) => Promise<unknown[]>;
+    detectClaude: () => Promise<{
+      found: boolean;
+      path: string;
+      snippet: string;
+    }>;
+    writeClaudeConfig: () => Promise<{
+      ok: boolean;
+      path: string;
+      error?: string;
+    }>;
+    copyConfigSnippet: () => Promise<string>;
+  };
+
   // Folder picker (Settings → Recovery archive folder)
   openFolderDialog: () => Promise<string | null>;
 

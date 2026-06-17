@@ -2,11 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import type { ThemeMode, ColorScheme } from "../../hooks/useTheme";
 import { getPlatform } from "../../platform";
-import {
-  migrateRecoverySettings,
-  type RecoverySettings,
-} from "@pennivo/core";
+import { migrateRecoverySettings, type RecoverySettings } from "@pennivo/core";
 import { RecoverySection } from "./RecoverySection";
+import { McpSection } from "./McpSection";
+import { migrateMcpSettings, type McpSettings } from "./mcpSettings";
 import "./SettingsPanel.css";
 
 export interface AppSettings {
@@ -68,6 +67,7 @@ export function SettingsPanel({
   const [loaded, setLoaded] = useState(false);
   const [recoverySettings, setRecoverySettings] =
     useState<RecoverySettings | null>(null);
+  const [mcpSettings, setMcpSettings] = useState<McpSettings | null>(null);
   const recoverySectionRef = useRef<HTMLDivElement>(null);
 
   // Load settings from disk on open
@@ -78,13 +78,17 @@ export function SettingsPanel({
         setSettings((prev) => ({ ...prev, ...saved }));
         const recRaw = (saved as Record<string, unknown>).recovery;
         setRecoverySettings(migrateRecoverySettings(recRaw));
+        setMcpSettings(
+          migrateMcpSettings((saved as Record<string, unknown>).mcp),
+        );
       } else {
         setRecoverySettings(migrateRecoverySettings(undefined));
+        setMcpSettings(migrateMcpSettings(undefined));
       }
       setLoaded(true);
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Persist a partial recovery update through the same `settings:set`
@@ -101,6 +105,25 @@ export function SettingsPanel({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [recoverySettings, onChange],
+  );
+
+  // Persist a partial MCP settings update through the same pipeline.
+  const persistMcp = useCallback(
+    async (patch: Partial<McpSettings>) => {
+      if (!mcpSettings) return;
+      const next: McpSettings = {
+        ...mcpSettings,
+        ...patch,
+        tools: { ...mcpSettings.tools, ...(patch.tools ?? {}) },
+      };
+      setMcpSettings(next);
+      const fresh = await platform.getSettings();
+      const merged = { ...(fresh ?? {}), mcp: next };
+      await platform.setSettings(merged);
+      onChange?.(merged);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mcpSettings, onChange],
   );
 
   // Scroll-to-section / highlight on open
@@ -158,8 +181,8 @@ export function SettingsPanel({
     } else {
       platform.setSpellCheckLanguages([]);
     }
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.spellcheck, loaded]);
 
   useEffect(() => {
@@ -399,6 +422,17 @@ export function SettingsPanel({
                 }
               />
             </div>
+          )}
+
+          {/* AI / MCP server (Phase 12a) */}
+          {mcpSettings && (
+            <McpSection
+              initial={mcpSettings}
+              onChange={(patch) => {
+                void persistMcp(patch);
+              }}
+              onShowToast={onShowToast}
+            />
           )}
         </div>
       </div>

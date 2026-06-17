@@ -92,6 +92,41 @@ export interface SnapshotPlatform {
   }) => Promise<{ savedPath: string } | null>;
 }
 
+/** One recorded MCP tool/resource call, surfaced in Settings → MCP. */
+export interface McpAuditEntry {
+  ts: number;
+  agent: string;
+  tool: string;
+  path?: string;
+  outcome: "ok" | "error" | "denied";
+  detail?: string;
+}
+
+/**
+ * MCP server surface (Phase 12a). The server itself runs in a separate
+ * `pennivo --mcp` process; these methods serve the Settings → MCP panel:
+ * reading the cross-process audit log and the "Connect to Claude" flow.
+ * Desktop-only — web/mobile stub these out.
+ */
+export interface McpPlatform {
+  /** Most recent MCP tool calls (newest first), read from the audit log. */
+  getAudit: (limit?: number) => Promise<McpAuditEntry[]>;
+  /** Detect the Claude Desktop config file and return a paste-ready snippet. */
+  detectClaude: () => Promise<{
+    found: boolean;
+    path: string;
+    snippet: string;
+  }>;
+  /** Merge the Pennivo server into the Claude Desktop config (preserves others). */
+  writeClaudeConfig: () => Promise<{
+    ok: boolean;
+    path: string;
+    error?: string;
+  }>;
+  /** Copy the MCP config snippet to the clipboard; returns the snippet text. */
+  copyConfigSnippet: () => Promise<string>;
+}
+
 export interface PennivoPlatform {
   readonly platformName: "electron" | "capacitor" | "web";
 
@@ -245,6 +280,9 @@ export interface PennivoPlatform {
 
   // Trash (Phase 13a soft-delete)
   trash: TrashPlatform;
+
+  // MCP server (Phase 12a)
+  mcp: McpPlatform;
 
   /**
    * Open an OS folder picker dialog (Settings → Recovery archive folder).

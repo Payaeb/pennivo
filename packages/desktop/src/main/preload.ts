@@ -191,6 +191,26 @@ contextBridge.exposeInMainWorld("pennivo", {
   },
   installUpdate: () => ipcRenderer.send("update:install"),
 
+  // MCP server (Phase 12a) — Settings → MCP panel surface
+  mcp: {
+    getAudit: (limit?: number) =>
+      ipcRenderer.invoke("mcp:get-audit", limit) as Promise<unknown[]>,
+    detectClaude: () =>
+      ipcRenderer.invoke("mcp:detect-claude") as Promise<{
+        found: boolean;
+        path: string;
+        snippet: string;
+      }>,
+    writeClaudeConfig: () =>
+      ipcRenderer.invoke("mcp:write-claude-config") as Promise<{
+        ok: boolean;
+        path: string;
+        error?: string;
+      }>,
+    copyConfigSnippet: () =>
+      ipcRenderer.invoke("mcp:copy-config-snippet") as Promise<string>,
+  },
+
   // Snapshot recovery (Phase 13a)
   snapshot: {
     list: (absolutePath: string) =>
@@ -275,7 +295,10 @@ contextBridge.exposeInMainWorld("pennivo", {
         restoredPath: string;
       } | null>,
     permanentlyDelete: (trashId: string) =>
-      ipcRenderer.invoke("trash:permanently-delete", trashId) as Promise<boolean>,
+      ipcRenderer.invoke(
+        "trash:permanently-delete",
+        trashId,
+      ) as Promise<boolean>,
     sweep: () =>
       ipcRenderer.invoke("trash:sweep") as Promise<{ removedCount: number }>,
     read: (trashId: string) =>

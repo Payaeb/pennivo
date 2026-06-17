@@ -1,0 +1,174 @@
+.mcp-section-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.mcp-mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.mcp-subpanel {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.mcp-subpanel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.mcp-subpanel-desc {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.mcp-optin-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warning, var(--accent));
+  color: #fff;
+}
+
+.mcp-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcp-button {
+  padding: 7px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.mcp-button:hover {
+  border-color: var(--accent);
+}
+
+.mcp-button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.mcp-button--primary:hover {
+  filter: brightness(1.05);
+}
+
+.mcp-refresh {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.mcp-refresh:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.mcp-audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.mcp-audit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.mcp-audit-line1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-audit-tool {
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+
+.mcp-audit-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.mcp-audit-outcome {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.mcp-audit-outcome--ok {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mcp-audit-outcome--denied {
+  background: var(--warning, var(--text-faint));
+  color: #fff;
+}
+
+.mcp-audit-outcome--error {
+  background: var(--danger, var(--text-faint));
+  color: #fff;
+}
+
+.mcp-audit-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.mcp-audit-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

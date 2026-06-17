@@ -91,6 +91,7 @@
   },
   "dependencies": {
     "@pennivo/core": "workspace:*",
+    "@pennivo/mcp-server": "workspace:*",
     "@pennivo/ui": "workspace:*",
     "electron-updater": "^6.8.3",
     "ms": "^2.1.3",

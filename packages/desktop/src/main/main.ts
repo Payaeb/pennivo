@@ -24,10 +24,7 @@ import {
 } from "@pennivo/core";
 import path from "node:path";
 import fs from "node:fs/promises";
-import {
-  deviceNameFromSettings,
-  getDeviceRecord,
-} from "./deviceIdentity";
+import { deviceNameFromSettings, getDeviceRecord } from "./deviceIdentity";
 import {
   drainArchiveQueue,
   getLastCapWarning,
@@ -57,6 +54,11 @@ import {
   type FSWatcher,
 } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  copyConfigSnippet as copyMcpConfigSnippet,
+  detectClaude as detectClaudeForMcp,
+  writeClaudeConfig as writeClaudeMcpConfig,
+} from "./mcpClientConfig";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -191,7 +193,11 @@ function isPositionOnScreen(x: number, y: number): boolean {
  */
 async function sumDirectoryBytes(root: string): Promise<number> {
   let total = 0;
-  let entries: { name: string; isDirectory: () => boolean; isFile: () => boolean }[];
+  let entries: {
+    name: string;
+    isDirectory: () => boolean;
+    isFile: () => boolean;
+  }[];
   try {
     entries = (await fs.readdir(root, { withFileTypes: true })) as unknown as {
       name: string;
@@ -233,6 +239,12 @@ interface AppSettings {
    * without clobbering user-set values.
    */
   recovery?: RecoverySettings;
+  /**
+   * Phase 12a MCP permission slice (a PermissionConfig). Stored verbatim and
+   * read by the headless `pennivo --mcp` process via `mergeAndValidate`; not
+   * interpreted here, just round-tripped through settings.
+   */
+  mcp?: unknown;
 }
 
 function getSettingsPath(): string {
@@ -1808,6 +1820,39 @@ function registerIpcHandlers() {
     await refreshSnapshotEnvironment();
   });
 
+  // --- MCP server (Phase 12a) ---
+  // The MCP server itself runs in a separate `pennivo --mcp` process spawned by
+  // the client; these handlers serve the Settings → MCP panel in the main app:
+  // reading the cross-process audit log and the "Connect to Claude" flow.
+
+  ipcMain.handle("mcp:get-audit", (_e, limit: number = 100) => {
+    try {
+      const raw = readFileSync(
+        path.join(app.getPath("userData"), "mcp-audit.jsonl"),
+        "utf-8",
+      );
+      const lines = raw.split("\n").filter((l) => l.length > 0);
+      const tail = lines.slice(-Math.max(0, limit));
+      const events: unknown[] = [];
+      for (const line of tail) {
+        try {
+          events.push(JSON.parse(line));
+        } catch {
+          // Skip a malformed line.
+        }
+      }
+      return events.reverse(); // newest first
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle("mcp:detect-claude", () => detectClaudeForMcp());
+
+  ipcMain.handle("mcp:write-claude-config", () => writeClaudeMcpConfig());
+
+  ipcMain.handle("mcp:copy-config-snippet", () => copyMcpConfigSnippet());
+
   // --- Snapshot recovery (Phase 13a) ---
 
   ipcMain.handle("snapshot:list", async (_e, absolutePath: string) => {
@@ -1952,18 +1997,15 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle(
-    "trash:permanently-delete",
-    async (_e, trashId: string) => {
-      try {
-        await permanentlyDeleteTrashEntry(trashId);
-        return true;
-      } catch (err) {
-        console.error("[trash:permanently-delete] failed:", err);
-        return false;
-      }
-    },
-  );
+  ipcMain.handle("trash:permanently-delete", async (_e, trashId: string) => {
+    try {
+      await permanentlyDeleteTrashEntry(trashId);
+      return true;
+    } catch (err) {
+      console.error("[trash:permanently-delete] failed:", err);
+      return false;
+    }
+  });
 
   ipcMain.handle("trash:sweep", async () => {
     try {
@@ -2172,7 +2214,9 @@ app.whenReady().then(() => {
   sweepExpiredTrash()
     .then((r) => {
       if (r.removedCount > 0) {
-        console.log(`[main] trash sweep removed ${r.removedCount} expired entries`);
+        console.log(
+          `[main] trash sweep removed ${r.removedCount} expired entries`,
+        );
       }
     })
     .catch((err) => {

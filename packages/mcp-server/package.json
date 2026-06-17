@@ -1,0 +1,70 @@
+{
+  "name": "@pennivo/mcp-server",
+  "version": "1.2.0",
+  "private": false,
+  "description": "Model Context Protocol server for the Pennivo markdown workspace",
+  "author": "Paya Ebrahimi <payaeb@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://www.pennivo.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Payaeb/pennivo.git",
+    "directory": "packages/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/Payaeb/pennivo/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "markdown",
+    "pennivo",
+    "ai"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./embed": {
+      "types": "./src/embed.ts",
+      "import": "./src/embed.ts"
+    },
+    "./cli": {
+      "types": "./src/bin/cli.ts",
+      "import": "./src/bin/cli.ts"
+    }
+  },
+  "bin": {
+    "pennivo-mcp": "./dist/bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/bundle.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@pennivo/core": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  }
+}

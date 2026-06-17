@@ -142,6 +142,16 @@ export function createElectronPlatform(): PennivoPlatform {
       onCountChanged: (cb) => api.trash.onCountChanged(cb),
     },
 
+    mcp: {
+      getAudit: (limit) =>
+        api.mcp.getAudit(limit) as Promise<
+          import("./platform").McpAuditEntry[]
+        >,
+      detectClaude: () => api.mcp.detectClaude(),
+      writeClaudeConfig: () => api.mcp.writeClaudeConfig(),
+      copyConfigSnippet: () => api.mcp.copyConfigSnippet(),
+    },
+
     openFolderDialog: () => api.openFolderDialog(),
 
     // Menu events
