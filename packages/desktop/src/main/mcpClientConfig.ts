@@ -12,7 +12,13 @@
 
 import path from "node:path";
 import { app, clipboard } from "electron";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import {
   buildConfigSnippet,
   mergeServerIntoConfig,
@@ -20,6 +26,36 @@ import {
 } from "@pennivo/mcp-server/embed";
 
 const SERVER_NAME = "pennivo";
+
+/**
+ * The Microsoft Store (MSIX) build of Claude Desktop is sandboxed and reads its
+ * config from a virtualized AppData path under its package, NOT the real
+ * %APPDATA%\Claude. If that package exists, target it — otherwise the config we
+ * write is silently ignored. Returns the package config path or null.
+ */
+function storeClaudeConfigPath(): string | null {
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) return null;
+  const packagesDir = path.join(localAppData, "Packages");
+  try {
+    for (const name of readdirSync(packagesDir)) {
+      if (!name.startsWith("Claude")) continue;
+      const claudeDir = path.join(
+        packagesDir,
+        name,
+        "LocalCache",
+        "Roaming",
+        "Claude",
+      );
+      if (existsSync(claudeDir)) {
+        return path.join(claudeDir, "claude_desktop_config.json");
+      }
+    }
+  } catch {
+    // No Packages dir / not Windows / unreadable — fall back below.
+  }
+  return null;
+}
 
 function readSidebarFolder(): string | null {
   try {
@@ -63,13 +99,13 @@ export function pennivoServerDefinition(): McpServerDefinition {
   };
 }
 
-/** Cross-platform Claude Desktop config path (appData maps to the right place
- * on Windows / macOS / Linux). */
+/** Claude Desktop config path. Prefers the sandboxed Microsoft Store location
+ * when that build is installed; otherwise the standard %APPDATA%\Claude
+ * (Windows) / Application Support / .config location. */
 export function claudeDesktopConfigPath(): string {
-  return path.join(
-    app.getPath("appData"),
-    "Claude",
-    "claude_desktop_config.json",
+  return (
+    storeClaudeConfigPath() ??
+    path.join(app.getPath("appData"), "Claude", "claude_desktop_config.json")
   );
 }
 
