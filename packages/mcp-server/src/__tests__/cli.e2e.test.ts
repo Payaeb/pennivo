@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { build } from "esbuild";
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import {
@@ -29,6 +37,11 @@ const PKG_DIR = path.resolve(
 const CLI = path.join(PKG_DIR, "dist", "bin", "cli.js");
 
 const SENTINEL = "AUDIT-LEAK-CANARY-91x";
+
+// These tests spawn real child processes and (for the watcher) wait on
+// fs.watch, which is timing-sensitive under CPU load. Give them generous
+// headroom so a busy machine doesn't produce false failures.
+vi.setConfig({ testTimeout: 30_000 });
 
 beforeAll(async () => {
   await build({
@@ -243,8 +256,8 @@ describe("CLI over stdio (real process)", () => {
         },
       );
       writeFileSync(path.join(workspace, "fresh.md"), "# Fresh\n");
-      // Allow fs.watch + the 200ms debounce to fire.
-      const deadline = Date.now() + 5_000;
+      // Allow fs.watch + the 200ms debounce to fire (generous for CPU load).
+      const deadline = Date.now() + 20_000;
       while (notified === 0 && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 100));
       }

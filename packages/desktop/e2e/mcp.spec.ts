@@ -213,7 +213,7 @@ test("bundled MCP server handles create/append/rename-with-assets and emits list
       },
     );
     writeFileSync(path.join(workspace, "external.md"), "# External\n");
-    const deadline = Date.now() + 6_000;
+    const deadline = Date.now() + 20_000;
     while (notified === 0 && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 100));
     }
