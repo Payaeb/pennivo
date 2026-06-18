@@ -1,0 +1,31 @@
+# Normalize line endings. The repo stores LF, and every checkout gets LF so the
+# working tree matches .prettierrc ("endOfLine": "lf") and .editorconfig
+# ("end_of_line = lf") regardless of the machine's core.autocrlf setting. This
+# keeps `pnpm format` / `pnpm format:check` quiet on Windows checkouts.
+* text=auto eol=lf
+
+# Windows batch files must stay CRLF — cmd.exe mis-parses LF-only scripts.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets — never line-ending-normalize (explicit, beyond text=auto's
+# content sniffing).
+*.png binary
+*.PNG binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.svg text
+*.jar binary
+*.psd binary
+*.keystore binary
+*.jks binary
+*.aab binary
+*.apk binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
