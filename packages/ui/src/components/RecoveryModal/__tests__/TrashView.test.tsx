@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { TrashEntry } from "@pennivo/core";
+import type { TrashEntry, Workspace } from "@pennivo/core";
 
 vi.mock("../../../platform", () => ({
   getPlatform: () => mockPlatform,
@@ -79,6 +79,8 @@ beforeEach(() => {
 function renderTrashView(
   overrides: Partial<{
     modalWidth: number;
+    workspaces: Workspace[];
+    activeWorkspaceId: string | null;
   }> = {},
 ) {
   const onLayoutChange = vi.fn();
@@ -91,6 +93,8 @@ function renderTrashView(
       previewCollapsed={false}
       onLayoutChange={onLayoutChange}
       modalWidth={overrides.modalWidth ?? 1080}
+      workspaces={overrides.workspaces ?? []}
+      activeWorkspaceId={overrides.activeWorkspaceId ?? null}
     />,
   );
   return { ...utils, onLayoutChange, onShowToast };
@@ -245,5 +249,116 @@ describe("TrashView", () => {
     );
     const btn = screen.getByRole("button", { name: /Empty trash/i });
     expect(btn).toBeDisabled();
+  });
+});
+
+// ─── Phase 5: per-workspace trash scoping ───
+//
+// Two workspaces (alpha at /alpha, beta at /beta) with trashed files in each.
+// The default view scopes to the active workspace; the "Show all workspaces"
+// toggle reveals the global list. The on-disk store is unchanged — this is a
+// pure render-side filter.
+
+const TWO_WS: Workspace[] = [
+  { id: "alpha", name: "alpha", rootPath: "/alpha" },
+  { id: "beta", name: "beta", rootPath: "/beta" },
+];
+
+function fixtureTwoWorkspaceTrash(): TrashEntry[] {
+  const day = 24 * 3600_000;
+  const now = Date.now();
+  return [
+    {
+      id: "trash-alpha-1",
+      absolutePath: "/alpha/alpha-note.md",
+      fileBasename: "alpha-note.md",
+      deletedAtMs: now,
+      expiresAtMs: now + 30 * day,
+      hasAssets: false,
+      assetFolderNames: [],
+    },
+    {
+      id: "trash-beta-1",
+      absolutePath: "/beta/beta-note.md",
+      fileBasename: "beta-note.md",
+      deletedAtMs: now,
+      expiresAtMs: now + 30 * day,
+      hasAssets: false,
+      assetFolderNames: [],
+    },
+  ];
+}
+
+describe("TrashView — workspace scoping (Phase 5)", () => {
+  beforeEach(() => {
+    mockPlatform.trash.list = vi.fn(async () => fixtureTwoWorkspaceTrash());
+  });
+
+  it("default view shows only the active workspace's entries", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: "alpha" });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("beta-note.md")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+  });
+
+  it("renders an accessible 'Show all workspaces' checkbox toggle", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: "alpha" });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    const toggle = screen.getByRole("checkbox", {
+      name: /Show all workspaces/i,
+    });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).not.toBeChecked();
+  });
+
+  it("toggling Show all workspaces reveals every entry", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: "alpha" });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Show all workspaces/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("beta-note.md")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("alpha-note.md")).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+
+  it("filtered empty state hints that other workspaces have trashed items", async () => {
+    // Active workspace 'beta' but seed only an alpha entry, then add another
+    // workspace 'gamma' with no entries as the active one.
+    mockPlatform.trash.list = vi.fn(async () => [
+      fixtureTwoWorkspaceTrash()[0], // only the alpha entry
+    ]);
+    renderTrashView({
+      workspaces: [
+        ...TWO_WS,
+        { id: "gamma", name: "gamma", rootPath: "/gamma" },
+      ],
+      activeWorkspaceId: "gamma",
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Other workspaces have trashed items/i),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("alpha-note.md")).not.toBeInTheDocument();
+  });
+
+  it("hides the toggle and shows all entries with no active workspace", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: null });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("beta-note.md")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Show all workspaces/i }),
+    ).not.toBeInTheDocument();
   });
 });

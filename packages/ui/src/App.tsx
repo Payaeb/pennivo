@@ -95,9 +95,11 @@ import {
   suggestFilenameFromContent,
   shouldShowCapBanner,
   defaultWorkspacePrefs,
+  trashEntryInWorkspace,
   type Workspace,
   type WorkspacesState,
   type WorkspacePrefs,
+  type TrashEntry,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -855,23 +857,48 @@ function AppContent() {
   }, []);
 
   // Subscribe to trash-count changes (drives sidebar Trash entry visibility).
+  //
+  // Phase 5: the badge mirrors the TrashView default (per-workspace) filter, so
+  // the count matches what the user sees when they open trash. The on-disk
+  // store stays global; we only filter the render-side count. When there is no
+  // active workspace we keep the legacy behavior (global count).
+  //
+  // The count-changed IPC carries only a number, so we re-list on every change
+  // and recompute the filtered count. We also recompute when the active
+  // workspace or the workspace list changes (switching roots reframes the
+  // badge without any trash mutation).
   useEffect(() => {
     let cancelled = false;
-    platform.trash
-      .list()
-      .then((rows) => {
-        if (!cancelled) setTrashCount(rows.length);
-      })
-      .catch(() => {});
-    const unsub = platform.trash.onCountChanged?.((n) => {
-      setTrashCount(n);
+    const recompute = async () => {
+      try {
+        const rows = (await platform.trash.list()) as TrashEntry[];
+        if (cancelled) return;
+        const activeId = activeWorkspaceIdRef.current;
+        if (!activeId) {
+          setTrashCount(rows.length);
+          return;
+        }
+        const inWorkspace = rows.filter((r) =>
+          trashEntryInWorkspace(workspaceList, activeId, r.absolutePath),
+        );
+        setTrashCount(inWorkspace.length);
+      } catch {
+        /* leave the previous count in place on a transient list failure */
+      }
+    };
+    void recompute();
+    const unsub = platform.trash.onCountChanged?.(() => {
+      void recompute();
     });
     return () => {
       cancelled = true;
       if (unsub) unsub();
     };
+    // platform is the project-wide stable singleton; activeWorkspaceIdRef is a
+    // ref so it is read fresh inside recompute. Re-run when the active id or the
+    // workspace list changes so a switch reframes the badge.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeWorkspaceId, workspaceList]);
 
   // Persist cap-banner dismissal — caller passes the overage at dismissal
   // time so future warnings can decide whether to re-surface (overage grew →
@@ -3886,6 +3913,8 @@ function AppContent() {
                 setRecoveryHistoryLayout((prev) => ({ ...prev, ...next }))
               }
               modalWidth={recoveryModalWidth}
+              workspaces={workspaceList}
+              activeWorkspaceId={activeWorkspaceId}
             />
           </RecoveryModalWidthMeasurer>
         ) : compareMergeSelection && filePath ? (

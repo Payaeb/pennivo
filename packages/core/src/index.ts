@@ -95,6 +95,7 @@ export {
   defaultWorkspacePrefs,
   workspaceNameFromPath,
   findWorkspaceForPath,
+  trashEntryInWorkspace,
   migrateWorkspaces,
 } from "./workspaces";
 

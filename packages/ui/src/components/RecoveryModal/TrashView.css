@@ -5,6 +5,49 @@
  * pill) and the destructive footer button variant.
  */
 
+/* ─── Workspace scope toggle (Phase 5) ───
+ *
+ * Sits between the timeline pane header and the list. Default-off checkbox
+ * that, when on, reveals the global trash list across all workspaces. Mirrors
+ * the ConfirmDialog checkbox treatment (accent-color, 16px box) and the
+ * pane-header padding so it reads as part of the same chrome.
+ */
+.trash-view-scope {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.trash-view-scope-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.trash-view-scope-checkbox {
+  cursor: pointer;
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.trash-view-scope-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.trash-view-scope-toggle:hover .trash-view-scope-label {
+  color: var(--text-primary);
+}
+
 .trash-view-row-line1 {
   display: flex;
   align-items: center;

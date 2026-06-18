@@ -3,9 +3,10 @@ import {
   defaultWorkspacePrefs,
   workspaceNameFromPath,
   findWorkspaceForPath,
+  trashEntryInWorkspace,
   migrateWorkspaces,
 } from "../migrate";
-import type { WorkspacesState } from "../types";
+import type { Workspace, WorkspacesState } from "../types";
 
 // Deterministic id generator for migration tests.
 function makeIdGen(prefix = "ws"): () => string {
@@ -112,6 +113,53 @@ describe("findWorkspaceForPath", () => {
     expect(findWorkspaceForPath(s, "/foo/bar/baz.md")?.rootPath).toBe(
       "/foo/bar/",
     );
+  });
+});
+
+describe("trashEntryInWorkspace", () => {
+  function workspaces(...roots: [string, string][]): Workspace[] {
+    return roots.map(([id, rootPath]) => ({
+      id,
+      name: workspaceNameFromPath(rootPath),
+      rootPath,
+    }));
+  }
+
+  it("returns true when the path is inside the active workspace", () => {
+    const ws = workspaces(["a", "/foo"], ["b", "/bar"]);
+    expect(trashEntryInWorkspace(ws, "a", "/foo/note.md")).toBe(true);
+  });
+
+  it("returns false when the path is inside a different workspace", () => {
+    const ws = workspaces(["a", "/foo"], ["b", "/bar"]);
+    expect(trashEntryInWorkspace(ws, "a", "/bar/note.md")).toBe(false);
+  });
+
+  it("returns false when no workspace contains the path", () => {
+    const ws = workspaces(["a", "/foo"], ["b", "/bar"]);
+    expect(trashEntryInWorkspace(ws, "a", "/other/note.md")).toBe(false);
+  });
+
+  it("returns false when there is no active workspace", () => {
+    const ws = workspaces(["a", "/foo"]);
+    expect(trashEntryInWorkspace(ws, null, "/foo/note.md")).toBe(false);
+  });
+
+  it("uses the longest-prefix owner for nested roots", () => {
+    const ws = workspaces(["outer", "/foo"], ["inner", "/foo/bar"]);
+    // The nested workspace owns the file, so only it matches as active.
+    expect(trashEntryInWorkspace(ws, "inner", "/foo/bar/note.md")).toBe(true);
+    expect(trashEntryInWorkspace(ws, "outer", "/foo/bar/note.md")).toBe(false);
+    // A file in the outer-only region belongs to the outer workspace.
+    expect(trashEntryInWorkspace(ws, "outer", "/foo/top.md")).toBe(true);
+    expect(trashEntryInWorkspace(ws, "inner", "/foo/top.md")).toBe(false);
+  });
+
+  it("normalizes path separators and case", () => {
+    const ws = workspaces(["a", "C:\\Users\\Paya\\Notes"]);
+    expect(
+      trashEntryInWorkspace(ws, "a", "c:/users/paya/notes/todo.md"),
+    ).toBe(true);
   });
 });
 

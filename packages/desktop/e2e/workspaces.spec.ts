@@ -3,8 +3,57 @@ import type { ElectronApplication, Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const REPO_PACKAGE_DIR = path.resolve(__dirname, "..");
+
+// Derive the on-disk trash directory name the way trashStore does:
+// `<sha1(normalizedAbsPath)>-<deletedAtMs>`. Mirrors trash.spec.ts so the
+// hand-seeded entries are indistinguishable from real soft-deletes.
+function sha1(s: string): string {
+  return createHash("sha1").update(s, "utf-8").digest("hex");
+}
+function trashIdForPath(absolutePath: string, deletedAtMs: number): string {
+  let p = absolutePath.replace(/\\/g, "/");
+  if (/^[A-Za-z]:/.test(p)) p = p[0]!.toLowerCase() + p.slice(1);
+  p = p.replace(/\/+/g, "/");
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return `${sha1(p)}-${deletedAtMs}`;
+}
+
+// Hand-seed one trash entry under <userData>/trash, exactly as trash.spec.ts
+// does (content.md + meta.json). The store is global; the renderer scopes the
+// view per workspace from each entry's `absolutePath`. Returns the entry id.
+async function seedTrashEntry(
+  userDataDir: string,
+  absolutePath: string,
+  deletedAtMs: number,
+): Promise<string> {
+  const trashRoot = path.join(userDataDir, "trash");
+  const id = trashIdForPath(absolutePath, deletedAtMs);
+  const entryDir = path.join(trashRoot, id);
+  await mkdir(entryDir, { recursive: true });
+  await writeFile(
+    path.join(entryDir, "content.md"),
+    `# ${path.basename(absolutePath)}\n\nseeded trash body.\n`,
+    "utf-8",
+  );
+  await writeFile(
+    path.join(entryDir, "meta.json"),
+    JSON.stringify({
+      id,
+      absolutePath,
+      fileBasename: path.basename(absolutePath),
+      deletedAtMs,
+      // 30 days out so the startup sweep never removes it mid-test.
+      expiresAtMs: deletedAtMs + 30 * 24 * 60 * 60 * 1000,
+      hasAssets: false,
+      assetFolderNames: [],
+    }),
+    "utf-8",
+  );
+  return id;
+}
 
 // Force-set the legacy sidebar folder via the Electron userData directory so the
 // app auto-loads our test workspace at startup. main.ts reads
@@ -257,4 +306,61 @@ test("remove a workspace from the switcher", async () => {
 
   // A's files are still present in the tree.
   await expect(window.getByText("alpha.md")).toBeVisible();
+});
+
+test("trash is scoped to the active workspace, with a Show-all toggle (Phase 5)", async () => {
+  // Two workspaces (A active, B). Seed the GLOBAL trash store with one trashed
+  // file from each workspace. The default trash view + the sidebar badge are
+  // scoped to the active workspace (A); the "Show all workspaces" toggle reveals
+  // both. The on-disk store stays global and untouched.
+  const wsADir = await makeWorkspace();
+  const wsBDir = await makeWorkspaceB();
+  const userDataDir = await seedSettingsWorkspaces(wsADir, wsBDir);
+  cleanupDirs.push(wsADir, wsBDir, userDataDir);
+
+  const deletedAtMs = Date.now() - 60_000;
+  // One trashed file per workspace. Its original path is INSIDE that root, so
+  // findWorkspaceForPath assigns it to the matching workspace.
+  await seedTrashEntry(
+    userDataDir,
+    path.join(wsADir, "alpha.md"),
+    deletedAtMs,
+  );
+  await seedTrashEntry(
+    userDataDir,
+    path.join(wsBDir, "delta.md"),
+    deletedAtMs + 1,
+  );
+
+  ({ app, window } = await launchApp(userDataDir));
+  await expect(window.locator(".sidebar")).toBeVisible({ timeout: 10_000 });
+
+  // The sidebar trash badge reflects the per-workspace count: only A's one
+  // entry, not the global two.
+  const trashEntry = window.locator(".sidebar-trash-entry");
+  await expect(trashEntry).toBeVisible({ timeout: 10_000 });
+  await expect(window.locator(".sidebar-trash-count")).toHaveText("1");
+
+  // Open the trash view.
+  await trashEntry.click();
+  const trashView = window.locator(".trash-view");
+  await expect(trashView).toBeVisible({ timeout: 10_000 });
+
+  // Default view: only A's trashed file shows (scope queries to the trash list
+  // so the sidebar tree's own alpha.md row never confuses the match).
+  const trashRows = trashView.locator(".trash-view-row");
+  await expect(trashRows).toHaveCount(1);
+  await expect(trashView.getByText("alpha.md")).toBeVisible();
+  await expect(trashView.getByText("delta.md")).toHaveCount(0);
+
+  // The toggle is present and off by default.
+  const toggle = window.locator(".trash-view-scope-checkbox");
+  await expect(toggle).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+
+  // Turn on "Show all workspaces": both entries appear.
+  await toggle.check();
+  await expect(trashRows).toHaveCount(2);
+  await expect(trashView.getByText("delta.md")).toBeVisible({ timeout: 10_000 });
+  await expect(trashView.getByText("alpha.md")).toBeVisible();
 });

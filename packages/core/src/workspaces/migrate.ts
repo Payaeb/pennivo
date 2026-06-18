@@ -79,6 +79,29 @@ export function findWorkspaceForPath(
   return best;
 }
 
+/**
+ * Decide whether a path belongs to the active workspace. Used by the trash
+ * render-side filter (Phase 5) so both the sidebar count badge and the trash
+ * list agree on what "this workspace's trash" means.
+ *
+ * A path belongs to the active workspace when the longest-prefix workspace that
+ * contains it (see {@link findWorkspaceForPath}) is the active one. Returns
+ * false when there is no active workspace, when no workspace contains the path,
+ * or when the containing workspace is a different one.
+ */
+export function trashEntryInWorkspace(
+  workspaces: Workspace[],
+  activeWorkspaceId: string | null,
+  absPath: string,
+): boolean {
+  if (!activeWorkspaceId) return false;
+  const owner = findWorkspaceForPath(
+    { workspaces, activeWorkspaceId, prefs: {} },
+    absPath,
+  );
+  return owner?.id === activeWorkspaceId;
+}
+
 /** A `WorkspacesState` is well-formed when its three core fields are present. */
 function isWellFormedState(value: unknown): value is WorkspacesState {
   if (!value || typeof value !== "object") return false;

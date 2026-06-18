@@ -5,7 +5,9 @@ import {
   formatRowTime,
   formatTrashExpiry,
   groupByLocalDay,
+  trashEntryInWorkspace,
   type TrashEntry,
+  type Workspace,
 } from "@pennivo/core";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 import { getPlatform } from "../../platform";
@@ -27,6 +29,14 @@ interface TrashViewProps {
   }) => void;
   /** Modal width — used to trigger sub-800px auto-collapse of the timeline. */
   modalWidth: number;
+  /**
+   * All opened workspace roots. Used with `activeWorkspaceId` to scope the
+   * default trash view to the active workspace (Phase 5). The on-disk store
+   * stays global; this is a pure render-side filter.
+   */
+  workspaces: Workspace[];
+  /** Id of the active workspace, or null on a no-workspace install. */
+  activeWorkspaceId: string | null;
 }
 
 /**
@@ -43,10 +53,13 @@ const PREVIEW_MIN = 400;
 const NARROW_MODAL_THRESHOLD = 800;
 
 /**
- * `TrashView` — the Trash tab body. Workspace-scoped: lists every soft-
- * deleted file across the workspace (no per-file filter), grouped by deletion
- * day. Mirrors HistoryView's resizable-pane shell so the design language
- * stays consistent.
+ * `TrashView` — the Trash tab body. The on-disk trash store is global, but the
+ * default view is scoped to the active workspace (Phase 5): it lists only the
+ * soft-deleted files whose original path belongs to the active workspace,
+ * grouped by deletion day. A "Show all workspaces" toggle reveals the full
+ * global list. When there is no active workspace the toggle is hidden and the
+ * full list is shown. Mirrors HistoryView's resizable-pane shell so the design
+ * language stays consistent.
  *
  * Bulk select uses pure `computeNextSelection` from `@pennivo/core` — same
  * gesture vocabulary as Sidebar.tsx (shift-range, ctrl/cmd-toggle, plain
@@ -59,10 +72,17 @@ export function TrashView({
   previewCollapsed,
   onLayoutChange,
   modalWidth,
+  workspaces,
+  activeWorkspaceId,
 }: TrashViewProps) {
   const platform = getPlatform();
 
-  const [entries, setEntries] = useState<TrashRow[] | null>(null);
+  // `allEntries` holds the full global trash list as loaded from the store.
+  // `entries` (derived below) is the workspace-filtered view the UI renders.
+  const [allEntries, setAllEntries] = useState<TrashRow[] | null>(null);
+  // Default off: show only the active workspace's trash. Toggling on reveals
+  // every entry. Only affects the rendered list, never the underlying store.
+  const [showAllWorkspaces, setShowAllWorkspaces] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [previewContent, setPreviewContent] = useState<string>("");
   const [pendingConfirm, setPendingConfirm] = useState<
@@ -77,14 +97,14 @@ export function TrashView({
     try {
       const rows = (await platform.trash.list()) as TrashEntry[];
       const ts: TrashRow[] = rows.map((r) => ({ ...r, ts: r.deletedAtMs }));
-      setEntries(ts);
+      setAllEntries(ts);
       // Drop dead selections so the footer counter stays honest.
       setSelectedIds((prev) =>
         prev.filter((id) => ts.some((r) => r.id === id)),
       );
     } catch (err) {
       console.error("[TrashView] list failed:", err);
-      setEntries([]);
+      setAllEntries([]);
     }
   }, [platform]);
 
@@ -123,6 +143,32 @@ export function TrashView({
       cancelled = true;
     };
   }, [lastSelectedId, platform]);
+
+  // Whether the per-workspace filter is in effect: only when there IS an active
+  // workspace and the user has not asked to see all workspaces. With no active
+  // workspace we always show the global list and hide the toggle.
+  const hasActiveWorkspace = activeWorkspaceId != null;
+  const filterToWorkspace = hasActiveWorkspace && !showAllWorkspaces;
+
+  // The rendered list. When filtering, keep only entries whose original path
+  // belongs to the active workspace (shared membership rule with the sidebar
+  // badge via `trashEntryInWorkspace`).
+  const entries = useMemo(() => {
+    if (!allEntries) return null;
+    if (!filterToWorkspace) return allEntries;
+    return allEntries.filter((r) =>
+      trashEntryInWorkspace(workspaces, activeWorkspaceId, r.absolutePath),
+    );
+  }, [allEntries, filterToWorkspace, workspaces, activeWorkspaceId]);
+
+  // Whether any trashed entries exist outside the active workspace. Drives the
+  // "other workspaces have items" hint in the filtered empty state.
+  const hasEntriesInOtherWorkspaces = useMemo(() => {
+    if (!allEntries || !hasActiveWorkspace) return false;
+    return allEntries.some(
+      (r) => !trashEntryInWorkspace(workspaces, activeWorkspaceId, r.absolutePath),
+    );
+  }, [allEntries, hasActiveWorkspace, workspaces, activeWorkspaceId]);
 
   // Grouped-by-day view, in render order. Defined here (before the selection
   // helpers) so range-selection operates on the SAME order the DOM shows.
@@ -330,11 +376,35 @@ export function TrashView({
                 «
               </button>
             </div>
+            {hasActiveWorkspace && (
+              <div className="trash-view-scope">
+                <label className="trash-view-scope-toggle">
+                  <input
+                    type="checkbox"
+                    className="trash-view-scope-checkbox"
+                    checked={showAllWorkspaces}
+                    onChange={(e) => setShowAllWorkspaces(e.target.checked)}
+                  />
+                  <span className="trash-view-scope-label">
+                    Show all workspaces
+                  </span>
+                </label>
+              </div>
+            )}
             <div className="history-view-timeline-list">
               {entries === null ? (
                 <div className="history-view-empty">Loading…</div>
               ) : entries.length === 0 ? (
-                <div className="history-view-empty">Trash is empty.</div>
+                <div className="history-view-empty">
+                  {filterToWorkspace && hasEntriesInOtherWorkspaces ? (
+                    <>
+                      No trashed files in this workspace. Other workspaces have
+                      trashed items. Turn on Show all workspaces to see them.
+                    </>
+                  ) : (
+                    "Trash is empty."
+                  )}
+                </div>
               ) : (
                 groups.map((group) => (
                   <div className="history-view-group" key={group.dayKey}>
