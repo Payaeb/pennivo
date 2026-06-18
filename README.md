@@ -22,36 +22,63 @@
   <a href="https://github.com/Payaeb/pennivo/issues">Issues</a>
 </p>
 
----
+***
 
 ## Screenshots
 
-| Light theme | Dark theme |
-| :---: | :---: |
-| ![Light theme](assets/screenshots/01-light-default.png) | ![Dark theme](assets/screenshots/02-dark-default.png) |
-| **Command palette** | **Settings panel** |
-| ![Command palette](assets/screenshots/03-command-palette.png) | ![Settings](assets/screenshots/04-settings.png) |
-| **Mermaid diagrams** | **Customizable toolbar** |
-| ![Mermaid diagrams](assets/screenshots/05-mermaid.png) | ![Customize toolbar](assets/screenshots/06-customize-toolbar.png) |
+|                                          Light theme                                         |                                            Dark theme                                            |
+| :------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------: |
+|    ![Light theme](./assets/screenshots/01-light-default.png)    |       ![Dark theme](./assets/screenshots/02-dark-default.png)       |
+|                                      **Command palette**                                     |                                        **Settings panel**                                        |
+| ![Command palette](./assets/screenshots/03-command-palette.png) |          ![Settings](./assets/screenshots/04-settings.png)          |
+|                                     **Mermaid diagrams**                                     |                                     **Customizable toolbar**                                     |
+|     ![Mermaid diagrams](./assets/screenshots/05-mermaid.png)    | ![Customize toolbar](./assets/screenshots/06-customize-toolbar.png) |
+
+## Why Pennivo
+
+Pennivo is built around a few specific decisions:
+
+- **True WYSIWYG editing** powered by Milkdown. Bold renders as bold while you type. Tables look like tables. Mermaid diagrams render inline. Headings get heading-sized.
+- **A real source-mode toggle** powered by CodeMirror 6. `Ctrl+/` flips between WYSIWYG and raw markdown on the same document, without losing your place.
+- **Plain `.md` files on disk.** No vault, no proprietary format, no database, no account, no subscription, no telemetry. The file you edit is the file on your filesystem.
+- **All the bells and whistles in one open-source package** — Mermaid diagrams, visual table editor, Kanban and Gantt editors, customizable toolbar, command palette, focus mode, typewriter mode, multi-language spell check, HTML and PDF export, auto-save with draft recovery, auto-update.
+- **Free and MIT-licensed.** Source code public on [GitHub](https://github.com/Payaeb/pennivo); no paid tier, no commercial license fee.
+
+Markdown is the native output format of every modern AI assistant — Claude, Copilot, Cursor, ChatGPT — and Pennivo handles AI-generated markdown (tables, code blocks, Mermaid diagrams) exactly as the AI rendered it.
 
 ## Features
 
-- WYSIWYG editing powered by Milkdown (ProseMirror + Remark)
-- Real source mode powered by CodeMirror 6, switch any time
-- Customizable toolbar — rearrange, add, and remove buttons
-- File-tree sidebar, command palette (`Ctrl+Shift+P`), find & replace
-- Visual table editor with floating toolbar and keyboard navigation
-- Mermaid diagrams (flowchart, sequence, class, gantt, pie, etc.)
-- Visual Gantt chart editor and Kanban board editor
-- Outline panel, focus mode, typewriter mode
-- Themes: Default, Sepia, Nord, Rose Pine — each with dark variants
-- Spell check, word/character count, reading time
-- Auto-save with draft recovery
-- Drag-and-drop file open, paste images from clipboard, `.md` file association
-- HTML and PDF export
-- Auto-update via GitHub Releases
-- Plain `.md` files on disk — no vault, no account, no lock-in
-- WCAG 2.1 AA accessibility
+* WYSIWYG editing powered by Milkdown (ProseMirror + Remark)
+
+* Real source mode powered by CodeMirror 6, switch any time
+
+* Customizable toolbar — rearrange, add, and remove buttons
+
+* File-tree sidebar, command palette (`Ctrl+Shift+P`), find & replace
+
+* Visual table editor with floating toolbar and keyboard navigation
+
+* Mermaid diagrams (flowchart, sequence, class, gantt, pie, etc.)
+
+* Visual Gantt chart editor and Kanban board editor
+
+* Outline panel, focus mode, typewriter mode
+
+* Themes: Default, Sepia, Nord, Rose Pine — each with dark variants
+
+* Spell check, word/character count, reading time
+
+* Auto-save with draft recovery
+
+* Drag-and-drop file open, paste images from clipboard, `.md` file association
+
+* HTML and PDF export
+
+* Auto-update via GitHub Releases
+
+* Plain `.md` files on disk — no vault, no account, no lock-in
+
+* WCAG 2.1 AA accessibility
 
 ## Install
 
@@ -59,7 +86,7 @@
 
 Grab the latest installer from the [Releases page](https://github.com/Payaeb/pennivo/releases/latest):
 
-- `Pennivo-Setup-X.Y.Z.exe` — NSIS installer, ~110 MB
+* `Pennivo-Setup-X.Y.Z.exe` — NSIS installer, \~110 MB
 
 #### Windows SmartScreen warning
 
@@ -82,13 +109,19 @@ Not yet. Cross-platform desktop builds are planned for a follow-up release.
 
 ## Tech stack
 
-- TypeScript, React 19, Vite 6
-- Electron 35 (desktop shell)
-- Milkdown 7 (ProseMirror + Remark) — WYSIWYG editor
-- CodeMirror 6 — source mode
-- Mermaid 11 — diagrams
-- Vitest + React Testing Library — tests
-- electron-builder + electron-updater — packaging and auto-update
+* TypeScript, React 19, Vite 6
+
+* Electron 35 (desktop shell)
+
+* Milkdown 7 (ProseMirror + Remark) — WYSIWYG editor
+
+* CodeMirror 6 — source mode
+
+* Mermaid 11 — diagrams
+
+* Vitest + React Testing Library — tests
+
+* electron-builder + electron-updater — packaging and auto-update
 
 ## Project structure
 
@@ -105,8 +138,9 @@ packages/
 
 ### Prerequisites
 
-- Node.js 22 or newer
-- pnpm 10 or newer
+* Node.js 22 or newer
+
+* pnpm 10 or newer
 
 ### Setup
 
@@ -117,21 +151,23 @@ pnpm dev
 
 ### Common commands
 
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start the desktop app in development mode |
-| `pnpm build` | Build all packages and the desktop bundle |
-| `pnpm test` | Run all tests across packages |
-| `pnpm typecheck` | Type-check all packages |
-| `pnpm lint` | Lint all source files |
-| `pnpm format` | Format with Prettier |
-| `pnpm --filter @pennivo/desktop dist` | Build the Windows installer locally |
+| Command                               | Description                               |
+| ------------------------------------- | ----------------------------------------- |
+| `pnpm dev`                            | Start the desktop app in development mode |
+| `pnpm build`                          | Build all packages and the desktop bundle |
+| `pnpm test`                           | Run all tests across packages             |
+| `pnpm typecheck`                      | Type-check all packages                   |
+| `pnpm lint`                           | Lint all source files                     |
+| `pnpm format`                         | Format with Prettier                      |
+| `pnpm --filter @pennivo/desktop dist` | Build the Windows installer locally       |
 
 ### Notes for contributors
 
-- The workspace uses pnpm with `node-linker=hoisted` (see [.npmrc](.npmrc)). This is required for electron-builder to trace transitive dependencies into the packed `app.asar`. Don't change it.
-- `electron` is pinned to an exact version in [packages/desktop/package.json](packages/desktop/package.json) — electron-builder requires a fixed version under hoisted layouts.
-- Issues and pull requests are welcome. For larger changes, please open an issue first so we can discuss the approach.
+* The workspace uses pnpm with `node-linker=hoisted` (see [.npmrc](.npmrc)). This is required for electron-builder to trace transitive dependencies into the packed `app.asar`. Don't change it.
+
+* `electron` is pinned to an exact version in [packages/desktop/package.json](packages/desktop/package.json) — electron-builder requires a fixed version under hoisted layouts.
+
+* Issues and pull requests are welcome. For larger changes, please open an issue first so we can discuss the approach.
 
 ## License
 
