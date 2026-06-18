@@ -59,6 +59,16 @@ export function createElectronPlatform(): PennivoPlatform {
     setOpenFile: (filePath) => api.setOpenFile(filePath),
     showItemInFolder: (filePath) => api.showItemInFolder(filePath),
 
+    // Workspaces (Phase 2): wired to the preload `workspaces` bridge.
+    workspaces: {
+      get: () => api.workspaces.get(),
+      setActive: (id) => api.workspaces.setActive(id),
+      add: (rootPath, name) => api.workspaces.add(rootPath, name),
+      remove: (id) => api.workspaces.remove(id),
+      setPrefs: (id, prefs) => api.workspaces.setPrefs(id, prefs),
+    },
+    getWorkspaces: () => api.workspaces.get(),
+
     // Toolbar config
     getToolbarConfig: () => api.getToolbarConfig(),
     setToolbarConfig: (actions) => api.setToolbarConfig(actions),

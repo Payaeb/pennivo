@@ -19,10 +19,17 @@ import {
   encodeImageUrlSpaces,
   extractReferencedFolders,
   migrateRecoverySettings,
+  migrateWorkspaces,
   planNormalize,
+  workspaceNameFromPath,
+  defaultWorkspacePrefs,
   type RecoverySettings,
+  type Workspace,
+  type WorkspacePrefs,
+  type WorkspacesState,
 } from "@pennivo/core";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { deviceNameFromSettings, getDeviceRecord } from "./deviceIdentity";
 import {
@@ -356,6 +363,12 @@ interface AppSettings {
    * interpreted here, just round-tripped through settings.
    */
   mcp?: unknown;
+  /**
+   * Phase 2 multiple-workspaces state. Migrated lazily on read from the
+   * legacy `sidebar-folder.json` + global sort/timestamp keys via
+   * `migrateWorkspaces` and persisted here once the renderer mutates it.
+   */
+  workspaces?: WorkspacesState;
 }
 
 function getSettingsPath(): string {
@@ -495,6 +508,83 @@ async function writeSidebarFolder(folderPath: string | null): Promise<void> {
     JSON.stringify(folderPath),
     "utf-8",
   );
+}
+
+// --- Workspaces (Phase 2) ---
+//
+// Workspaces are persisted inside settings.json under the `workspaces` key,
+// but migrated lazily: on every read we run the pure `migrateWorkspaces`
+// helper against the raw settings + the legacy `sidebar-folder.json` so a
+// first-run user (no `workspaces` key yet) gets a single workspace seeded
+// from the folder they already had open. The migration is idempotent and
+// non-destructive: `sidebar-folder.json` is never deleted, and re-running
+// it on already-migrated state passes that state through untouched. We do
+// NOT write during the read — persistence happens only when the renderer
+// mutates state via the `workspaces:*` handlers below.
+
+/**
+ * Read settings + resolve the current `WorkspacesState`, running the lazy
+ * migration. The id generator is Node `crypto.randomUUID`, main-process only.
+ */
+async function readWorkspacesState(): Promise<{
+  settings: AppSettings;
+  workspaces: WorkspacesState;
+}> {
+  const settings = readSettings();
+  const legacyFolder = await readSidebarFolder();
+  const workspaces = migrateWorkspaces(
+    settings as Record<string, unknown>,
+    legacyFolder,
+    () => randomUUID(),
+  );
+  return { settings, workspaces };
+}
+
+/** Resolve the active workspace's root path, or null when none is active. */
+function activeWorkspaceRoot(state: WorkspacesState): string | null {
+  const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
+  return active ? active.rootPath : null;
+}
+
+/**
+ * Apply a legacy `sidebar:set-folder` call to a `WorkspacesState`. Updates the
+ * active workspace's rootPath in place, or adds a new active workspace when
+ * none exists. A null `folderPath` clears the active selection without
+ * removing any workspace (matching today's "no folder open" behavior). Never
+ * touches folder contents on disk.
+ */
+function applySidebarFolderToWorkspaces(
+  state: WorkspacesState,
+  folderPath: string | null,
+): WorkspacesState {
+  if (!folderPath) {
+    // Clearing the sidebar folder: deselect, but keep the workspace list.
+    return { ...state, activeWorkspaceId: null };
+  }
+
+  const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
+  if (active) {
+    // Repoint the active workspace at the new root, refreshing its name.
+    const workspaces = state.workspaces.map((w) =>
+      w.id === active.id
+        ? { ...w, rootPath: folderPath, name: workspaceNameFromPath(folderPath) }
+        : w,
+    );
+    return { ...state, workspaces };
+  }
+
+  // No active workspace: add one and make it active, seeding default prefs.
+  const id = randomUUID();
+  const workspace: Workspace = {
+    id,
+    name: workspaceNameFromPath(folderPath),
+    rootPath: folderPath,
+  };
+  return {
+    workspaces: [...state.workspaces, workspace],
+    activeWorkspaceId: id,
+    prefs: { ...state.prefs, [id]: defaultWorkspacePrefs() },
+  };
 }
 
 interface FileTreeEntry {
@@ -1607,7 +1697,13 @@ function registerIpcHandlers() {
   );
 
   // --- Sidebar ---
+  // Compatibility shim (Phase 2): resolve the active workspace's root path,
+  // falling back to the legacy `sidebar-folder.json` when no workspace is
+  // active. Existing callers see the same single-folder behavior as before.
   ipcMain.handle("sidebar:get-folder", async () => {
+    const { workspaces } = await readWorkspacesState();
+    const activeRoot = activeWorkspaceRoot(workspaces);
+    if (activeRoot) return activeRoot;
     return readSidebarFolder();
   });
 
@@ -1620,7 +1716,13 @@ function registerIpcHandlers() {
   ipcMain.handle(
     "sidebar:set-folder",
     async (_e, folderPath: string | null) => {
+      // Keep the legacy file in sync so a downgrade still finds the folder.
       await writeSidebarFolder(folderPath);
+      // Phase 2 shim: mirror the change into the active workspace's rootPath
+      // (or add a workspace when there is none) so the two surfaces agree.
+      const { settings, workspaces } = await readWorkspacesState();
+      const next = applySidebarFolderToWorkspaces(workspaces, folderPath);
+      await writeSettings({ ...settings, workspaces: next });
       if (folderPath) {
         startFolderWatcher(folderPath);
       } else {
@@ -1644,6 +1746,106 @@ function registerIpcHandlers() {
   ipcMain.handle("sidebar:read-directory", async (_e, folderPath: string) => {
     return readDirectoryTree(folderPath);
   });
+
+  // --- Workspaces (Phase 2) ---
+  // State lives in settings.json under `workspaces`, migrated lazily from the
+  // legacy sidebar folder. These handlers mirror the `sidebar:*` naming and
+  // error-handling style. None of them ever touch folder contents on disk.
+
+  // Return the current migrated state without persisting (read-only).
+  ipcMain.handle("workspaces:get", async (): Promise<WorkspacesState> => {
+    const { workspaces } = await readWorkspacesState();
+    return workspaces;
+  });
+
+  // Switch the active workspace, persist, and move the folder watcher to the
+  // newly-active root. A null/unknown id deactivates and stops the watcher.
+  ipcMain.handle(
+    "workspaces:set-active",
+    async (_e, id: string | null): Promise<WorkspacesState> => {
+      const { settings, workspaces } = await readWorkspacesState();
+      const target = workspaces.workspaces.find((w) => w.id === id) ?? null;
+      const next: WorkspacesState = {
+        ...workspaces,
+        activeWorkspaceId: target ? target.id : null,
+      };
+      await writeSettings({ ...settings, workspaces: next });
+      // Keep the legacy file aligned so a downgrade reopens the same folder.
+      await writeSidebarFolder(target ? target.rootPath : null);
+      if (target) {
+        startFolderWatcher(target.rootPath);
+      } else {
+        stopFolderWatcher();
+      }
+      return next;
+    },
+  );
+
+  // Record a chosen folder as a new workspace. The picker dialog itself stays
+  // in `sidebar:choose-folder`; this handler just appends the path.
+  ipcMain.handle(
+    "workspaces:add",
+    async (_e, rootPath: string, name?: string): Promise<WorkspacesState> => {
+      const { settings, workspaces } = await readWorkspacesState();
+      const id = randomUUID();
+      const workspace: Workspace = {
+        id,
+        name: name && name.length > 0 ? name : workspaceNameFromPath(rootPath),
+        rootPath,
+      };
+      const next: WorkspacesState = {
+        workspaces: [...workspaces.workspaces, workspace],
+        activeWorkspaceId: workspaces.activeWorkspaceId,
+        prefs: { ...workspaces.prefs, [id]: defaultWorkspacePrefs() },
+      };
+      await writeSettings({ ...settings, workspaces: next });
+      return next;
+    },
+  );
+
+  // Remove a workspace entry and its prefs. Fixes the active id if it pointed
+  // at the removed workspace (first remaining, else null). NEVER deletes any
+  // files on disk; only the bookkeeping entry goes away.
+  ipcMain.handle(
+    "workspaces:remove",
+    async (_e, id: string): Promise<WorkspacesState> => {
+      const { settings, workspaces } = await readWorkspacesState();
+      const remaining = workspaces.workspaces.filter((w) => w.id !== id);
+      const prefs = { ...workspaces.prefs };
+      delete prefs[id];
+      let activeWorkspaceId = workspaces.activeWorkspaceId;
+      if (activeWorkspaceId === id) {
+        activeWorkspaceId = remaining.length > 0 ? remaining[0].id : null;
+      }
+      const next: WorkspacesState = {
+        workspaces: remaining,
+        activeWorkspaceId,
+        prefs,
+      };
+      await writeSettings({ ...settings, workspaces: next });
+      return next;
+    },
+  );
+
+  // Merge per-workspace preferences for one workspace id and persist.
+  ipcMain.handle(
+    "workspaces:set-prefs",
+    async (
+      _e,
+      id: string,
+      prefs: Partial<WorkspacePrefs>,
+    ): Promise<WorkspacesState> => {
+      const { settings, workspaces } = await readWorkspacesState();
+      const existing = workspaces.prefs[id] ?? defaultWorkspacePrefs();
+      const merged: WorkspacePrefs = { ...existing, ...prefs };
+      const next: WorkspacesState = {
+        ...workspaces,
+        prefs: { ...workspaces.prefs, [id]: merged },
+      };
+      await writeSettings({ ...settings, workspaces: next });
+      return next;
+    },
+  );
 
   // --- Sidebar file operations ---
   ipcMain.handle("sidebar:show-in-folder", async (_e, filePath: string) => {
@@ -1920,12 +2122,21 @@ function registerIpcHandlers() {
   });
 
   // --- Settings ---
-  ipcMain.handle("settings:get", () => {
+  ipcMain.handle("settings:get", async () => {
     // Always migrate the recovery section so the renderer sees a fully
     // populated shape (matches the pure defaults in @pennivo/core).
     const raw = readSettings();
     const recovery = migrateRecoverySettings(raw.recovery);
-    return { ...raw, recovery };
+    // Phase 2: lazily migrate the workspaces slice from the legacy
+    // sidebar-folder.json + global sort/timestamp keys. Read-only: we attach
+    // the resolved state but do not persist here (no write during a read).
+    const legacyFolder = await readSidebarFolder();
+    const workspaces = migrateWorkspaces(
+      raw as Record<string, unknown>,
+      legacyFolder,
+      () => randomUUID(),
+    );
+    return { ...raw, recovery, workspaces };
   });
 
   ipcMain.handle("settings:set", async (_e, incoming: AppSettings) => {

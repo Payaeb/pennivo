@@ -105,6 +105,21 @@ contextBridge.exposeInMainWorld("pennivo", {
   setOpenFile: (filePath: string | null) =>
     ipcRenderer.invoke("watch:set-open-file", filePath) as Promise<void>,
 
+  // Workspaces (Phase 2): multi-root state persisted in settings.json.
+  // The boundary is JSON-shaped; the renderer narrows the returned objects
+  // via the `WorkspacesState` / `WorkspacePrefs` types from @pennivo/core.
+  workspaces: {
+    get: () => ipcRenderer.invoke("workspaces:get") as Promise<unknown>,
+    setActive: (id: string | null) =>
+      ipcRenderer.invoke("workspaces:set-active", id) as Promise<unknown>,
+    add: (rootPath: string, name?: string) =>
+      ipcRenderer.invoke("workspaces:add", rootPath, name) as Promise<unknown>,
+    remove: (id: string) =>
+      ipcRenderer.invoke("workspaces:remove", id) as Promise<unknown>,
+    setPrefs: (id: string, prefs: unknown) =>
+      ipcRenderer.invoke("workspaces:set-prefs", id, prefs) as Promise<unknown>,
+  },
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) =>
     ipcRenderer.invoke("sidebar:show-in-folder", filePath) as Promise<boolean>,

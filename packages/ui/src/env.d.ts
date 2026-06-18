@@ -69,6 +69,15 @@ interface PennivoAPI {
   onSidebarFolderChanged: (cb: () => void) => () => void;
   setOpenFile: (filePath: string | null) => Promise<void>;
 
+  // Workspaces (Phase 2): JSON-shaped boundary, narrowed by the renderer.
+  workspaces: {
+    get: () => Promise<unknown>;
+    setActive: (id: string | null) => Promise<unknown>;
+    add: (rootPath: string, name?: string) => Promise<unknown>;
+    remove: (id: string) => Promise<unknown>;
+    setPrefs: (id: string, prefs: unknown) => Promise<unknown>;
+  };
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) => Promise<boolean>;
   getAssetSummary: (

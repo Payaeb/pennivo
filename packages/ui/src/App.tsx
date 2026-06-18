@@ -94,6 +94,7 @@ import {
   type KanbanData,
   suggestFilenameFromContent,
   shouldShowCapBanner,
+  type WorkspacesState,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -881,17 +882,29 @@ function AppContent() {
   // otherwise the sort dropdown and right-click menu live on a hidden surface
   // and the user thinks the features are missing.
   useEffect(() => {
-    Promise.all([platform.getSidebarFolder(), platform.getSettings()]).then(
-      ([folder, saved]) => {
-        if (folder) {
-          setSidebarFolder(folder);
-          refreshSidebarTree(folder);
-          const explicitVisibility =
-            saved && typeof saved.sidebarVisible === "boolean";
-          if (!explicitVisibility) setSidebarVisible(true);
-        }
-      },
-    );
+    // Phase 2: resolve the initial folder from the active workspace's root
+    // path. This is the exact same single-folder code path as before — only
+    // the source of the folder string changed. When workspaces is empty (no
+    // active workspace) we fall back to the legacy `getSidebarFolder()`, so a
+    // failed/empty migration behaves identically to today (user picks a folder).
+    Promise.all([
+      platform.getWorkspaces(),
+      platform.getSidebarFolder(),
+      platform.getSettings(),
+    ]).then(([rawWorkspaces, legacyFolder, saved]) => {
+      const workspaces = rawWorkspaces as WorkspacesState | null | undefined;
+      const active = workspaces?.workspaces.find(
+        (w) => w.id === workspaces.activeWorkspaceId,
+      );
+      const folder = active?.rootPath ?? legacyFolder;
+      if (folder) {
+        setSidebarFolder(folder);
+        refreshSidebarTree(folder);
+        const explicitVisibility =
+          saved && typeof saved.sidebarVisible === "boolean";
+        if (!explicitVisibility) setSidebarVisible(true);
+      }
+    });
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSidebarTree]);

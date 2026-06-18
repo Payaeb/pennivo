@@ -1,4 +1,11 @@
 import type { PennivoPlatform } from "./platform";
+import {
+  defaultWorkspacePrefs,
+  workspaceNameFromPath,
+  type Workspace,
+  type WorkspacePrefs,
+  type WorkspacesState,
+} from "@pennivo/core";
 import { wrapHtmlWithStyles } from "../utils/exportHtml";
 
 const noop = () => {};
@@ -134,7 +141,48 @@ async function getPreferences() {
 const PREF_RECENT_FILES = "pennivo_recent_files";
 const PREF_SETTINGS = "pennivo_settings";
 const PREF_TOOLBAR_CONFIG = "pennivo_toolbar_config";
+const PREF_WORKSPACES = "pennivo_workspaces";
 const MAX_RECENT_FILES = 10;
+
+/** Browser-safe id generator for new workspaces (WebView has crypto). */
+function mobileGenerateId(): string {
+  return crypto.randomUUID();
+}
+
+/** An empty `WorkspacesState`. Mobile multi-vault is out of scope for v1. */
+function emptyWorkspacesState(): WorkspacesState {
+  return { workspaces: [], activeWorkspaceId: null, prefs: {} };
+}
+
+/**
+ * Read the persisted `WorkspacesState` from Capacitor Preferences. Mobile is a
+ * single-root stub: there is no legacy sidebar folder to migrate (the mobile
+ * sidebar is a different surface), so we return either the stored state or an
+ * empty one. Persistence keeps the renderer's `workspaces.*` calls honest.
+ */
+async function readMobileWorkspaces(): Promise<WorkspacesState> {
+  try {
+    const { Preferences } = await getPreferences();
+    const { value } = await Preferences.get({ key: PREF_WORKSPACES });
+    if (!value) return emptyWorkspacesState();
+    return JSON.parse(value) as WorkspacesState;
+  } catch (err) {
+    console.error("[Pennivo] readMobileWorkspaces failed:", err);
+    return emptyWorkspacesState();
+  }
+}
+
+async function writeMobileWorkspaces(state: WorkspacesState): Promise<void> {
+  try {
+    const { Preferences } = await getPreferences();
+    await Preferences.set({
+      key: PREF_WORKSPACES,
+      value: JSON.stringify(state),
+    });
+  } catch (err) {
+    console.error("[Pennivo] writeMobileWorkspaces failed:", err);
+  }
+}
 
 /**
  * Compress a data URL via canvas: downscale to a max edge and re-encode as JPEG.
@@ -554,6 +602,72 @@ export function createCapacitorPlatform(): PennivoPlatform {
       // Mobile sidebar is a different surface; no in-app drag-and-drop in v1.
       return { ok: false, reason: "error" as const };
     },
+
+    // Workspaces (Phase 2): single-root stub persisted in Preferences. Mobile
+    // multi-vault is out of scope for v1, but the surface is implemented so the
+    // renderer stays platform-branch-free and the interface is satisfied.
+    workspaces: {
+      get: async () => readMobileWorkspaces(),
+      setActive: async (id) => {
+        const state = await readMobileWorkspaces();
+        const target = state.workspaces.find((w) => w.id === id) ?? null;
+        const next: WorkspacesState = {
+          ...state,
+          activeWorkspaceId: target ? target.id : null,
+        };
+        await writeMobileWorkspaces(next);
+        return next;
+      },
+      add: async (rootPath, name) => {
+        const state = await readMobileWorkspaces();
+        const id = mobileGenerateId();
+        const workspace: Workspace = {
+          id,
+          name:
+            name && name.length > 0 ? name : workspaceNameFromPath(rootPath),
+          rootPath,
+        };
+        const next: WorkspacesState = {
+          workspaces: [...state.workspaces, workspace],
+          activeWorkspaceId: state.activeWorkspaceId,
+          prefs: { ...state.prefs, [id]: defaultWorkspacePrefs() },
+        };
+        await writeMobileWorkspaces(next);
+        return next;
+      },
+      remove: async (id) => {
+        const state = await readMobileWorkspaces();
+        const remaining = state.workspaces.filter((w) => w.id !== id);
+        const prefs = { ...state.prefs };
+        delete prefs[id];
+        let activeWorkspaceId = state.activeWorkspaceId;
+        if (activeWorkspaceId === id) {
+          activeWorkspaceId = remaining.length > 0 ? remaining[0].id : null;
+        }
+        const next: WorkspacesState = {
+          workspaces: remaining,
+          activeWorkspaceId,
+          prefs,
+        };
+        await writeMobileWorkspaces(next);
+        return next;
+      },
+      setPrefs: async (id, prefs) => {
+        const state = await readMobileWorkspaces();
+        const existing = state.prefs[id] ?? defaultWorkspacePrefs();
+        const merged: WorkspacePrefs = {
+          ...existing,
+          ...(prefs as Partial<WorkspacePrefs>),
+        };
+        const next: WorkspacesState = {
+          ...state,
+          prefs: { ...state.prefs, [id]: merged },
+        };
+        await writeMobileWorkspaces(next);
+        return next;
+      },
+    },
+    getWorkspaces: async () => readMobileWorkspaces(),
 
     // Toolbar config
     getToolbarConfig: async () => {

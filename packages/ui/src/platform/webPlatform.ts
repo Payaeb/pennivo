@@ -1,4 +1,12 @@
 import type { PennivoPlatform } from "./platform";
+import {
+  defaultWorkspacePrefs,
+  migrateWorkspaces,
+  workspaceNameFromPath,
+  type Workspace,
+  type WorkspacePrefs,
+  type WorkspacesState,
+} from "@pennivo/core";
 import { wrapHtmlWithStyles } from "../utils/exportHtml";
 
 /**
@@ -18,6 +26,7 @@ const LS_RECENT_FILES = "pennivo.web.recentFiles";
 const LS_SETTINGS = "pennivo.web.settings";
 const LS_TOOLBAR_CONFIG = "pennivo.web.toolbarConfig";
 const LS_SIDEBAR_FOLDER = "pennivo.web.sidebarFolder";
+const LS_WORKSPACES = "pennivo.web.workspaces";
 const MAX_RECENT_FILES = 10;
 
 function lsGet<T>(key: string, fallback: T): T {
@@ -40,6 +49,31 @@ function lsSet(key: string, value: unknown): void {
 
 function warnUnsupported(feature: string): void {
   console.warn(`[Pennivo:web] ${feature} is not available in browser preview.`);
+}
+
+/** Browser-safe id generator for new workspaces. */
+function webGenerateId(): string {
+  // crypto.randomUUID is available in all modern browsers we target.
+  return crypto.randomUUID();
+}
+
+/**
+ * Resolve the current `WorkspacesState` in the browser. Runs the SAME pure
+ * `migrateWorkspaces` against the persisted settings + the legacy
+ * `pennivo.web.sidebarFolder` so a returning web user gets a single workspace
+ * seeded from the folder string they had open. Non-destructive: the legacy
+ * `pennivo.web.sidebarFolder` key is never orphaned or deleted.
+ */
+function readWebWorkspaces(): WorkspacesState {
+  const stored = lsGet<WorkspacesState | null>(LS_WORKSPACES, null);
+  const settings = lsGet<Record<string, unknown>>(LS_SETTINGS, {});
+  const legacyFolder = lsGet<string | null>(LS_SIDEBAR_FOLDER, null);
+  // Feed any already-persisted state in via the settings object so the
+  // idempotent migration passes it through untouched.
+  const raw: Record<string, unknown> = stored
+    ? { ...settings, workspaces: stored }
+    : settings;
+  return migrateWorkspaces(raw, legacyFolder, webGenerateId);
 }
 
 export function createWebPlatform(): PennivoPlatform {
@@ -176,6 +210,70 @@ export function createWebPlatform(): PennivoPlatform {
       warnUnsupported("moveFile");
       return { ok: false, reason: "error" as const };
     },
+
+    // Workspaces (Phase 2): persisted in localStorage, migrated on read.
+    workspaces: {
+      get: async () => readWebWorkspaces(),
+      setActive: async (id) => {
+        const state = readWebWorkspaces();
+        const target = state.workspaces.find((w) => w.id === id) ?? null;
+        const next: WorkspacesState = {
+          ...state,
+          activeWorkspaceId: target ? target.id : null,
+        };
+        lsSet(LS_WORKSPACES, next);
+        return next;
+      },
+      add: async (rootPath, name) => {
+        const state = readWebWorkspaces();
+        const id = webGenerateId();
+        const workspace: Workspace = {
+          id,
+          name:
+            name && name.length > 0 ? name : workspaceNameFromPath(rootPath),
+          rootPath,
+        };
+        const next: WorkspacesState = {
+          workspaces: [...state.workspaces, workspace],
+          activeWorkspaceId: state.activeWorkspaceId,
+          prefs: { ...state.prefs, [id]: defaultWorkspacePrefs() },
+        };
+        lsSet(LS_WORKSPACES, next);
+        return next;
+      },
+      remove: async (id) => {
+        const state = readWebWorkspaces();
+        const remaining = state.workspaces.filter((w) => w.id !== id);
+        const prefs = { ...state.prefs };
+        delete prefs[id];
+        let activeWorkspaceId = state.activeWorkspaceId;
+        if (activeWorkspaceId === id) {
+          activeWorkspaceId = remaining.length > 0 ? remaining[0].id : null;
+        }
+        const next: WorkspacesState = {
+          workspaces: remaining,
+          activeWorkspaceId,
+          prefs,
+        };
+        lsSet(LS_WORKSPACES, next);
+        return next;
+      },
+      setPrefs: async (id, prefs) => {
+        const state = readWebWorkspaces();
+        const existing = state.prefs[id] ?? defaultWorkspacePrefs();
+        const merged: WorkspacePrefs = {
+          ...existing,
+          ...(prefs as Partial<WorkspacePrefs>),
+        };
+        const next: WorkspacesState = {
+          ...state,
+          prefs: { ...state.prefs, [id]: merged },
+        };
+        lsSet(LS_WORKSPACES, next);
+        return next;
+      },
+    },
+    getWorkspaces: async () => readWebWorkspaces(),
 
     // Toolbar config — persisted in localStorage
     getToolbarConfig: async () =>

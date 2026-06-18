@@ -92,6 +92,32 @@ export interface SnapshotPlatform {
   }) => Promise<{ savedPath: string } | null>;
 }
 
+/**
+ * Workspaces surface exposed to the renderer (Phase 2 multiple-workspaces).
+ *
+ * Desktop persists this inside `settings.json` under `workspaces`, migrated
+ * lazily from the legacy single sidebar folder. Web persists it in
+ * localStorage; mobile keeps a single-root stub.
+ *
+ * Like `TrashPlatform`, the returned shapes are typed `unknown` here to keep
+ * this boundary dependency-free of core types — the IPC/JSON boundary is
+ * intentionally plain-object-shaped, and the renderer narrows the result via
+ * the `WorkspacesState` / `WorkspacePrefs` types re-exported from
+ * `@pennivo/core`. `prefs` is accepted as a partial patch (plain object).
+ */
+export interface WorkspacePlatform {
+  /** Current migrated `WorkspacesState`. Read-only (does not persist). */
+  get: () => Promise<unknown>;
+  /** Set the active workspace by id (or null to deselect); persists. */
+  setActive: (id: string | null) => Promise<unknown>;
+  /** Append a workspace for `rootPath` with an optional name; persists. */
+  add: (rootPath: string, name?: string) => Promise<unknown>;
+  /** Remove a workspace + its prefs; never touches files on disk. Persists. */
+  remove: (id: string) => Promise<unknown>;
+  /** Merge a partial `WorkspacePrefs` patch for one workspace id; persists. */
+  setPrefs: (id: string, prefs: unknown) => Promise<unknown>;
+}
+
 /** One recorded MCP tool/resource call, surfaced in Settings → MCP. */
 export interface McpAuditEntry {
   ts: number;
@@ -205,6 +231,16 @@ export interface PennivoPlatform {
   // Reveal a file in the OS file manager (Electron-only; no-op on web/mobile).
   // Returns true if the call succeeded.
   showItemInFolder: (filePath: string) => Promise<boolean>;
+
+  // Workspaces (Phase 2 multiple-workspaces). The renderer narrows the
+  // returned `unknown` via `WorkspacesState` from @pennivo/core.
+  workspaces: WorkspacePlatform;
+  /**
+   * Convenience read of the current `WorkspacesState` (delegates to
+   * `workspaces.get`). App.tsx uses this on startup to resolve the active
+   * workspace's root path for the existing sidebar code path.
+   */
+  getWorkspaces: () => Promise<unknown>;
 
   // Move a file into a different folder. Returns ok=true with the new
   // absolute path on success. On a name collision in destDir, returns

@@ -70,6 +70,35 @@ export function createMockPennivoAPI() {
     setSpellCheckLanguages: vi.fn(async () => undefined),
     addWordToDictionary: vi.fn(async () => undefined),
 
+    // Workspaces (Phase 2)
+    workspaces: {
+      get: vi.fn(async () => ({
+        workspaces: [],
+        activeWorkspaceId: null,
+        prefs: {},
+      })),
+      setActive: vi.fn(async () => ({
+        workspaces: [],
+        activeWorkspaceId: null,
+        prefs: {},
+      })),
+      add: vi.fn(async () => ({
+        workspaces: [],
+        activeWorkspaceId: null,
+        prefs: {},
+      })),
+      remove: vi.fn(async () => ({
+        workspaces: [],
+        activeWorkspaceId: null,
+        prefs: {},
+      })),
+      setPrefs: vi.fn(async () => ({
+        workspaces: [],
+        activeWorkspaceId: null,
+        prefs: {},
+      })),
+    },
+
     // Settings
     getSettings: vi.fn(async () => ({})),
     setSettings: vi.fn(async () => undefined),
