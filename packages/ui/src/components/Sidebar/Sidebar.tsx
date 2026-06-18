@@ -17,6 +17,19 @@ interface SidebarProps {
   onChooseFolder: () => void;
   sortKey?: SidebarSortKey;
   onSortChange?: (key: SidebarSortKey) => void;
+  /**
+   * Starting sidebar width in CSS pixels. When provided (e.g. restored from the
+   * active workspace's prefs) it seeds the internal width state. Omitted falls
+   * back to the built-in default. Changes after mount are tracked so a
+   * workspace switch can restore a different stored width.
+   */
+  initialWidth?: number;
+  /**
+   * Called with the new width (clamped) when the user finishes a drag-resize.
+   * Lets the host persist the width per workspace. Not called during the drag,
+   * only on release, so persistence stays debounced to one write per resize.
+   */
+  onWidthChange?: (width: number) => void;
   /** "Show in Explorer / Finder / Files" — reveal in OS file manager. */
   onShowInExplorer?: (filePath: string) => void;
   /** "Show history" — open the recovery modal in History mode for this file. */
@@ -60,6 +73,11 @@ const MIN_WIDTH = 180;
 const MAX_WIDTH = 400;
 const DEFAULT_WIDTH = 240;
 
+/** Clamp a candidate width into the resizable range. */
+function clampWidth(value: number): number {
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, value));
+}
+
 function countFiles(entries: FileTreeEntry[]): number {
   let count = 0;
   for (const e of entries) {
@@ -81,6 +99,8 @@ export function Sidebar({
   onChooseFolder,
   sortKey = DEFAULT_SORT,
   onSortChange,
+  initialWidth,
+  onWidthChange,
   onShowInExplorer,
   onShowHistory,
   onShowTrash,
@@ -91,9 +111,22 @@ export function Sidebar({
   onMoveFile,
   onShowToast,
 }: SidebarProps) {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [width, setWidth] = useState(
+    typeof initialWidth === "number" ? clampWidth(initialWidth) : DEFAULT_WIDTH,
+  );
   const [resizing, setResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Re-seed the internal width when the host hands us a different stored width
+  // (e.g. a workspace switch restored a new value). We only follow non-null
+  // numbers so omitting the prop keeps the current width untouched.
+  const lastInitialWidthRef = useRef<number | undefined>(initialWidth);
+  useEffect(() => {
+    if (typeof initialWidth === "number" && initialWidth !== lastInitialWidthRef.current) {
+      lastInitialWidthRef.current = initialWidth;
+      setWidth(clampWidth(initialWidth));
+    }
+  }, [initialWidth]);
 
   // --- Context menu / rename / delete state (lifted to Sidebar root) ---
   const [contextMenu, setContextMenu] = useState<{
@@ -369,29 +402,37 @@ export function Sidebar({
   })();
 
   // --- Resize logic ---
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setResizing(true);
-    const startX = e.clientX;
-    const startWidth = sidebarRef.current?.offsetWidth ?? DEFAULT_WIDTH;
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setResizing(true);
+      const startX = e.clientX;
+      const startWidth = sidebarRef.current?.offsetWidth ?? DEFAULT_WIDTH;
+      // Track the latest width across the drag so we can report it once on
+      // release (one persistence write per resize, not per mousemove).
+      let latestWidth = startWidth;
 
-    const handleMouseMove = (me: MouseEvent) => {
-      const newWidth = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, startWidth + (me.clientX - startX)),
-      );
-      setWidth(newWidth);
-    };
+      const handleMouseMove = (me: MouseEvent) => {
+        const newWidth = clampWidth(startWidth + (me.clientX - startX));
+        latestWidth = newWidth;
+        setWidth(newWidth);
+      };
 
-    const handleMouseUp = () => {
-      setResizing(false);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
+      const handleMouseUp = () => {
+        setResizing(false);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+        // Remember the released width so a re-seed from an unchanged prop does
+        // not snap us back, then notify the host to persist it.
+        lastInitialWidthRef.current = latestWidth;
+        onWidthChange?.(latestWidth);
+      };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  }, []);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [onWidthChange],
+  );
 
   if (!visible) return null;
 

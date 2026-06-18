@@ -94,7 +94,9 @@ import {
   type KanbanData,
   suggestFilenameFromContent,
   shouldShowCapBanner,
+  defaultWorkspacePrefs,
   type WorkspacesState,
+  type WorkspacePrefs,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -417,10 +419,57 @@ function AppContent() {
   const [sidebarTree, setSidebarTree] = useState<FileTreeEntry[]>([]);
   const [sidebarSort, setSidebarSort] = useState<SidebarSortKey>(DEFAULT_SORT);
   // Map of normalized file path → millisecond timestamp of last open in Pennivo.
-  // Powers the "Recently opened" sort. Persisted via settings.
+  // Powers the "Recently opened" sort. Persisted per active workspace (Phase 3).
   const [fileOpenTimestamps, setFileOpenTimestamps] = useState<
     Record<string, number>
   >({});
+  // Persisted sidebar width (CSS px) for the active workspace, or null when the
+  // user has never resized it (Sidebar falls back to its built-in default).
+  // Phase 3 lifts this out of the Sidebar component so it can round-trip
+  // through workspace prefs.
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(null);
+
+  // --- Active workspace (Phase 3 per-workspace prefs) ---
+  // The id of the workspace whose prefs (sort key, sidebar width,
+  // fileOpenTimestamps, lastOpenFile) the above state mirrors. Null on a
+  // no-workspace install — in that case we keep reading/writing the legacy
+  // global settings keys so behavior is identical to before workspaces existed.
+  //
+  // Held in a ref (not React state) because nothing in Phase 3 renders off the
+  // active id; the prefs writers and the save/load helpers just read it. Phase
+  // 4's switcher can promote this to state when it needs a reactive highlight.
+  const activeWorkspaceIdRef = useRef<string | null>(null);
+  // Mirror refs for the prefs values, so saveActiveWorkspacePrefs can gather a
+  // current snapshot without depending on (and being recreated by) each value.
+  const sidebarSortRef = useRef<SidebarSortKey>(DEFAULT_SORT);
+  const sidebarWidthRef = useRef<number | null>(null);
+  const fileOpenTimestampsRef = useRef<Record<string, number>>({});
+
+  // Merge a partial prefs patch into the active workspace via the platform.
+  // No-op when there is no active workspace (no-workspace install) so the
+  // legacy-settings fallback in the writers stays the single source of truth.
+  const writeActiveWorkspacePrefs = useCallback(
+    (patch: Partial<WorkspacePrefs>) => {
+      const id = activeWorkspaceIdRef.current;
+      if (!id) return;
+      void platform.workspaces.setPrefs(id, patch);
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Keep the mirror refs in sync with the prefs state so the save helper can
+  // read a current snapshot without re-subscribing to each value.
+  useEffect(() => {
+    sidebarSortRef.current = sidebarSort;
+  }, [sidebarSort]);
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
+  useEffect(() => {
+    fileOpenTimestampsRef.current = fileOpenTimestamps;
+  }, [fileOpenTimestamps]);
 
   const normalizeFilePath = useCallback(
     (p: string) => p.replace(/\\/g, "/").toLowerCase(),
@@ -446,14 +495,35 @@ function AppContent() {
     [sidebarTree, sidebarSort, hydrateOpenTimestamps],
   );
 
-  const handleSidebarSortChange = useCallback((key: SidebarSortKey) => {
-    setSidebarSort(key);
-    platform.getSettings().then((saved) => {
-      platform.setSettings({ ...saved, sidebarSort: key });
-    });
+  const handleSidebarSortChange = useCallback(
+    (key: SidebarSortKey) => {
+      setSidebarSort(key);
+      // Phase 3: persist into the active workspace's prefs. Fall back to the
+      // legacy global settings key only when there is no active workspace, so a
+      // no-workspace install behaves exactly like before.
+      if (activeWorkspaceIdRef.current) {
+        writeActiveWorkspacePrefs({ sortKey: key });
+      } else {
+        platform.getSettings().then((saved) => {
+          platform.setSettings({ ...saved, sidebarSort: key });
+        });
+      }
+    },
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    [writeActiveWorkspacePrefs],
+  );
+
+  // Persist a drag-resized sidebar width. Phase 3: per workspace. The Sidebar
+  // only calls this on drag-release, so this is already one write per resize
+  // (no extra debounce needed). No legacy global key existed for width.
+  const handleSidebarWidthChange = useCallback(
+    (width: number) => {
+      setSidebarWidth(width);
+      writeActiveWorkspacePrefs({ sidebarWidth: width });
+    },
+    [writeActiveWorkspacePrefs],
+  );
 
   // Sidebar context-menu handlers — wired directly to platform.
   // Toast feedback is surfaced via the existing showToast helper (defined later
@@ -472,15 +542,25 @@ function AppContent() {
       const now = Date.now();
       setFileOpenTimestamps((prev) => {
         const next = { ...prev, [key]: now };
-        platform.getSettings().then((saved) => {
-          platform.setSettings({ ...saved, fileOpenTimestamps: next });
-        });
+        // Phase 3: persist the open-timestamps map AND the lastOpenFile into the
+        // active workspace's prefs in one patch. Fall back to the legacy global
+        // settings key only when there is no active workspace.
+        if (activeWorkspaceIdRef.current) {
+          writeActiveWorkspacePrefs({
+            fileOpenTimestamps: next,
+            lastOpenFile: filePath,
+          });
+        } else {
+          platform.getSettings().then((saved) => {
+            platform.setSettings({ ...saved, fileOpenTimestamps: next });
+          });
+        }
         return next;
       });
     },
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [normalizeFilePath],
+    [normalizeFilePath, writeActiveWorkspacePrefs],
   );
 
   // --- Toolbar config ---
@@ -501,34 +581,82 @@ function AppContent() {
   // gates the persistence effect to skip the initial render.
   const sidebarVisibilityHydratedRef = useRef(false);
 
-  // Load persisted settings on mount
+  // Apply a `WorkspacePrefs` object to the relevant React state (sort key,
+  // sidebar width, fileOpenTimestamps). Used both on startup and by
+  // loadWorkspacePrefs when Phase 4's switcher activates a workspace.
+  const applyWorkspacePrefsToState = useCallback((prefs: WorkspacePrefs) => {
+    if (isSidebarSortKey(prefs.sortKey)) {
+      setSidebarSort(prefs.sortKey);
+    } else {
+      setSidebarSort(DEFAULT_SORT);
+    }
+    setSidebarWidth(
+      typeof prefs.sidebarWidth === "number" ? prefs.sidebarWidth : null,
+    );
+    const cleaned: Record<string, number> = {};
+    if (prefs.fileOpenTimestamps && typeof prefs.fileOpenTimestamps === "object") {
+      for (const [k, v] of Object.entries(prefs.fileOpenTimestamps)) {
+        if (typeof v === "number" && Number.isFinite(v)) cleaned[k] = v;
+      }
+    }
+    setFileOpenTimestamps(cleaned);
+  }, []);
+
+  // Load persisted settings on mount. Phase 3: sort key, sidebar width, and
+  // fileOpenTimestamps now come from the ACTIVE workspace's prefs. The legacy
+  // global keys (`sidebarSort`, `fileOpenTimestamps`) are read ONLY as a
+  // fallback when there is no active workspace, so a no-workspace install
+  // behaves exactly like before workspaces existed.
   useEffect(() => {
-    platform.getSettings().then((saved) => {
-      if (saved && typeof saved.showWordCount === "boolean") {
-        setShowWordCount(saved.showWordCount);
-      }
-      if (saved && isSidebarSortKey(saved.sidebarSort)) {
-        setSidebarSort(saved.sidebarSort);
-      }
-      if (saved && typeof saved.sidebarVisible === "boolean") {
-        setSidebarVisible(saved.sidebarVisible);
-      }
-      if (
-        saved &&
-        saved.fileOpenTimestamps &&
-        typeof saved.fileOpenTimestamps === "object"
-      ) {
-        const raw = saved.fileOpenTimestamps as Record<string, unknown>;
-        const cleaned: Record<string, number> = {};
-        for (const [k, v] of Object.entries(raw)) {
-          if (typeof v === "number" && Number.isFinite(v)) cleaned[k] = v;
+    Promise.all([platform.getSettings(), platform.getWorkspaces()]).then(
+      ([saved, rawWorkspaces]) => {
+        if (saved && typeof saved.showWordCount === "boolean") {
+          setShowWordCount(saved.showWordCount);
         }
-        setFileOpenTimestamps(cleaned);
-      }
-    });
+        if (saved && typeof saved.sidebarVisible === "boolean") {
+          setSidebarVisible(saved.sidebarVisible);
+        }
+
+        const workspaces = rawWorkspaces as WorkspacesState | null | undefined;
+        const activeId = workspaces?.activeWorkspaceId ?? null;
+        const activePrefs =
+          activeId && workspaces ? workspaces.prefs[activeId] : undefined;
+
+        if (activeId && activePrefs) {
+          // Active workspace: drive sort / width / timestamps from its prefs.
+          activeWorkspaceIdRef.current = activeId;
+          applyWorkspacePrefsToState(activePrefs);
+          return;
+        }
+        if (activeId) {
+          // Active id present but prefs missing (shouldn't happen post-migration);
+          // seed from defaults rather than the legacy global keys.
+          activeWorkspaceIdRef.current = activeId;
+          applyWorkspacePrefsToState(defaultWorkspacePrefs());
+          return;
+        }
+
+        // No active workspace: legacy global-settings fallback (unchanged).
+        if (saved && isSidebarSortKey(saved.sidebarSort)) {
+          setSidebarSort(saved.sidebarSort);
+        }
+        if (
+          saved &&
+          saved.fileOpenTimestamps &&
+          typeof saved.fileOpenTimestamps === "object"
+        ) {
+          const raw = saved.fileOpenTimestamps as Record<string, unknown>;
+          const cleaned: Record<string, number> = {};
+          for (const [k, v] of Object.entries(raw)) {
+            if (typeof v === "number" && Number.isFinite(v)) cleaned[k] = v;
+          }
+          setFileOpenTimestamps(cleaned);
+        }
+      },
+    );
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [applyWorkspacePrefsToState]);
 
   // Persist sidebar visibility on every toggle. Skip the very first render
   // so we don't overwrite settings before they've had a chance to hydrate.
@@ -1039,6 +1167,11 @@ function AppContent() {
         setSaveStatus("saved");
         clearDraft();
         loadRecentFiles();
+        // Phase 3: the saved-as file is now the open document — record it as the
+        // active workspace's last open file so a future switch back reopens it.
+        if (activeWorkspaceIdRef.current) {
+          writeActiveWorkspacePrefs({ lastOpenFile: newPath });
+        }
         return true;
       }
       setSaveStatus(isDirtyRef.current ? "unsaved" : "saved");
@@ -1049,7 +1182,7 @@ function AppContent() {
     }
     // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadRecentFiles]);
+  }, [loadRecentFiles, writeActiveWorkspacePrefs]);
 
   // --- Load content into the active editor ---
   // Both editors stay mounted; update the visible one directly.
@@ -1474,6 +1607,78 @@ function AppContent() {
     [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
   );
 
+  // --- Workspace prefs save / load (Phase 3) ---
+  // These exist so Phase 4's workspace switcher can do save-then-load on a
+  // switch. No UI calls them yet; they are wired and typecheck-clean now.
+
+  // Gather the current sort key, sidebar width, fileOpenTimestamps, and the
+  // currently-open file path, then persist them into the ACTIVE workspace's
+  // prefs. No-op when there is no active workspace.
+  const saveActiveWorkspacePrefs = useCallback(() => {
+    const id = activeWorkspaceIdRef.current;
+    if (!id) return;
+    const patch: Partial<WorkspacePrefs> = {
+      sortKey: sidebarSortRef.current,
+      fileOpenTimestamps: fileOpenTimestampsRef.current,
+      lastOpenFile: filePathRef.current,
+    };
+    if (typeof sidebarWidthRef.current === "number") {
+      patch.sidebarWidth = sidebarWidthRef.current;
+    }
+    void platform.workspaces.setPrefs(id, patch);
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Activate workspace `id`: persist the outgoing workspace's prefs first
+  // (save-then-load), make `id` active in the platform, apply its prefs to
+  // React state, refresh the sidebar tree for its root, and open its
+  // lastOpenFile if it still exists. Safe to call now even though no UI
+  // triggers it yet.
+  const loadWorkspacePrefs = useCallback(
+    async (id: string) => {
+      // Save the workspace we're leaving before switching away from it.
+      if (activeWorkspaceIdRef.current && activeWorkspaceIdRef.current !== id) {
+        saveActiveWorkspacePrefs();
+      }
+
+      const rawState = await platform.workspaces.setActive(id);
+      const state = rawState as WorkspacesState | null | undefined;
+
+      activeWorkspaceIdRef.current = id;
+
+      const prefs = state?.prefs[id] ?? defaultWorkspacePrefs();
+      applyWorkspacePrefsToState(prefs);
+
+      // Resolve and refresh the sidebar tree for the newly active root.
+      const workspace = state?.workspaces.find((w) => w.id === id);
+      if (workspace?.rootPath) {
+        setSidebarFolder(workspace.rootPath);
+        await refreshSidebarTree(workspace.rootPath);
+      }
+
+      // Open the workspace's last open file if it still opens cleanly. We reuse
+      // openRecentFile, which guards unsaved changes and tolerates a missing
+      // file (it shows a toast and returns without changing the editor).
+      if (prefs.lastOpenFile) {
+        await openRecentFile(prefs.lastOpenFile);
+      }
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      saveActiveWorkspacePrefs,
+      applyWorkspacePrefsToState,
+      refreshSidebarTree,
+      openRecentFile,
+    ],
+  );
+
+  // Silence unused-var lint until Phase 4's switcher wires these up. They are
+  // intentionally defined here so that work can call them without touching
+  // this persistence logic again.
+  void loadWorkspacePrefs;
+
   // --- New file ---
   const doNewFile = useCallback(async () => {
     if (isDirtyRef.current) {
@@ -1491,9 +1696,14 @@ function AppContent() {
     savedMarkdownRef.current = "";
     setIsDirty(false);
     setSaveStatus("saved");
+    // Phase 3: a new untitled document means no last open file for this
+    // workspace. Clear it so a future switch back doesn't reopen a stale doc.
+    if (activeWorkspaceIdRef.current) {
+      writeActiveWorkspacePrefs({ lastOpenFile: null });
+    }
     // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doSave, loadContent]);
+  }, [doSave, loadContent, writeActiveWorkspacePrefs]);
 
   // --- Auto-save ---
   const scheduleAutoSave = useCallback(() => {
@@ -3293,6 +3503,8 @@ function AppContent() {
           onChooseFolder={handleChooseFolder}
           sortKey={sidebarSort}
           onSortChange={handleSidebarSortChange}
+          initialWidth={sidebarWidth ?? undefined}
+          onWidthChange={handleSidebarWidthChange}
           onShowInExplorer={handleSidebarShowInExplorer}
           onShowHistory={(_p) => {
             setRecoveryModalMode("history");
