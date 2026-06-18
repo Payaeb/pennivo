@@ -33,6 +33,12 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { deviceNameFromSettings, getDeviceRecord } from "./deviceIdentity";
 import {
+  applyLinkRewrite,
+  enumerateMarkdownFiles,
+  toPosix,
+  workspaceRelativePosix,
+} from "./linkRewriteIntegration";
+import {
   drainArchiveQueue,
   getLastCapWarning,
   listSnapshots,
@@ -576,6 +582,93 @@ async function readWorkspacesState(): Promise<{
 function activeWorkspaceRoot(state: WorkspacesState): string | null {
   const active = state.workspaces.find((w) => w.id === state.activeWorkspaceId);
   return active ? active.rootPath : null;
+}
+
+/** True when `absPath` is exactly `rootAbs` or sits under it on a boundary. */
+function isUnderRoot(rootAbs: string, absPath: string): boolean {
+  const rel = path.relative(rootAbs, absPath);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * Resolve the workspace root that contains `absPath`, for the Phase 11f link
+ * rewrite. Considers every known workspace root plus the legacy sidebar
+ * folder, and returns the most specific (longest) root that contains the
+ * path. Returns null when no known root contains it, in which case the caller
+ * skips the cross-document rewrite (the move/rename still proceeds).
+ */
+async function resolveWorkspaceRootFor(
+  absPath: string,
+): Promise<string | null> {
+  const candidates = new Set<string>();
+  try {
+    const { workspaces } = await readWorkspacesState();
+    for (const w of workspaces.workspaces) {
+      if (w.rootPath) candidates.add(w.rootPath);
+    }
+  } catch {
+    // Settings unreadable — fall back to the legacy folder below.
+  }
+  try {
+    const legacy = await readSidebarFolder();
+    if (legacy) candidates.add(legacy);
+  } catch {
+    // No legacy folder.
+  }
+
+  let best: string | null = null;
+  for (const root of candidates) {
+    if (!isUnderRoot(root, absPath)) continue;
+    if (best === null || root.length > best.length) best = root;
+  }
+  return best;
+}
+
+/**
+ * Pre-move preparation for the Phase 11f link rewrite. Resolves the workspace
+ * root that contains `oldAbs`, enumerates every markdown document under it
+ * (pre-move snapshot, POSIX-relative content), and computes the old/new
+ * workspace-relative POSIX paths the planner needs. Returns null when no
+ * workspace root contains the path (the move/rename still proceeds without a
+ * cross-document rewrite) or when either path falls outside the resolved root.
+ * Must be called BEFORE the fs move/rename so the snapshot reflects the
+ * pre-move world.
+ */
+async function prepareLinkRewrite(
+  oldAbs: string,
+  newAbs: string,
+): Promise<{
+  rootAbs: string;
+  snapshot: { path: string; content: string }[];
+  oldRelPosix: string;
+  newRelPosix: string;
+} | null> {
+  let rootAbs: string | null;
+  try {
+    rootAbs = await resolveWorkspaceRootFor(oldAbs);
+  } catch (err) {
+    console.error("[link-rewrite] workspace-root resolution failed:", err);
+    return null;
+  }
+  if (!rootAbs) return null;
+
+  const oldRelPosix = workspaceRelativePosix(rootAbs, oldAbs);
+  const newRelPosix = workspaceRelativePosix(rootAbs, newAbs);
+  if (!oldRelPosix || !newRelPosix) {
+    // Path escaped the root (e.g. move across workspaces). Skip the rewrite;
+    // the move/rename itself still proceeds.
+    return null;
+  }
+
+  let snapshot: { path: string; content: string }[];
+  try {
+    snapshot = await enumerateMarkdownFiles(rootAbs);
+  } catch (err) {
+    console.error("[link-rewrite] markdown enumeration failed:", err);
+    return null;
+  }
+
+  return { rootAbs, snapshot, oldRelPosix, newRelPosix };
 }
 
 /**
@@ -1584,6 +1677,110 @@ function registerIpcHandlers() {
     return { healed: true, newContent: content };
   }
 
+  // Phase 11f: rewrite cross-document relative links/refs after a file MOVE or
+  // RENAME so every OTHER document that pointed at the moved file, and the moved
+  // file's own outbound links, stay correct workspace-wide.
+  //
+  // Sequence (mirrored by both the rename and move handlers):
+  //   1. Caller snapshots the pre-move markdown set + computes old/newPath.
+  //   2. Caller performs the fs move/rename (file + asset folders) as today.
+  //   3. For RENAME, the caller runs normalizeAssetsForFile FIRST so the moved
+  //      file's `*-md-images` sidecar is promoted to its canonical name and its
+  //      sidecar image refs are rewritten; it then passes that normalized
+  //      content in as `movedFileNormalizedContent`. We patch the moved file's
+  //      snapshot entry with it BEFORE planning, so the pure planner sees the
+  //      already-canonical sidecar refs (which it leaves untouched) and only
+  //      recomputes inter-document/outbound links. This is how the two passes
+  //      compose without clobbering: normalizeAssets owns the sidecar, the
+  //      planner owns inter-doc links, and feeding the planner the normalized
+  //      content keeps them from fighting over the moved file.
+  //   4. We run the pure planner, then apply each write behind a safety
+  //      re-scan (skip files that no longer exist) and record each as a
+  //      self-write so live-reload does not flicker.
+  //   5. We push a live-reload to the currently-open file when its content
+  //      changed on disk (reconcileOnOpen emits the external-change event). The
+  //      moved file's own reload is left to the renderer, as before Phase 11f.
+  //
+  // `prePlanSnapshot` is the list of all markdown docs (POSIX-relative to
+  // `rootAbs`) captured BEFORE the fs op. `movedFileNewAbs` is the moved file's
+  // post-move absolute path. Returns the set of absolute paths written (POSIX,
+  // lowercased) so the caller can tell whether the moved file was rewritten.
+  async function rewriteCrossDocumentLinks(args: {
+    rootAbs: string;
+    prePlanSnapshot: { path: string; content: string }[];
+    oldRelPosix: string;
+    newRelPosix: string;
+    isDirectory: boolean;
+    movedFileNewAbs: string;
+    // When set, the moved file's content AFTER normalizeAssetsForFile ran. We
+    // patch the snapshot with it so the planner does not re-touch the sidecar.
+    movedFileNormalizedContent?: string;
+  }): Promise<{ writtenKeys: Set<string> }> {
+    const {
+      rootAbs,
+      prePlanSnapshot,
+      oldRelPosix,
+      newRelPosix,
+      isDirectory,
+      movedFileNewAbs,
+      movedFileNormalizedContent,
+    } = args;
+
+    // Patch the moved file's snapshot entry (keyed by its PRE-move path) with
+    // the post-normalizeAssets content so the planner plans outbound links from
+    // the canonical-sidecar content and leaves the sidecar refs alone.
+    const snapshot =
+      movedFileNormalizedContent === undefined
+        ? prePlanSnapshot
+        : prePlanSnapshot.map((f) =>
+            f.path === oldRelPosix
+              ? { path: f.path, content: movedFileNormalizedContent }
+              : f,
+          );
+
+    let writtenKeys = new Set<string>();
+    try {
+      const result = await applyLinkRewrite({
+        rootAbs,
+        files: snapshot,
+        oldPath: oldRelPosix,
+        newPath: newRelPosix,
+        isDirectory,
+        recordSelfWrite,
+      });
+      if (result.error) {
+        console.error(
+          `[link-rewrite] planner refused ${oldRelPosix} -> ${newRelPosix}: ${result.error}`,
+        );
+        return { writtenKeys };
+      }
+      writtenKeys = result.writtenKeys;
+    } catch (err) {
+      console.error("[link-rewrite] applyLinkRewrite failed:", err);
+      return { writtenKeys };
+    }
+
+    // Push a live-reload to the open file if its on-disk content changed. The
+    // moved file's own reload is handled by the caller after normalizeAssets.
+    const movedKey = toPosix(movedFileNewAbs).toLowerCase();
+    if (currentOpenPath) {
+      const openKey = normPathKey(currentOpenPath);
+      if (writtenKeys.has(openKey) && openKey !== movedKey) {
+        try {
+          const fresh = await fs.readFile(currentOpenPath, "utf-8");
+          await reconcileOnOpen(currentOpenPath, fresh);
+        } catch (err) {
+          console.error(
+            "[link-rewrite] open-file reload after rewrite failed:",
+            err,
+          );
+        }
+      }
+    }
+
+    return { writtenKeys };
+  }
+
   // Save image to per-file images subfolder next to the current .md file
   ipcMain.handle(
     "file:save-image",
@@ -2079,6 +2276,19 @@ function registerIpcHandlers() {
           }
         }
 
+        // Phase 11f: snapshot the markdown set + compute workspace-relative
+        // old/new POSIX paths BEFORE moving, so the pure planner sees the
+        // pre-move world. Folder moves arrive in a later sub-part; a .md move
+        // is always a file (isDirectory false), but we derive the flag from a
+        // stat so the integration generalizes when folder moves land.
+        let isDirectory = false;
+        try {
+          isDirectory = (await fs.stat(srcPath)).isDirectory();
+        } catch {
+          // Stat failure is non-fatal — treat as a file.
+        }
+        const rewritePrep = await prepareLinkRewrite(srcPath, newPath);
+
         // Move the file first (the user's primary intent), then each asset folder.
         await fs.rename(srcPath, newPath);
         for (const name of assetFolderNames) {
@@ -2096,6 +2306,25 @@ function registerIpcHandlers() {
             );
           }
         }
+
+        // Cross-document rewrite (writes the moved file's outbound links and
+        // every other referrer). A plain move does not change the basename, so
+        // the moved file's asset-folder references already line up with the
+        // folders we relocated above; unlike rename, move historically does
+        // NOT run normalizeAssetsForFile (it would promote a legacy-named
+        // sidecar and is intentionally left alone on a move), so we keep that
+        // behavior and only do the inter-document link rewrite here.
+        if (rewritePrep) {
+          await rewriteCrossDocumentLinks({
+            rootAbs: rewritePrep.rootAbs,
+            prePlanSnapshot: rewritePrep.snapshot,
+            oldRelPosix: rewritePrep.oldRelPosix,
+            newRelPosix: rewritePrep.newRelPosix,
+            isDirectory,
+            movedFileNewAbs: newPath,
+          });
+        }
+
         return { ok: true, newPath: newPath.replace(/\\/g, "/") };
       } catch (err) {
         console.error("[sidebar:move-file] failed:", err);
@@ -2128,18 +2357,64 @@ function registerIpcHandlers() {
         } catch {
           // ENOENT — destination is free, proceed
         }
+
+        // Phase 11f: snapshot the markdown set + compute workspace-relative
+        // old/new POSIX paths BEFORE the rename, so the pure planner sees the
+        // pre-move world (the correct basis for link targets). isDirectory is
+        // false here; a directory's `isDirectory` would be taken from a stat.
+        const isDirectory = false;
+        const rewritePrep = await prepareLinkRewrite(oldPath, newPath);
+
         await fs.rename(oldPath, newPath);
-        // After rename, normalize asset folders so the renamed file's images
-        // live in the new convention-named folder and content references match.
-        // Best-effort: any error here doesn't undo the rename.
+
+        // After rename, normalize asset folders FIRST so the renamed file's
+        // images live in the new convention-named folder and the file's own
+        // sidecar references are rewritten to match. We capture the resulting
+        // content and feed it to the cross-document rewrite below, so the pure
+        // planner sees canonical sidecar refs (and leaves them alone) and only
+        // recomputes inter-document/outbound links. This is the composition
+        // that keeps the two passes from clobbering each other on the moved
+        // file. Best-effort: any normalize error does not undo the rename.
+        let movedFileNormalizedContent: string | undefined;
         try {
-          await normalizeAssetsForFile(newPath);
+          const norm = await normalizeAssetsForFile(newPath);
+          if (norm.healed && norm.newContent !== undefined) {
+            // normalizeAssets writes %20-encoded content to disk; the planner
+            // decodes/encodes internally, so handing it the on-disk (encoded)
+            // content is consistent with how it treats every other file.
+            movedFileNormalizedContent = norm.newContent;
+          }
         } catch (err) {
           console.error(
             "[sidebar:rename-file] normalizeAssetsForFile failed:",
             err,
           );
         }
+
+        // Cross-document rewrite: every OTHER referrer to the renamed file, plus
+        // the renamed file's own outbound inter-doc links. The sidecar refs are
+        // already canonical (handled above) and left untouched by the planner.
+        if (rewritePrep) {
+          // If normalizeAssets did not change the moved file, fall back to its
+          // current on-disk content so the planner's snapshot patch is accurate.
+          if (movedFileNormalizedContent === undefined) {
+            try {
+              movedFileNormalizedContent = await fs.readFile(newPath, "utf-8");
+            } catch {
+              // Unreadable — let the planner use the pre-move snapshot as-is.
+            }
+          }
+          await rewriteCrossDocumentLinks({
+            rootAbs: rewritePrep.rootAbs,
+            prePlanSnapshot: rewritePrep.snapshot,
+            oldRelPosix: rewritePrep.oldRelPosix,
+            newRelPosix: rewritePrep.newRelPosix,
+            isDirectory,
+            movedFileNewAbs: newPath,
+            movedFileNormalizedContent,
+          });
+        }
+
         return newPath.replace(/\\/g, "/");
       } catch (err) {
         console.error("[sidebar:rename-file] failed:", err);
