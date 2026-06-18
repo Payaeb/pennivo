@@ -35,6 +35,7 @@ import {
   restoreSnapshot,
   setSnapshotEnvironment,
   setSnapshotMainWindow,
+  sha256Hex,
   writeSnapshot,
 } from "./snapshotStore";
 import {
@@ -67,6 +68,114 @@ let mainWindow: BrowserWindow | null = null;
 let isDirty = false;
 let forceClose = false;
 let folderWatcher: FSWatcher | null = null;
+
+// --- Live-reload of the open document on external change (Phase 12d-pre) ---
+// The renderer reports its currently-open file path via `watch:set-open-file`.
+// When a watcher (sidebar folderWatcher or the dedicated openFileWatcher below)
+// sees that exact file change on disk, we run `reconcileOnOpen` so the existing
+// Phase 13a pipeline takes an `external`-tagged snapshot and emits
+// `recovery:external-change-detected` — which the renderer turns into a smooth
+// reload (clean) or a Compare & merge prompt (dirty).
+let currentOpenPath: string | null = null;
+// Absolute path of the folder the sidebar folderWatcher currently covers
+// (recursively). Used to decide whether the open file already has coverage.
+let watchedSidebarFolder: string | null = null;
+// Dedicated watcher on the open file's parent dir, started only when that dir
+// is NOT already inside `watchedSidebarFolder` (no workspace, or file elsewhere).
+let openFileWatcher: FSWatcher | null = null;
+// Debounce timer for coalescing chunked external writes to the open file.
+let openFileChangeDebounce: ReturnType<typeof setTimeout> | undefined;
+// Self-write echo guard: content hashes Pennivo just wrote, keyed by normalized
+// path. A watcher event whose fresh disk hash matches a recent self-write is
+// ignored so our own saves don't trigger a reload flicker. Entries expire.
+const SELF_WRITE_TTL_MS = 2000;
+const recentSelfWrites = new Map<string, { hash: string; at: number }>();
+
+function normPathKey(p: string): string {
+  return p.replace(/\\/g, "/").toLowerCase();
+}
+
+function recordSelfWrite(filePath: string, content: string): void {
+  recentSelfWrites.set(normPathKey(filePath), {
+    hash: sha256Hex(content),
+    at: Date.now(),
+  });
+}
+
+// True when `dir` is the watched sidebar folder or a descendant of it (the
+// folderWatcher is recursive, so files under it are already covered).
+function isWithinWatchedSidebarFolder(dir: string): boolean {
+  if (!watchedSidebarFolder) return false;
+  const root = normPathKey(watchedSidebarFolder);
+  const target = normPathKey(dir);
+  return target === root || target.startsWith(root + "/");
+}
+
+// Called when any watcher observes a change to `changedAbsPath`. If that path is
+// the currently-open file, debounce then reconcile (which emits the external-
+// change event the renderer reloads from). No-op for every other path.
+function handlePossibleOpenFileChange(changedAbsPath: string): void {
+  if (!currentOpenPath) return;
+  if (normPathKey(changedAbsPath) !== normPathKey(currentOpenPath)) return;
+  clearTimeout(openFileChangeDebounce);
+  openFileChangeDebounce = setTimeout(() => {
+    void reconcileOpenFileFromDisk();
+  }, 200);
+}
+
+async function reconcileOpenFileFromDisk(): Promise<void> {
+  const target = currentOpenPath;
+  if (!target) return;
+  let content: string;
+  try {
+    content = await fs.readFile(target, "utf-8");
+  } catch {
+    // File may have been deleted/renamed out from under us — nothing to reload.
+    return;
+  }
+  // Skip our own just-written content (belt-and-suspenders over snapshot dedupe).
+  const key = normPathKey(target);
+  const self = recentSelfWrites.get(key);
+  if (self) {
+    if (Date.now() - self.at > SELF_WRITE_TTL_MS) {
+      recentSelfWrites.delete(key);
+    } else if (self.hash === sha256Hex(content)) {
+      return;
+    }
+  }
+  await reconcileOnOpen(target, content).catch((err) => {
+    console.error("[live-reload] reconcileOnOpen failed:", err);
+  });
+}
+
+// Start/stop the dedicated open-file watcher based on `currentOpenPath` and
+// whether the sidebar folderWatcher already covers it.
+function refreshOpenFileWatcher(): void {
+  if (openFileWatcher) {
+    openFileWatcher.close();
+    openFileWatcher = null;
+  }
+  if (!currentOpenPath) return;
+  const dir = path.dirname(currentOpenPath);
+  if (isWithinWatchedSidebarFolder(dir)) return; // already covered
+  try {
+    openFileWatcher = watch(
+      dir,
+      { recursive: false },
+      (_eventType, filename) => {
+        if (!filename) return;
+        handlePossibleOpenFileChange(path.join(dir, filename.toString()));
+      },
+    );
+  } catch {
+    // Watching may fail on some filesystems — live-reload simply won't fire.
+  }
+}
+
+function setCurrentOpenFile(filePath: string | null): void {
+  currentOpenPath = filePath;
+  refreshOpenFileWatcher();
+}
 
 // --- Single-instance lock + file-from-OS handling ---
 // When a user double-clicks a .md file in Explorer (after we've registered
@@ -465,13 +574,21 @@ function startFolderWatcher(folderPath: string) {
       { recursive: true },
       (_eventType, filename) => {
         if (!filename) return;
-        const ext = path.extname(filename).toLowerCase();
+        const name = filename.toString();
+        const ext = path.extname(name).toLowerCase();
         // Only notify for relevant file changes
         if (SIDEBAR_EXTENSIONS.has(ext) || ext === "") {
           mainWindow?.webContents.send("sidebar:folder-changed");
         }
+        // Live-reload: if the changed file is the one open in the editor,
+        // reconcile from disk (recursive watch → filename may include subdirs).
+        handlePossibleOpenFileChange(path.join(folderPath, name));
       },
     );
+    watchedSidebarFolder = folderPath;
+    // The open file may now be covered by this (recursive) watcher — drop the
+    // dedicated one if so to avoid duplicate events.
+    refreshOpenFileWatcher();
   } catch {
     // Watching may fail on some filesystems
   }
@@ -482,6 +599,9 @@ function stopFolderWatcher() {
     folderWatcher.close();
     folderWatcher = null;
   }
+  watchedSidebarFolder = null;
+  // The open file lost recursive coverage — (re)start the dedicated watcher.
+  refreshOpenFileWatcher();
 }
 
 function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
@@ -1075,6 +1195,9 @@ function registerIpcHandlers() {
   ipcMain.handle(
     "file:save",
     async (_e, args: { filePath: string; content: string }) => {
+      // Record before the write so a watcher event racing ahead of the
+      // snapshot still recognizes this as our own write (no reload flicker).
+      recordSelfWrite(args.filePath, args.content);
       await fs.writeFile(args.filePath, args.content, "utf-8");
       // Fire-and-log snapshot capture — runs after IPC returns. Don't await.
       scheduleSnapshotWrite(args.filePath, args.content, "user");
@@ -1096,6 +1219,7 @@ function registerIpcHandlers() {
 
       if (canceled || !filePath) return null;
 
+      recordSelfWrite(filePath, args.content);
       await fs.writeFile(filePath, args.content, "utf-8");
       await addRecentFile(filePath);
       scheduleSnapshotWrite(filePath, args.content, "user");
@@ -1480,6 +1604,12 @@ function registerIpcHandlers() {
   // --- Sidebar ---
   ipcMain.handle("sidebar:get-folder", async () => {
     return readSidebarFolder();
+  });
+
+  // Renderer reports its currently-open file so the watcher can live-reload it
+  // (Phase 12d-pre). `null` when no document is open.
+  ipcMain.handle("watch:set-open-file", async (_e, filePath: string | null) => {
+    setCurrentOpenFile(filePath);
   });
 
   ipcMain.handle(

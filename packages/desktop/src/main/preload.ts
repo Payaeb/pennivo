@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld("pennivo", {
       ipcRenderer.removeListener("sidebar:folder-changed", handler);
     };
   },
+  // Report the currently-open file so the main-process watcher can live-reload
+  // it on external change (Phase 12d-pre). `null` clears it.
+  setOpenFile: (filePath: string | null) =>
+    ipcRenderer.invoke("watch:set-open-file", filePath) as Promise<void>,
 
   // Sidebar file operations
   showItemInFolder: (filePath: string) =>

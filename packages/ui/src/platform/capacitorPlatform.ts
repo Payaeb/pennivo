@@ -543,6 +543,9 @@ export function createCapacitorPlatform(): PennivoPlatform {
     onSidebarFolderChanged: (_cb) => {
       notSupported("onSidebarFolderChanged");
     },
+    setOpenFile: async () => {
+      // Mobile has no external file watcher — silent no-op.
+    },
     showItemInFolder: async (_filePath: string) => {
       // Android has no equivalent of "show in file manager" — silent no-op.
       return false;

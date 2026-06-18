@@ -19,10 +19,10 @@ describe("ExternalChangeToast", () => {
         onDismiss={vi.fn()}
       />,
     );
+    expect(screen.getByText(/changed outside Pennivo/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/changed outside Pennivo/i),
+      screen.getByRole("button", { name: "View history" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "View history" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 
@@ -88,5 +88,41 @@ describe("ExternalChangeToast", () => {
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(200));
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  describe("conflict variant", () => {
+    it("renders the unsaved-edits message + Compare & merge (not View history)", () => {
+      render(
+        <ExternalChangeToast
+          absolutePath="/p/x.md"
+          variant="conflict"
+          onCompareMerge={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByText(/changed on disk while you had unsaved edits/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Compare & merge/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "View history" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("Compare & merge fires the callback", () => {
+      const onCompareMerge = vi.fn();
+      render(
+        <ExternalChangeToast
+          absolutePath="/p/x.md"
+          variant="conflict"
+          onCompareMerge={onCompareMerge}
+          onDismiss={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Compare & merge/i }));
+      expect(onCompareMerge).toHaveBeenCalledOnce();
+    });
   });
 });

@@ -167,6 +167,7 @@ export function createWebPlatform(): PennivoPlatform {
     },
     readDirectory: async () => [],
     onSidebarFolderChanged: () => noop,
+    setOpenFile: async () => {},
     showItemInFolder: async () => {
       warnUnsupported("showItemInFolder");
       return false;

@@ -56,6 +56,7 @@ export function createElectronPlatform(): PennivoPlatform {
     chooseSidebarFolder: () => api.chooseSidebarFolder(),
     readDirectory: (folderPath) => api.readDirectory(folderPath),
     onSidebarFolderChanged: (cb) => api.onSidebarFolderChanged(cb),
+    setOpenFile: (filePath) => api.setOpenFile(filePath),
     showItemInFolder: (filePath) => api.showItemInFolder(filePath),
 
     // Toolbar config

@@ -45,3 +45,6 @@
 .status-save--unsaved .status-save-dot {
   background: #c97a2a;
 }
+.status-save--external-reload .status-save-dot {
+  background: var(--accent);
+}

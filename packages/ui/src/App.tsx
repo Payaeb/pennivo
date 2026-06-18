@@ -372,8 +372,27 @@ function AppContent() {
   // toasts (e.g. file:open + file:open-path firing back-to-back).
   const [externalChangeToast, setExternalChangeToast] = useState<{
     absolutePath: string;
+    // `"external"` = informational (non-open file, or already in sync).
+    // `"conflict"` = the OPEN file changed while it had unsaved edits.
+    variant: "external" | "conflict";
+    // Snapshot of the new on-disk content — used as the merge "right" side.
+    snapshotId?: string;
   } | null>(null);
-  const externalChangeLastShownRef = useRef<Record<string, number>>({});
+  // Last external-change snapshotId handled per file path. Dedupes duplicate
+  // emits (e.g. the file:open + file:open-path race) by identity rather than a
+  // time window — distinct real changes carry distinct snapshotIds, so a second
+  // genuine change is never dropped (which a time window would do).
+  const externalChangeLastSnapshotRef = useRef<Record<string, string>>({});
+  // Forward-ref to the external-change handler. The subscription effect (which
+  // runs before loadContent is declared) calls through this ref; it's populated
+  // by an effect later, once loadContent + the reload funnel exist.
+  const handleExternalChangeRef = useRef<
+    ((payload: { absolutePath: string; snapshotId: string }) => void) | null
+  >(null);
+  // Timer that reverts the transient "Updated from disk" status back to "saved".
+  const externalReloadStatusTimerRef = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
 
   // --- Archive-status state (Phase 13a §2.7) ---
   // The titlebar chip renders only when this is non-null and indicates a
@@ -430,8 +449,8 @@ function AppContent() {
     platform.getSettings().then((saved) => {
       platform.setSettings({ ...saved, sidebarSort: key });
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sidebar context-menu handlers — wired directly to platform.
@@ -441,8 +460,8 @@ function AppContent() {
     platform.showItemInFolder(absPath).catch((err) => {
       console.error("[showItemInFolder] failed:", err);
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recordFileOpen = useCallback(
@@ -505,8 +524,8 @@ function AppContent() {
         setFileOpenTimestamps(cleaned);
       }
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist sidebar visibility on every toggle. Skip the very first render
@@ -519,8 +538,8 @@ function AppContent() {
     platform.getSettings().then((saved) => {
       platform.setSettings({ ...saved, sidebarVisible });
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarVisible]);
 
   const handleSettingsChange = useCallback(
@@ -556,8 +575,8 @@ function AppContent() {
       }));
       recoveryLayoutHydratedRef.current = true;
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist recovery layout on change (skip the initial hydration tick).
@@ -575,8 +594,8 @@ function AppContent() {
         },
       });
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recoveryHistoryLayout]);
 
   // Hydrate cap-banner dismissal state from persisted settings.
@@ -620,17 +639,23 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Subscribe to external-change-detected events. Dedupe per-file with a
-  // 1s window so back-to-back open events (file:open + file:open-path) don't
-  // double-toast.
+  // Subscribe to external-change-detected events. Dedupe per-file by snapshotId
+  // so duplicate emits (the file:open + file:open-path race) collapse while two
+  // genuinely distinct changes both get handled. The actual handling lives
+  // behind `handleExternalChangeRef` (populated after loadContent is declared)
+  // so this subscription stays stable while the handler closes over the latest
+  // reload helpers.
   useEffect(() => {
     const unsub = platform.snapshot.onExternalChangeDetected((payload) => {
-      const now = Date.now();
-      const last =
-        externalChangeLastShownRef.current[payload.absolutePath] ?? 0;
-      if (now - last < 1000) return;
-      externalChangeLastShownRef.current[payload.absolutePath] = now;
-      setExternalChangeToast({ absolutePath: payload.absolutePath });
+      if (
+        externalChangeLastSnapshotRef.current[payload.absolutePath] ===
+        payload.snapshotId
+      ) {
+        return;
+      }
+      externalChangeLastSnapshotRef.current[payload.absolutePath] =
+        payload.snapshotId;
+      handleExternalChangeRef.current?.(payload);
     });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -725,8 +750,8 @@ function AppContent() {
         return { filePath: fp, filename, truncatedPath: dir };
       }),
     );
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load recent files on mount
@@ -742,8 +767,8 @@ function AppContent() {
     }
     const tree = await platform.readDirectory(folder);
     if (tree) setSidebarTree(tree);
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChooseFolder = useCallback(async () => {
@@ -753,8 +778,8 @@ function AppContent() {
       setSidebarVisible(true);
       refreshSidebarTree(folder);
     }
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSidebarTree]);
 
   // Forward-ref to the post-rename reload routine. Populated by an effect
@@ -866,8 +891,8 @@ function AppContent() {
         }
       },
     );
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSidebarTree]);
 
   // Load persisted toolbar config on mount
@@ -875,8 +900,8 @@ function AppContent() {
     platform.getToolbarConfig().then((saved) => {
       if (saved) setToolbarConfig(saved as ConfigurableAction[]);
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToolbarConfigUpdate = useCallback(
@@ -900,13 +925,16 @@ function AppContent() {
       clearTimeout(debounce);
       cleanup();
     };
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarFolder, refreshSidebarTree]);
 
   const setFilePath = (p: string | null) => {
     filePathRef.current = p;
     setFilePathState(p);
+    // Report the open path so the main-process watcher can live-reload this
+    // file on external change (Phase 12d-pre). No-op on hosts without a watcher.
+    void platform.setOpenFile(p);
   };
 
   const setIsDirty = (dirty: boolean) => {
@@ -960,8 +988,8 @@ function AppContent() {
       setSaveStatus("unsaved");
       return false;
     }
-  // doSaveAs is intentionally not a dep — invoked through a stable wrapper; platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // doSaveAs is intentionally not a dep — invoked through a stable wrapper; platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const doSaveAs = useCallback(async (): Promise<boolean> => {
@@ -1005,8 +1033,8 @@ function AppContent() {
       setSaveStatus("unsaved");
       return false;
     }
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRecentFiles]);
 
   // --- Load content into the active editor ---
@@ -1081,9 +1109,100 @@ function AppContent() {
         showToast("Asset folders cleaned up for this file");
       }
     };
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadContent, showToast]);
+
+  // Populate the external-change handler used by the subscription effect above.
+  // Defined here (after loadContent) so it can run the smooth reload funnel.
+  // Phase 12d-pre: live-reload the open document when it changes on disk.
+  useEffect(() => {
+    handleExternalChangeRef.current = (payload) => {
+      const open = filePathRef.current;
+      const isOpenFile =
+        !!open &&
+        open.replace(/\\/g, "/").toLowerCase() ===
+          payload.absolutePath.replace(/\\/g, "/").toLowerCase();
+
+      // Not the open document → informational toast only (legacy behavior).
+      if (!isOpenFile) {
+        setExternalChangeToast({
+          absolutePath: payload.absolutePath,
+          variant: "external",
+        });
+        return;
+      }
+
+      // The open file changed on disk. The external snapshot's content IS the
+      // new disk content, so read it back and decide reload vs. merge.
+      void (async () => {
+        const snap = await platform.snapshot.read(
+          payload.absolutePath,
+          payload.snapshotId,
+        );
+        if (!snap) {
+          setExternalChangeToast({
+            absolutePath: payload.absolutePath,
+            variant: "external",
+          });
+          return;
+        }
+        const display = resolveImagePaths(snap.content, payload.absolutePath);
+
+        // Already in sync (detection fired on open and the editor already shows
+        // disk content) → nothing to do, no toast.
+        if (display === savedMarkdownRef.current) return;
+
+        // Unsaved edits → never clobber. Offer Compare & merge; the external
+        // snapshot is already captured so nothing is lost.
+        if (isDirtyRef.current) {
+          setExternalChangeToast({
+            absolutePath: payload.absolutePath,
+            variant: "conflict",
+            snapshotId: payload.snapshotId,
+          });
+          return;
+        }
+
+        // Clean → smooth silent reload, preserving scroll position. A single
+        // funnel (shared with the rename routine's shape) so Phase 12d can make
+        // this incremental later. `snap.meta` carries author/agentName for the
+        // future color-coded-attribution pass.
+        const area =
+          document.querySelector<HTMLElement>(".app-editor-area") ?? null;
+        const cmScroller = cmViewRef.current?.scrollDOM ?? null;
+        const prevScrollTop = sourceModeRef.current
+          ? (cmScroller?.scrollTop ?? 0)
+          : (area?.scrollTop ?? 0);
+
+        markdownRef.current = display;
+        savedMarkdownRef.current = display;
+        loadContent(display);
+        setOutlineMarkdown(display);
+        setIsDirty(false);
+
+        // Restore scroll after the editor applies the new content.
+        requestAnimationFrame(() => {
+          if (sourceModeRef.current) {
+            if (cmScroller) cmScroller.scrollTop = prevScrollTop;
+          } else if (area) {
+            area.scrollTop = prevScrollTop;
+          }
+        });
+
+        // Transient ambient signal — no per-write toast, so this stays smooth
+        // under rapid (streaming-style) writes. Reverts to "saved" if the user
+        // hasn't started editing in the meantime.
+        setSaveStatus("external-reload");
+        clearTimeout(externalReloadStatusTimerRef.current);
+        externalReloadStatusTimerRef.current = setTimeout(() => {
+          if (!isDirtyRef.current) setSaveStatus("saved");
+        }, 1500);
+      })();
+    };
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadContent]);
 
   // --- Drain pending markdown when Milkdown finishes initializing ---
   // Pairs with loadContent above for the cold-start race: if a .md was
@@ -1175,8 +1294,8 @@ function AppContent() {
     if (result.healed) {
       showToast("Asset folders cleaned up for this file");
     }
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen]);
 
   // --- Open recent file by path ---
@@ -1349,8 +1468,8 @@ function AppContent() {
     savedMarkdownRef.current = "";
     setIsDirty(false);
     setSaveStatus("saved");
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSave, loadContent]);
 
   // --- Auto-save ---
@@ -1375,8 +1494,8 @@ function AppContent() {
         setSaveStatus("unsaved");
       }
     }, AUTO_SAVE_DELAY);
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Periodic draft save to localStorage ---
@@ -1423,8 +1542,8 @@ function AppContent() {
     setDraftRecovery(null);
     clearDraft();
     showToast("Draft recovered");
-  // setIsDirty is a stable in-component helper that only touches refs + stable setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // setIsDirty is a stable in-component helper that only touches refs + stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftRecovery, loadContent, showToast]);
 
   const handleDiscardDraft = useCallback(() => {
@@ -1477,8 +1596,8 @@ function AppContent() {
       platform.setFullScreen(next);
       return next;
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Typewriter mode toggle ---
@@ -1524,8 +1643,8 @@ function AppContent() {
     if (!html) return;
     const result = await platform.exportHtml(html, filename);
     if (result) showToast("Exported as HTML");
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getEditorHtml, filename, showToast]);
 
   const doExportPdf = useCallback(async () => {
@@ -1533,8 +1652,8 @@ function AppContent() {
     if (!html) return;
     const result = await platform.exportPdf(html, filename);
     if (result) showToast("Exported as PDF");
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getEditorHtml, filename, showToast]);
 
   // --- Link popover state ---
@@ -2017,8 +2136,8 @@ function AppContent() {
       // Clipboard API not available or no image — fall through to text paste
     }
     platform.paste();
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleImagePaste, insertImage]);
 
   // --- Menu event listeners ---
@@ -2044,8 +2163,8 @@ function AppContent() {
       }),
     ];
     return () => cleanups.forEach((cleanup) => cleanup());
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     doOpen,
     doSave,
@@ -2069,8 +2188,8 @@ function AppContent() {
       });
     }
     return platform.onFileOpenFromOS((filePath) => openRecentFile(filePath));
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRecentFile]);
 
   // --- Auto-update available banner ---
@@ -2078,8 +2197,8 @@ function AppContent() {
   // fully downloaded, so dev runs never see the banner.
   useEffect(() => {
     return platform.onUpdateAvailable((version) => setUpdateAvailable(version));
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Drag-and-drop .md files to open ---
@@ -2147,8 +2266,8 @@ function AppContent() {
       document.removeEventListener("dragover", handleDragOver);
       document.removeEventListener("drop", handleDrop);
     };
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRecentFile]);
 
   // Set window title (taskbar) when filename changes
@@ -2157,8 +2276,8 @@ function AppContent() {
       ? `${extractFilename(filePath)} \u2014 Pennivo`
       : "untitled \u2014 Pennivo";
     platform.setTitle(title);
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath]);
 
   // Cleanup timers on unmount
@@ -3404,6 +3523,7 @@ function AppContent() {
       {externalChangeToast && (
         <ExternalChangeToast
           absolutePath={externalChangeToast.absolutePath}
+          variant={externalChangeToast.variant}
           onViewHistory={() => {
             // Open the recovery modal in History mode for the affected
             // file. Note: we don't auto-switch the editor's open file —
@@ -3415,6 +3535,18 @@ function AppContent() {
             // sidebar first.
             setExternalChangeToast(null);
             setRecoveryModalMode("history");
+            setRecoveryModalOpen(true);
+          }}
+          onCompareMerge={() => {
+            // Dirty conflict: reconcile the editor's unsaved version (the
+            // merge "current"/left side) against the new on-disk version
+            // (right = the external snapshot just captured) rather than
+            // clobbering. Opens the existing Phase 13a Compare & merge view.
+            const snapshotId = externalChangeToast.snapshotId;
+            setExternalChangeToast(null);
+            if (!snapshotId) return;
+            setCompareMergeSelection({ left: "current", right: snapshotId });
+            setRecoveryModalMode("compare-merge");
             setRecoveryModalOpen(true);
           }}
           onDismiss={() => setExternalChangeToast(null)}

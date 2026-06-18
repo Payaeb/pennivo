@@ -1,6 +1,6 @@
 import "./Statusbar.css";
 
-export type SaveStatus = "saved" | "saving" | "unsaved";
+export type SaveStatus = "saved" | "saving" | "unsaved" | "external-reload";
 
 interface StatusbarProps {
   wordCount: number;
@@ -51,7 +51,9 @@ function StatusSave({ status }: { status: SaveStatus }) {
         ? "Saving…"
         : status === "unsaved"
           ? "Unsaved"
-          : "Saved"}
+          : status === "external-reload"
+            ? "Updated from disk"
+            : "Saved"}
     </span>
   );
 }

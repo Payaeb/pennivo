@@ -47,6 +47,7 @@ export function createMockPennivoAPI() {
     chooseSidebarFolder: vi.fn(async () => null),
     readDirectory: vi.fn(async () => []),
     onSidebarFolderChanged: vi.fn(() => () => {}),
+    setOpenFile: vi.fn(async () => undefined),
     showItemInFolder: vi.fn(async () => true),
     getAssetSummary: vi.fn(async () => ({ folders: [], assetCount: 0 })),
     deleteFile: vi.fn(async () => true),

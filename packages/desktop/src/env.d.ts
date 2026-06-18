@@ -67,6 +67,7 @@ interface PennivoAPI {
   chooseSidebarFolder: () => Promise<string | null>;
   readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
+  setOpenFile: (filePath: string | null) => Promise<void>;
 
   // Sidebar file operations
   showItemInFolder: (filePath: string) => Promise<boolean>;

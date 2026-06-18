@@ -195,6 +195,12 @@ export interface PennivoPlatform {
   chooseSidebarFolder: () => Promise<string | null>;
   readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
+  /**
+   * Report the currently-open file path to the host so it can live-reload the
+   * editor when that file changes on disk (Phase 12d-pre). Pass `null` when no
+   * document is open. No-op on hosts without a file watcher (web/mobile).
+   */
+  setOpenFile: (filePath: string | null) => Promise<void>;
 
   // Reveal a file in the OS file manager (Electron-only; no-op on web/mobile).
   // Returns true if the call succeeded.
