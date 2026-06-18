@@ -16,6 +16,7 @@ import {
 } from "@pennivo/core";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 import { getPlatform } from "../../platform";
+import { relativizeImagePaths } from "../../utils/imagePaths";
 import "./CompareMergeView.css";
 
 /**
@@ -139,8 +140,15 @@ export function CompareMergeView({
         // Stat the file via fs would require IPC; we use the live
         // `currentContent` prop and stamp `ts: Date.now()` so the header
         // shows a live "current" marker. Author / device omitted.
+        //
+        // `currentContent` is the editor's in-memory markdown, which carries
+        // RESOLVED `pennivo-file://` image URLs. Snapshot content (the other
+        // side) is raw on-disk markdown with RELATIVE image paths. Relativize
+        // here so the diff is apples-to-apples (no spurious per-image hunks)
+        // and a merged result taken from this side writes valid relative paths
+        // back to disk.
         return {
-          content: currentContent,
+          content: relativizeImagePaths(currentContent, filePath),
           meta: { ts: Date.now(), isCurrent: true },
         };
       }

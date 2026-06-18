@@ -196,3 +196,68 @@ test("dirty: external write surfaces a conflict toast → Compare & merge", asyn
     "Compare & merge",
   );
 });
+
+test("clean: two sequential external writes both reflect (dedupe doesn't drop)", async () => {
+  const { window } = await setup();
+  const filePath = path.join(workspaceDir, "alpha.md");
+
+  await openViaSidebar(window, "alpha.md");
+  await waitForBaselineSnapshot(window, filePath);
+
+  await writeFile(filePath, "# Alpha\n\nfirst external revision.\n", "utf-8");
+  await expect(window.locator(".ProseMirror")).toContainText(
+    "first external revision",
+    { timeout: 10_000 },
+  );
+
+  // A second, distinct external write must also land — the snapshotId dedupe
+  // only collapses duplicate emits, never a genuinely new change.
+  await writeFile(filePath, "# Alpha\n\nsecond external revision.\n", "utf-8");
+  await expect(window.locator(".ProseMirror")).toContainText(
+    "second external revision",
+    { timeout: 10_000 },
+  );
+  await expect(window.locator(".ProseMirror")).not.toContainText(
+    "first external revision",
+  );
+});
+
+test("dedicated watcher: reloads a file opened with no workspace folder", async () => {
+  // No sidebar folder is configured, so the recursive folderWatcher never
+  // starts — the dedicated open-file watcher must cover the open document.
+  workspaceDir = await makeWorkspace();
+  userDataDir = await mkdtemp(path.join(tmpdir(), "pennivo-livereload-ud-"));
+  const launched = await launchApp(userDataDir);
+  app = launched.app;
+  const { window } = launched;
+  const filePath = path.join(workspaceDir, "alpha.md");
+
+  // Mock the native Open dialog to return our file, then trigger File → Open so
+  // the React open flow runs (and reports the open path to the main process).
+  await app.evaluate(({ dialog }, fp) => {
+    dialog.showOpenDialog = (async () => ({
+      canceled: false,
+      filePaths: [fp],
+    })) as typeof dialog.showOpenDialog;
+  }, filePath);
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send("menu:open");
+  });
+
+  await window.waitForFunction(
+    () => document.querySelector(".ProseMirror") !== null,
+    { timeout: 10_000 },
+  );
+  await expect(window.locator(".ProseMirror")).toContainText("baseline body");
+  await waitForBaselineSnapshot(window, filePath);
+
+  await writeFile(
+    filePath,
+    "# Alpha\n\nrewritten with no workspace open.\n",
+    "utf-8",
+  );
+  await expect(window.locator(".ProseMirror")).toContainText(
+    "rewritten with no workspace open",
+    { timeout: 10_000 },
+  );
+});

@@ -1176,10 +1176,19 @@ function AppContent() {
           ? (cmScroller?.scrollTop ?? 0)
           : (area?.scrollTop ?? 0);
 
-        markdownRef.current = display;
+        // Same large-file guard as open: if the file grew past the WYSIWYG
+        // limit on disk, force source mode before loading so we never push a
+        // multi-MB doc into Milkdown (which would crash). loadContent then
+        // renders the raw content into the source editor instead.
+        const sizeBytes = new TextEncoder().encode(snap.content).length;
+        fileSizeRef.current = sizeBytes;
+        if (sizeBytes > FILE_SIZE_SOURCE_DEFAULT && !sourceModeRef.current) {
+          setSourceMode(true);
+          sourceModeRef.current = true;
+        }
+
         savedMarkdownRef.current = display;
         loadContent(display);
-        setOutlineMarkdown(display);
         setIsDirty(false);
 
         // Restore scroll after the editor applies the new content.
@@ -2287,6 +2296,8 @@ function AppContent() {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (outlineTimerRef.current) clearTimeout(outlineTimerRef.current);
+      if (externalReloadStatusTimerRef.current)
+        clearTimeout(externalReloadStatusTimerRef.current);
     };
   }, []);
 

@@ -174,6 +174,8 @@ function refreshOpenFileWatcher(): void {
 
 function setCurrentOpenFile(filePath: string | null): void {
   currentOpenPath = filePath;
+  // Drop any pending reconcile for the previous file — it's no longer open.
+  clearTimeout(openFileChangeDebounce);
   refreshOpenFileWatcher();
 }
 
@@ -1437,6 +1439,9 @@ function registerIpcHandlers() {
         }
       }
       try {
+        // Record before writing so the watcher doesn't mistake Pennivo's own
+        // asset-coherence rewrite for an external change and live-reload it.
+        recordSelfWrite(filePath, newContentEncoded);
         await fs.writeFile(filePath, newContentEncoded, "utf-8");
       } catch (err) {
         console.error("[normalizeAssets] writeFile failed:", err);
@@ -2075,6 +2080,7 @@ function registerIpcHandlers() {
               restoredFrom: `merged:${args.left ?? "current"}+${args.right ?? "current"}`,
             });
           }
+          recordSelfWrite(args.filePath, args.content);
           await fs.writeFile(args.filePath, args.content, "utf-8");
           // Snapshot the merged result too — just like a normal save would.
           scheduleSnapshotWrite(args.filePath, args.content, "user");
@@ -2393,6 +2399,10 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  // Clear the open-file tracking first so stopFolderWatcher() doesn't resurrect
+  // the dedicated open-file watcher on a now-closed document (macOS keeps the
+  // app resident, so a dangling watcher would otherwise accumulate per cycle).
+  setCurrentOpenFile(null);
   stopFolderWatcher();
   if (process.platform !== "darwin") app.quit();
 });
