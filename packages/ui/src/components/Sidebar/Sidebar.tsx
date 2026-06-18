@@ -22,6 +22,14 @@ interface SidebarProps {
   sortKey?: SidebarSortKey;
   onSortChange?: (key: SidebarSortKey) => void;
   /**
+   * Global "Show empty folders" display pref. When true (default), folders with
+   * no markdown descendants render in the tree. The toggle lives in the sort
+   * menu popover. When `onToggleShowEmptyFolders` is omitted, the toggle row is
+   * hidden (so hosts that have not wired it see no visual change).
+   */
+  showEmptyFolders?: boolean;
+  onToggleShowEmptyFolders?: (next: boolean) => void;
+  /**
    * Starting sidebar width in CSS pixels. When provided (e.g. restored from the
    * active workspace's prefs) it seeds the internal width state. Omitted falls
    * back to the built-in default. Changes after mount are tracked so a
@@ -69,6 +77,19 @@ interface SidebarProps {
     newPath?: string;
     reason?: "collision" | "error";
   }>;
+  /**
+   * Create a new empty `.md` file inside `parentDir`. `name` is the bare name
+   * typed by the user; the host auto-appends `.md` and auto-suffixes on
+   * collision. Returns the created absolute path on success, or null on
+   * failure. When omitted, the "New File" menu entries are hidden.
+   */
+  onCreateFile?: (parentDir: string, name: string) => Promise<string | null>;
+  /**
+   * Create a new folder inside `parentDir`. Returns the created absolute path
+   * on success, or null on failure. When omitted, the "New Folder" menu
+   * entries are hidden.
+   */
+  onCreateFolder?: (parentDir: string, name: string) => Promise<string | null>;
   /** Surface success / error feedback (e.g. "Path copied", "Rename failed"). */
   onShowToast?: (message: string, isError?: boolean) => void;
   /**
@@ -117,6 +138,8 @@ export function Sidebar({
   onChooseFolder,
   sortKey = DEFAULT_SORT,
   onSortChange,
+  showEmptyFolders = true,
+  onToggleShowEmptyFolders,
   initialWidth,
   onWidthChange,
   onShowInExplorer,
@@ -127,6 +150,8 @@ export function Sidebar({
   onDeleteFile,
   onGetAssetSummary,
   onMoveFile,
+  onCreateFile,
+  onCreateFolder,
   onShowToast,
   workspaces,
   activeWorkspaceId = null,
@@ -157,7 +182,19 @@ export function Sidebar({
     x: number;
     y: number;
   } | null>(null);
+  // Root (tree-background) context menu with only New File / New Folder.
+  const [rootContextMenu, setRootContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  // When set, an inline "create new entry" input is shown inside `parentDir`
+  // (the workspace root or a folder row) for a file or folder. Mirrors the
+  // `renamingPath` pattern. Cleared on submit/cancel.
+  const [creatingIn, setCreatingIn] = useState<{
+    parentDir: string;
+    kind: "file" | "folder";
+  } | null>(null);
   // pendingDelete carries both the entry and the asset-count summary fetched
   // on confirm-open, so the dialog can offer "Also delete N asset(s)?".
   const [pendingDelete, setPendingDelete] = useState<{
@@ -180,6 +217,7 @@ export function Sidebar({
   } | null>(null);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const closeRootContextMenu = useCallback(() => setRootContextMenu(null), []);
 
   const handleContextMenuOpen = useCallback(
     (entry: FileTreeEntry, e: React.MouseEvent) => {
@@ -189,14 +227,38 @@ export function Sidebar({
         !onShowHistory &&
         !onRenameFile &&
         !onDeleteFile &&
-        !onShowToast
+        !onShowToast &&
+        !onCreateFile &&
+        !onCreateFolder
       ) {
         return;
       }
       e.preventDefault();
+      setRootContextMenu(null);
       setContextMenu({ entry, x: e.clientX, y: e.clientY });
     },
-    [onShowInExplorer, onShowHistory, onRenameFile, onDeleteFile, onShowToast],
+    [
+      onShowInExplorer,
+      onShowHistory,
+      onRenameFile,
+      onDeleteFile,
+      onShowToast,
+      onCreateFile,
+      onCreateFolder,
+    ],
+  );
+
+  // Right-click on the bare tree background → a minimal root context menu with
+  // just New File / New Folder (targeting the workspace root). The tree did not
+  // have a root context menu before Phase 11f; this adds one.
+  const handleRootContextMenuOpen = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onCreateFile && !onCreateFolder) return;
+      e.preventDefault();
+      setContextMenu(null);
+      setRootContextMenu({ x: e.clientX, y: e.clientY });
+    },
+    [onCreateFile, onCreateFolder],
   );
 
   const handleCopyPath = useCallback(
@@ -246,6 +308,30 @@ export function Sidebar({
       setRenamingPath(null);
     },
     [onRenameFile, onShowToast],
+  );
+
+  const handleCreateSubmit = useCallback(
+    async (name: string) => {
+      const target = creatingIn;
+      setCreatingIn(null);
+      if (!target) return;
+      const trimmed = name.trim();
+      // Empty name cancels silently (matches rename + the spec).
+      if (!trimmed) return;
+      const handler =
+        target.kind === "file" ? onCreateFile : onCreateFolder;
+      if (!handler) return;
+      const created = await handler(target.parentDir, trimmed);
+      if (created === null) {
+        onShowToast?.(
+          target.kind === "file"
+            ? "Could not create file"
+            : "Could not create folder",
+          true,
+        );
+      }
+    },
+    [creatingIn, onCreateFile, onCreateFolder, onShowToast],
   );
 
   // Open the delete-confirm dialog for a file. Fetches the asset summary
@@ -376,6 +462,26 @@ export function Sidebar({
     if (!contextMenu) return [];
     const { entry } = contextMenu;
     const items: ContextMenuEntry[] = [];
+    // New File / New Folder live on folder rows (the folder is the parent dir).
+    if (entry.type === "folder" && (onCreateFile || onCreateFolder)) {
+      if (onCreateFile) {
+        items.push({
+          type: "item",
+          label: "New File",
+          onClick: () =>
+            setCreatingIn({ parentDir: entry.path, kind: "file" }),
+        });
+      }
+      if (onCreateFolder) {
+        items.push({
+          type: "item",
+          label: "New Folder",
+          onClick: () =>
+            setCreatingIn({ parentDir: entry.path, kind: "folder" }),
+        });
+      }
+      items.push({ type: "separator" });
+    }
     if (onShowInExplorer && entry.type === "file") {
       items.push({
         type: "item",
@@ -419,6 +525,30 @@ export function Sidebar({
         label: "Delete",
         danger: true,
         onClick: () => openDeleteConfirm(entry),
+      });
+    }
+    return items;
+  })();
+
+  // Build the root (tree-background) context menu with only the create
+  // entries, targeting the workspace root (folderPath).
+  const rootContextMenuItems: ContextMenuEntry[] = (() => {
+    if (!rootContextMenu || !folderPath) return [];
+    const items: ContextMenuEntry[] = [];
+    if (onCreateFile) {
+      items.push({
+        type: "item",
+        label: "New File",
+        onClick: () =>
+          setCreatingIn({ parentDir: folderPath, kind: "file" }),
+      });
+    }
+    if (onCreateFolder) {
+      items.push({
+        type: "item",
+        label: "New Folder",
+        onClick: () =>
+          setCreatingIn({ parentDir: folderPath, kind: "folder" }),
       });
     }
     return items;
@@ -493,7 +623,12 @@ export function Sidebar({
           <span className="sidebar-file-count">{countFiles(tree)}</span>
         )}
         {folderPath && onSortChange && (
-          <SortMenu sortKey={sortKey} onSortChange={onSortChange} />
+          <SortMenu
+            sortKey={sortKey}
+            onSortChange={onSortChange}
+            showEmptyFolders={showEmptyFolders}
+            onToggleShowEmptyFolders={onToggleShowEmptyFolders}
+          />
         )}
         <button
           className="sidebar-set-folder-btn"
@@ -529,9 +664,13 @@ export function Sidebar({
           rootDir={folderPath}
           onFileClick={onFileClick}
           onContextMenuOpen={handleContextMenuOpen}
+          onRootContextMenuOpen={handleRootContextMenuOpen}
           renamingPath={renamingPath}
           onRenameSubmit={handleRenameSubmit}
           onRenameCancel={() => setRenamingPath(null)}
+          creatingIn={creatingIn}
+          onCreateSubmit={handleCreateSubmit}
+          onCreateCancel={() => setCreatingIn(null)}
           draggingPath={draggingPath}
           dragOverPath={dragOverPath}
           dragEnabled={!!onMoveFile}
@@ -572,6 +711,16 @@ export function Sidebar({
           items={contextMenuItems}
           onClose={closeContextMenu}
           ariaLabel={`Actions for ${contextMenu.entry.name}`}
+        />
+      )}
+
+      {rootContextMenu && rootContextMenuItems.length > 0 && (
+        <ContextMenu
+          x={rootContextMenu.x}
+          y={rootContextMenu.y}
+          items={rootContextMenuItems}
+          onClose={closeRootContextMenu}
+          ariaLabel="Create in this folder"
         />
       )}
 
@@ -639,6 +788,11 @@ interface TreeContext {
   renamingPath: string | null;
   onRenameSubmit: (oldPath: string, newName: string) => void;
   onRenameCancel: () => void;
+  // Inline "create new entry" state. When `creatingIn.parentDir` matches a
+  // folder's path (or the root), that container renders a CreateInput row.
+  creatingIn: { parentDir: string; kind: "file" | "folder" } | null;
+  onCreateSubmit: (name: string) => void;
+  onCreateCancel: () => void;
   // Drag-and-drop
   draggingPath: string | null;
   dragOverPath: string | null;
@@ -656,9 +810,13 @@ function TreeContainer({
   rootDir,
   onFileClick,
   onContextMenuOpen,
+  onRootContextMenuOpen,
   renamingPath,
   onRenameSubmit,
   onRenameCancel,
+  creatingIn,
+  onCreateSubmit,
+  onCreateCancel,
   draggingPath,
   dragOverPath,
   dragEnabled,
@@ -672,6 +830,7 @@ function TreeContainer({
   currentFilePath: string | null;
   rootDir: string;
   onFileClick: (filePath: string) => void;
+  onRootContextMenuOpen: (e: React.MouseEvent) => void;
 } & TreeContext) {
   const treeRef = useRef<HTMLDivElement>(null);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
@@ -681,6 +840,23 @@ function TreeContainer({
     for (const e of tree) if (e.type === "folder") set.add(e.path);
     return set;
   });
+
+  // When a "New File/Folder" is started inside a folder (not the root), make
+  // sure that folder is expanded so its inline CreateInput is visible. After a
+  // successful new-folder create the tree refreshes with the new folder already
+  // in the host's expanded set via this same auto-expand on its parent.
+  useEffect(() => {
+    if (!creatingIn) return;
+    const parent = creatingIn.parentDir;
+    const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+    if (norm(parent) === norm(rootDir)) return;
+    setExpandedPaths((prev) => {
+      if (prev.has(parent)) return prev;
+      const next = new Set(prev);
+      next.add(parent);
+      return next;
+    });
+  }, [creatingIn, rootDir]);
 
   // Flatten visible items for keyboard navigation
   const flatItems = useCallback((): FileTreeEntry[] => {
@@ -817,6 +993,9 @@ function TreeContainer({
   }, [focusedPath]);
 
   const isRootDragOver = dragOverPath === ROOT_DROP_TARGET;
+  const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+  const isCreatingAtRoot =
+    !!creatingIn && norm(creatingIn.parentDir) === norm(rootDir);
 
   return (
     <div
@@ -825,6 +1004,11 @@ function TreeContainer({
       role="tree"
       aria-label="File browser"
       onKeyDown={handleKeyDown}
+      onContextMenu={(e) => {
+        // Only the bare tree background opens the root menu; folder/file rows
+        // call onContextMenuOpen and stop here via their own handlers.
+        if (e.currentTarget === e.target) onRootContextMenuOpen(e);
+      }}
       onDragOver={(e) => {
         if (!dragEnabled) return;
         // Only treat as a root-drop if the drag is over the bare tree
@@ -846,6 +1030,14 @@ function TreeContainer({
         }
       }}
     >
+      {isCreatingAtRoot && creatingIn && (
+        <CreateInput
+          kind={creatingIn.kind}
+          indent={10}
+          onSubmit={onCreateSubmit}
+          onCancel={onCreateCancel}
+        />
+      )}
       <TreeNodes
         entries={tree}
         depth={0}
@@ -859,6 +1051,9 @@ function TreeContainer({
         renamingPath={renamingPath}
         onRenameSubmit={onRenameSubmit}
         onRenameCancel={onRenameCancel}
+        creatingIn={creatingIn}
+        onCreateSubmit={onCreateSubmit}
+        onCreateCancel={onCreateCancel}
         draggingPath={draggingPath}
         dragOverPath={dragOverPath}
         dragEnabled={dragEnabled}
@@ -885,6 +1080,9 @@ function TreeNodes({
   renamingPath,
   onRenameSubmit,
   onRenameCancel,
+  creatingIn,
+  onCreateSubmit,
+  onCreateCancel,
   draggingPath,
   dragOverPath,
   dragEnabled,
@@ -920,6 +1118,9 @@ function TreeNodes({
           renamingPath={renamingPath}
           onRenameSubmit={onRenameSubmit}
           onRenameCancel={onRenameCancel}
+          creatingIn={creatingIn}
+          onCreateSubmit={onCreateSubmit}
+          onCreateCancel={onCreateCancel}
           draggingPath={draggingPath}
           dragOverPath={dragOverPath}
           dragEnabled={dragEnabled}
@@ -947,6 +1148,9 @@ function TreeNode({
   renamingPath,
   onRenameSubmit,
   onRenameCancel,
+  creatingIn,
+  onCreateSubmit,
+  onCreateCancel,
   draggingPath,
   dragOverPath,
   dragEnabled,
@@ -975,6 +1179,11 @@ function TreeNode({
   const isRenaming = renamingPath === entry.path;
   const isDragSource = draggingPath === entry.path;
   const isDragTarget = isFolder && dragOverPath === entry.path;
+  const isCreatingHere =
+    isFolder &&
+    !!creatingIn &&
+    creatingIn.parentDir.replace(/\\/g, "/").toLowerCase() ===
+      entry.path.replace(/\\/g, "/").toLowerCase();
   const indent = 10 + depth * 16;
 
   if (isFolder) {
@@ -1027,30 +1236,43 @@ function TreeNode({
             <span className="tree-item-name">{entry.name}</span>
           </button>
         )}
-        {expanded && entry.children && (
+        {expanded && (isCreatingHere || entry.children) && (
           <div role="group">
-            <TreeNodes
-              entries={entry.children}
-              depth={depth + 1}
-              currentFilePath={currentFilePath}
-              onFileClick={onFileClick}
-              expandedPaths={expandedPaths}
-              toggleExpanded={toggleExpanded}
-              focusedPath={focusedPath}
-              setFocusedPath={setFocusedPath}
-              onContextMenuOpen={onContextMenuOpen}
-              renamingPath={renamingPath}
-              onRenameSubmit={onRenameSubmit}
-              onRenameCancel={onRenameCancel}
-              draggingPath={draggingPath}
-              dragOverPath={dragOverPath}
-              dragEnabled={dragEnabled}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDragOverTarget={onDragOverTarget}
-              onDragLeaveTarget={onDragLeaveTarget}
-              onDropOnTarget={onDropOnTarget}
-            />
+            {isCreatingHere && creatingIn && (
+              <CreateInput
+                kind={creatingIn.kind}
+                indent={10 + (depth + 1) * 16}
+                onSubmit={onCreateSubmit}
+                onCancel={onCreateCancel}
+              />
+            )}
+            {entry.children && (
+              <TreeNodes
+                entries={entry.children}
+                depth={depth + 1}
+                currentFilePath={currentFilePath}
+                onFileClick={onFileClick}
+                expandedPaths={expandedPaths}
+                toggleExpanded={toggleExpanded}
+                focusedPath={focusedPath}
+                setFocusedPath={setFocusedPath}
+                onContextMenuOpen={onContextMenuOpen}
+                renamingPath={renamingPath}
+                onRenameSubmit={onRenameSubmit}
+                onRenameCancel={onRenameCancel}
+                creatingIn={creatingIn}
+                onCreateSubmit={onCreateSubmit}
+                onCreateCancel={onCreateCancel}
+                draggingPath={draggingPath}
+                dragOverPath={dragOverPath}
+                dragEnabled={dragEnabled}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onDragOverTarget={onDragOverTarget}
+                onDragLeaveTarget={onDragLeaveTarget}
+                onDropOnTarget={onDropOnTarget}
+              />
+            )}
           </div>
         )}
       </>
@@ -1158,6 +1380,88 @@ function RenameInput({
         onBlur={() => onSubmit(value)}
         aria-label="New name"
       />
+    </div>
+  );
+}
+
+// Characters that are never valid in a file/folder name (OS-reserved plus path
+// separators). The host re-validates authoritatively; this drives inline UI
+// feedback so the user sees the problem before submitting.
+const INVALID_NAME_CHARS = ["/", "\\", "<", ">", ":", '"', "|", "?", "*"];
+
+function hasInvalidNameChar(name: string): boolean {
+  return INVALID_NAME_CHARS.some((ch) => name.includes(ch));
+}
+
+/**
+ * Inline input for the "New File" / "New Folder" flows. Mirrors `RenameInput`
+ * but starts empty, shows live validation for invalid path characters, and
+ * blocks submit while the name is invalid. Empty name (or Escape) cancels.
+ */
+function CreateInput({
+  kind,
+  indent,
+  onSubmit,
+  onCancel,
+}: {
+  kind: "file" | "folder";
+  indent: number;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const invalid = value.length > 0 && hasInvalidNameChar(value);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const trySubmit = () => {
+    const trimmed = value.trim();
+    if (trimmed === "") {
+      onCancel();
+      return;
+    }
+    if (hasInvalidNameChar(trimmed)) return; // keep the input open; show error
+    onSubmit(trimmed);
+  };
+
+  return (
+    <div
+      className="tree-item tree-item--renaming tree-item--creating"
+      style={{ paddingLeft: indent } as React.CSSProperties}
+    >
+      <span className="tree-item-chevron--placeholder" />
+      <span className="tree-item-icon">
+        {kind === "folder" ? <FolderClosedIcon /> : <MarkdownFileIcon />}
+      </span>
+      <input
+        ref={inputRef}
+        className={`tree-item-rename-input${invalid ? " tree-item-rename-input--invalid" : ""}`}
+        value={value}
+        placeholder={kind === "folder" ? "New folder name" : "New file name"}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          // Same rationale as RenameInput: keep keystrokes off global handlers.
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            trySubmit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        onBlur={trySubmit}
+        aria-label={kind === "folder" ? "New folder name" : "New file name"}
+        aria-invalid={invalid}
+      />
+      {invalid && (
+        <span className="tree-item-create-error" role="alert">
+          Invalid character
+        </span>
+      )}
     </div>
   );
 }
@@ -1296,9 +1600,13 @@ function CheckIcon() {
 function SortMenu({
   sortKey,
   onSortChange,
+  showEmptyFolders,
+  onToggleShowEmptyFolders,
 }: {
   sortKey: SidebarSortKey;
   onSortChange: (key: SidebarSortKey) => void;
+  showEmptyFolders: boolean;
+  onToggleShowEmptyFolders?: (next: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1371,6 +1679,22 @@ function SortMenu({
               </button>
             );
           })}
+          {onToggleShowEmptyFolders && (
+            <>
+              <div className="sidebar-sort-separator" role="separator" />
+              <button
+                className="sidebar-sort-option"
+                role="menuitemcheckbox"
+                aria-checked={showEmptyFolders}
+                onClick={() => onToggleShowEmptyFolders(!showEmptyFolders)}
+              >
+                <span className="sidebar-sort-option-check">
+                  {showEmptyFolders && <CheckIcon />}
+                </span>
+                <span>Show empty folders</span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

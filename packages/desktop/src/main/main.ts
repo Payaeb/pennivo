@@ -352,6 +352,13 @@ interface AppSettings {
   showWordCount?: boolean;
   typewriterMode?: boolean;
   /**
+   * Global sidebar display pref: when true (default), folders with no markdown
+   * descendants still render in the tree (so newly created / empty folders are
+   * visible). When false, the legacy pruning behavior is preserved exactly.
+   * Honored by `readDirectoryTree` via the `sidebar:read-directory` handler.
+   */
+  showEmptyFolders?: boolean;
+  /**
    * Phase 13a recovery configuration. Always migrated through
    * `migrateRecoverySettings` on read so missing keys fill from defaults
    * without clobbering user-set values.
@@ -622,7 +629,10 @@ interface FileTreeEntry {
   lastOpenedMs?: number;
 }
 
-async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
+async function readDirectoryTree(
+  dirPath: string,
+  showEmptyFolders: boolean,
+): Promise<FileTreeEntry[]> {
   const entries: FileTreeEntry[] = [];
   let items;
   try {
@@ -647,9 +657,16 @@ async function readDirectoryTree(dirPath: string): Promise<FileTreeEntry[]> {
     const fullPath = path.join(dirPath, item.name).replace(/\\/g, "/");
 
     if (item.isDirectory()) {
-      const children = await readDirectoryTree(path.join(dirPath, item.name));
-      // Only include folders that contain matching files (directly or nested)
-      if (children.length > 0) {
+      const children = await readDirectoryTree(
+        path.join(dirPath, item.name),
+        showEmptyFolders,
+      );
+      // By default the sidebar is a markdown browser, so a folder with no
+      // matching files (directly or nested) is pruned. When `showEmptyFolders`
+      // is on, the folder node is kept even with zero markdown descendants so
+      // newly created / empty folders are visible. Deeply nested empty folders
+      // surface too, since the same flag flows through the recursion above.
+      if (showEmptyFolders || children.length > 0) {
         entries.push({
           name: item.name,
           path: fullPath,
@@ -1768,9 +1785,20 @@ function registerIpcHandlers() {
     return folderPath;
   });
 
-  ipcMain.handle("sidebar:read-directory", async (_e, folderPath: string) => {
-    return readDirectoryTree(folderPath);
-  });
+  ipcMain.handle(
+    "sidebar:read-directory",
+    async (_e, folderPath: string, showEmptyFolders?: boolean) => {
+      // `showEmptyFolders` is a global display pref (settings.json, default
+      // true). The renderer passes its current value with each refresh; when it
+      // omits the flag (e.g. an older caller) we fall back to the stored
+      // setting, defaulting to true so empty folders show.
+      const flag =
+        typeof showEmptyFolders === "boolean"
+          ? showEmptyFolders
+          : readSettings().showEmptyFolders !== false;
+      return readDirectoryTree(folderPath, flag);
+    },
+  );
 
   // --- Workspaces (Phase 2) ---
   // State lives in settings.json under `workspaces`, migrated lazily from the
@@ -2115,6 +2143,97 @@ function registerIpcHandlers() {
         return newPath.replace(/\\/g, "/");
       } catch (err) {
         console.error("[sidebar:rename-file] failed:", err);
+        return null;
+      }
+    },
+  );
+
+  // --- New File / New Folder from the sidebar (Phase 11f) ---
+  // Both validate the bare name the same way `sidebar:rename-file` does (no path
+  // separators, no NUL, non-empty) plus the OS-reserved characters. On a name
+  // collision in the parent directory we auto-suffix " 2", " 3", ... rather than
+  // reject, for a smooth create UX. Created paths come back normalized with
+  // forward slashes; failures return null.
+
+  // Reject path separators, NUL, and the characters Windows forbids in a file
+  // name. Mirrors the rename validation, extended for cross-platform safety.
+  const isInvalidEntryName = (name: string): boolean => {
+    const trimmed = name.trim();
+    if (trimmed === "") return true;
+    if (
+      trimmed.includes("/") ||
+      trimmed.includes("\\") ||
+      trimmed.includes("\0")
+    ) {
+      return true;
+    }
+    // OS-reserved characters (Windows is the strictest superset) plus any
+    // control character. Spaces and hyphens are valid and stay allowed.
+    const reserved = ["<", ">", ":", '"', "|", "?", "*"];
+    if (reserved.some((ch) => trimmed.includes(ch))) return true;
+    for (let i = 0; i < trimmed.length; i++) {
+      if (trimmed.charCodeAt(i) < 0x20) return true;
+    }
+    return false;
+  };
+
+  // Resolve a collision-free path inside `dir` for `base` + `ext` ("" for
+  // folders). Tries "base", then "base 2", "base 3", ... until one is free.
+  const resolveFreePath = async (
+    dir: string,
+    base: string,
+    ext: string,
+  ): Promise<string> => {
+    let candidate = path.join(dir, `${base}${ext}`);
+    let counter = 2;
+    // Bounded loop: a few thousand iterations is far beyond any real workspace.
+    for (;;) {
+      try {
+        await fs.access(candidate);
+        // Exists — try the next suffix.
+        candidate = path.join(dir, `${base} ${counter}${ext}`);
+        counter += 1;
+      } catch {
+        // ENOENT — this candidate is free.
+        return candidate;
+      }
+    }
+  };
+
+  ipcMain.handle(
+    "sidebar:create-file",
+    async (_e, parentDir: string, name: string) => {
+      try {
+        if (isInvalidEntryName(name)) return null;
+        const trimmed = name.trim();
+        // Auto-append `.md` when the name has no extension. A trailing dot or a
+        // leading-dot-only name (e.g. ".gitignore") counts as "no real stem
+        // extension" → still append so the user always lands on a markdown file.
+        const dotIdx = trimmed.lastIndexOf(".");
+        const hasExtension = dotIdx > 0 && dotIdx < trimmed.length - 1;
+        const base = hasExtension ? trimmed.slice(0, dotIdx) : trimmed;
+        const finalExt = hasExtension ? trimmed.slice(dotIdx) : ".md";
+        const newPath = await resolveFreePath(parentDir, base, finalExt);
+        await fs.writeFile(newPath, "");
+        return newPath.replace(/\\/g, "/");
+      } catch (err) {
+        console.error("[sidebar:create-file] failed:", err);
+        return null;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "sidebar:create-folder",
+    async (_e, parentDir: string, name: string) => {
+      try {
+        if (isInvalidEntryName(name)) return null;
+        const trimmed = name.trim();
+        const newPath = await resolveFreePath(parentDir, trimmed, "");
+        await fs.mkdir(newPath);
+        return newPath.replace(/\\/g, "/");
+      } catch (err) {
+        console.error("[sidebar:create-folder] failed:", err);
         return null;
       }
     },

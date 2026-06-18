@@ -219,7 +219,16 @@ export interface PennivoPlatform {
   getSidebarFolder: () => Promise<string | null>;
   setSidebarFolder: (folderPath: string | null) => Promise<void>;
   chooseSidebarFolder: () => Promise<string | null>;
-  readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
+  /**
+   * Read the sidebar file tree for `folderPath`. `showEmptyFolders` is the
+   * global display pref: when true (default) folders with no markdown
+   * descendants are kept in the tree; when false they are pruned (legacy
+   * behavior). Omitting it lets the host fall back to the stored setting.
+   */
+  readDirectory: (
+    folderPath: string,
+    showEmptyFolders?: boolean,
+  ) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
   /**
    * Report the currently-open file path to the host so it can live-reload the
@@ -316,6 +325,20 @@ export interface PennivoPlatform {
     filePath: string,
   ) => Promise<{ folders: string[]; assetCount: number }>;
   renameFile: (oldPath: string, newName: string) => Promise<string | null>;
+
+  // New File / New Folder from the sidebar (Phase 11f). `name` is the bare
+  // entry name typed by the user (no path separators). The host validates +
+  // auto-suffixes on collision and, for files, auto-appends `.md` when there is
+  // no extension. Returns the created absolute path (forward-slash normalized)
+  // or null on validation failure / I/O error. Web + mobile stub these out.
+  createSidebarFile: (
+    parentDir: string,
+    name: string,
+  ) => Promise<string | null>;
+  createSidebarFolder: (
+    parentDir: string,
+    name: string,
+  ) => Promise<string | null>;
 
   // Snapshot recovery (Phase 13a)
   snapshot: SnapshotPlatform;

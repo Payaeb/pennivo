@@ -89,10 +89,12 @@ contextBridge.exposeInMainWorld("pennivo", {
     ipcRenderer.invoke("sidebar:set-folder", folderPath) as Promise<void>,
   chooseSidebarFolder: () =>
     ipcRenderer.invoke("sidebar:choose-folder") as Promise<string | null>,
-  readDirectory: (folderPath: string) =>
-    ipcRenderer.invoke("sidebar:read-directory", folderPath) as Promise<
-      FileTreeEntry[]
-    >,
+  readDirectory: (folderPath: string, showEmptyFolders?: boolean) =>
+    ipcRenderer.invoke(
+      "sidebar:read-directory",
+      folderPath,
+      showEmptyFolders,
+    ) as Promise<FileTreeEntry[]>,
   onSidebarFolderChanged: (cb: () => void) => {
     const handler = () => cb();
     ipcRenderer.on("sidebar:folder-changed", handler);
@@ -155,6 +157,14 @@ contextBridge.exposeInMainWorld("pennivo", {
       newPath?: string;
       reason?: "collision" | "error";
     }>,
+  createSidebarFile: (parentDir: string, name: string) =>
+    ipcRenderer.invoke("sidebar:create-file", parentDir, name) as Promise<
+      string | null
+    >,
+  createSidebarFolder: (parentDir: string, name: string) =>
+    ipcRenderer.invoke("sidebar:create-folder", parentDir, name) as Promise<
+      string | null
+    >,
 
   // Toolbar config
   getToolbarConfig: () =>

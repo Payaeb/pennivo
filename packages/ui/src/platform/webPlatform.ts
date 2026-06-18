@@ -331,6 +331,16 @@ export function createWebPlatform(): PennivoPlatform {
       warnUnsupported("renameFile");
       return null;
     },
+    // No real filesystem in browser preview, so sidebar create flows are a
+    // desktop-only feature. Warn-and-return-null keeps the interface satisfied.
+    createSidebarFile: async () => {
+      warnUnsupported("createSidebarFile");
+      return null;
+    },
+    createSidebarFolder: async () => {
+      warnUnsupported("createSidebarFolder");
+      return null;
+    },
 
     // Snapshot recovery (Phase 13a) — no-op stubs for browser preview.
     snapshot: {

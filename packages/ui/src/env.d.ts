@@ -65,7 +65,10 @@ interface PennivoAPI {
   getSidebarFolder: () => Promise<string | null>;
   setSidebarFolder: (folderPath: string | null) => Promise<void>;
   chooseSidebarFolder: () => Promise<string | null>;
-  readDirectory: (folderPath: string) => Promise<FileTreeEntry[]>;
+  readDirectory: (
+    folderPath: string,
+    showEmptyFolders?: boolean,
+  ) => Promise<FileTreeEntry[]>;
   onSidebarFolderChanged: (cb: () => void) => () => void;
   setOpenFile: (filePath: string | null) => Promise<void>;
 
@@ -98,6 +101,14 @@ interface PennivoAPI {
     newPath?: string;
     reason?: "collision" | "error";
   }>;
+  createSidebarFile: (
+    parentDir: string,
+    name: string,
+  ) => Promise<string | null>;
+  createSidebarFolder: (
+    parentDir: string,
+    name: string,
+  ) => Promise<string | null>;
 
   // Toolbar config
   getToolbarConfig: () => Promise<string[] | null>;

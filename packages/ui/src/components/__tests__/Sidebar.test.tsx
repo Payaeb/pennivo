@@ -211,6 +211,74 @@ describe("Sidebar", () => {
     });
   });
 
+  describe("Show empty folders toggle", () => {
+    it("does not render the toggle when onToggleShowEmptyFolders is absent", () => {
+      const onSortChange = vi.fn();
+      render(<Sidebar {...defaultProps} onSortChange={onSortChange} />);
+      fireEvent.click(screen.getByTitle("Sort files"));
+      expect(screen.queryByText("Show empty folders")).not.toBeInTheDocument();
+    });
+
+    it("renders the toggle in the sort menu when wired", () => {
+      const onSortChange = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          onToggleShowEmptyFolders={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      expect(screen.getByText("Show empty folders")).toBeInTheDocument();
+    });
+
+    it("reflects the setting via aria-checked (on)", () => {
+      const onSortChange = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          showEmptyFolders={true}
+          onToggleShowEmptyFolders={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      const toggle = screen.getByText("Show empty folders").closest("button");
+      expect(toggle).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("reflects the setting via aria-checked (off)", () => {
+      const onSortChange = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          showEmptyFolders={false}
+          onToggleShowEmptyFolders={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      const toggle = screen.getByText("Show empty folders").closest("button");
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+    });
+
+    it("clicking the toggle calls onToggleShowEmptyFolders with the negated value", () => {
+      const onToggleShowEmptyFolders = vi.fn();
+      const onSortChange = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          showEmptyFolders={true}
+          onToggleShowEmptyFolders={onToggleShowEmptyFolders}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      fireEvent.click(screen.getByText("Show empty folders"));
+      expect(onToggleShowEmptyFolders).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe("Context menu", () => {
     it("does not open on right-click when no context-menu handlers are provided", () => {
       render(<Sidebar {...defaultProps} />);
@@ -438,6 +506,165 @@ describe("Sidebar", () => {
       fireEvent.change(input, { target: { value: "shouldnotsave.md" } });
       fireEvent.keyDown(input, { key: "Escape" });
       expect(onRenameFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("New File / New Folder", () => {
+    it("folder context menu shows New File and New Folder", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={vi.fn(async () => "/docs/notes/untitled.md")}
+          onCreateFolder={vi.fn(async () => "/docs/notes/new")}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const folder = screen.getByText("notes").closest("button")!;
+      fireEvent.contextMenu(folder);
+      expect(screen.getByText("New File")).toBeInTheDocument();
+      expect(screen.getByText("New Folder")).toBeInTheDocument();
+    });
+
+    it("right-clicking the tree background opens a root menu with New File and New Folder", () => {
+      const { container } = render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={vi.fn(async () => "/docs/untitled.md")}
+          onCreateFolder={vi.fn(async () => "/docs/new")}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const tree = container.querySelector(".sidebar-tree") as HTMLElement;
+      fireEvent.contextMenu(tree);
+      const menu = screen.getByRole("menu");
+      expect(menu).toBeInTheDocument();
+      expect(screen.getByText("New File")).toBeInTheDocument();
+      expect(screen.getByText("New Folder")).toBeInTheDocument();
+    });
+
+    it("submitting a new file name calls onCreateFile with (parentDir, name)", async () => {
+      const onCreateFile = vi.fn(async () => "/docs/notes/draft.md");
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      fireEvent.click(screen.getByText("New File"));
+      const input = (await screen.findByLabelText(
+        "New file name",
+      )) as HTMLInputElement;
+      expect(input.value).toBe("");
+      fireEvent.change(input, { target: { value: "draft" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      expect(onCreateFile).toHaveBeenCalledWith("/docs/notes", "draft");
+    });
+
+    it("submitting a new folder name calls onCreateFolder with (parentDir, name)", async () => {
+      const onCreateFolder = vi.fn(async () => "/docs/notes/archive");
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFolder={onCreateFolder}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      fireEvent.click(screen.getByText("New Folder"));
+      const input = (await screen.findByLabelText(
+        "New folder name",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "archive" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      expect(onCreateFolder).toHaveBeenCalledWith("/docs/notes", "archive");
+    });
+
+    it("creating at the root targets the workspace root folderPath", async () => {
+      const onCreateFile = vi.fn(async () => "/docs/draft.md");
+      const { container } = render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const tree = container.querySelector(".sidebar-tree") as HTMLElement;
+      fireEvent.contextMenu(tree);
+      fireEvent.click(screen.getByText("New File"));
+      const input = (await screen.findByLabelText(
+        "New file name",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "draft" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      expect(onCreateFile).toHaveBeenCalledWith("/docs", "draft");
+    });
+
+    it("Escape during create cancels without calling the handler", async () => {
+      const onCreateFile = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      fireEvent.click(screen.getByText("New File"));
+      const input = await screen.findByLabelText("New file name");
+      fireEvent.change(input, { target: { value: "willcancel" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(onCreateFile).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("New file name")).not.toBeInTheDocument();
+    });
+
+    it("empty name submit cancels without calling the handler", async () => {
+      const onCreateFile = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      fireEvent.click(screen.getByText("New File"));
+      const input = await screen.findByLabelText("New file name");
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onCreateFile).not.toHaveBeenCalled();
+    });
+
+    it("invalid-character folder name shows validation and does not call the handler", async () => {
+      const onCreateFolder = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          onCreateFolder={onCreateFolder}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      fireEvent.click(screen.getByText("New Folder"));
+      const input = (await screen.findByLabelText(
+        "New folder name",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "bad/name" } });
+      // Inline validation appears
+      expect(screen.getByText("Invalid character")).toBeInTheDocument();
+      // Enter does not submit while invalid
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onCreateFolder).not.toHaveBeenCalled();
+    });
+
+    it("does not show New File / New Folder when create handlers are absent", () => {
+      render(<Sidebar {...defaultProps} onShowToast={vi.fn()} />);
+      fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
+      expect(screen.queryByText("New File")).not.toBeInTheDocument();
+      expect(screen.queryByText("New Folder")).not.toBeInTheDocument();
     });
   });
 

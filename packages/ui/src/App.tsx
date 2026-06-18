@@ -425,6 +425,12 @@ function AppContent() {
   // newer tree (matters when a startup folder load races an early user switch).
   const sidebarTreeRequestRef = useRef<string | null>(null);
   const [sidebarSort, setSidebarSort] = useState<SidebarSortKey>(DEFAULT_SORT);
+  // Global display pref: show folders that have no markdown descendants (so
+  // newly created / empty folders are visible). Default true; seeded from
+  // settings on mount, persisted on toggle. Read via a ref inside
+  // refreshSidebarTree so the (stable) callback always sees the current value.
+  const [showEmptyFolders, setShowEmptyFolders] = useState(true);
+  const showEmptyFoldersRef = useRef(true);
   // Map of normalized file path → millisecond timestamp of last open in Pennivo.
   // Powers the "Recently opened" sort. Persisted per active workspace (Phase 3).
   const [fileOpenTimestamps, setFileOpenTimestamps] = useState<
@@ -490,6 +496,9 @@ function AppContent() {
   useEffect(() => {
     fileOpenTimestampsRef.current = fileOpenTimestamps;
   }, [fileOpenTimestamps]);
+  useEffect(() => {
+    showEmptyFoldersRef.current = showEmptyFolders;
+  }, [showEmptyFolders]);
 
   const normalizeFilePath = useCallback(
     (p: string) => p.replace(/\\/g, "/").toLowerCase(),
@@ -635,6 +644,12 @@ function AppContent() {
         }
         if (saved && typeof saved.sidebarVisible === "boolean") {
           setSidebarVisible(saved.sidebarVisible);
+        }
+        // Global "Show empty folders" pref (default true). A user with no
+        // stored value gets true, so empty folders show out of the box.
+        if (saved && typeof saved.showEmptyFolders === "boolean") {
+          setShowEmptyFolders(saved.showEmptyFolders);
+          showEmptyFoldersRef.current = saved.showEmptyFolders;
         }
 
         const workspaces = rawWorkspaces as WorkspacesState | null | undefined;
@@ -960,12 +975,32 @@ function AppContent() {
       if (sidebarTreeRequestRef.current === folder) setSidebarTree([]);
       return;
     }
-    const tree = await platform.readDirectory(folder);
+    const tree = await platform.readDirectory(
+      folder,
+      showEmptyFoldersRef.current,
+    );
     if (sidebarTreeRequestRef.current !== folder) return;
     if (tree) setSidebarTree(tree);
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Toggle the global "Show empty folders" display pref. Updates React state +
+  // the ref (so the immediate tree refresh sees the new value), persists to the
+  // global settings, then rebuilds the tree so the change is visible at once.
+  const handleToggleShowEmptyFolders = useCallback(
+    (next: boolean) => {
+      setShowEmptyFolders(next);
+      showEmptyFoldersRef.current = next;
+      platform.getSettings().then((saved) => {
+        platform.setSettings({ ...saved, showEmptyFolders: next });
+      });
+      refreshSidebarTree(sidebarFolder);
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refreshSidebarTree, sidebarFolder],
+  );
 
   // Pick a folder and adopt it as a workspace. Phase 4 folds the legacy
   // "Set Folder" path into the workspace model: choosing a folder here adds it
@@ -1711,6 +1746,45 @@ function AppContent() {
     // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters; setSourceMode is a useCallback with [] deps — its identity is stable
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doSave, loadRecentFiles, loadContent, showToast, recordFileOpen],
+  );
+
+  // --- New File / New Folder from the sidebar (Phase 11f) ---
+
+  // Create an empty `.md` inside `parentDir`, refresh the tree, then open the
+  // new file in the editor (which drops the cursor in via the normal open
+  // flow). Returns the created path so the Sidebar can clear its inline input.
+  const handleSidebarCreateFile = useCallback(
+    async (parentDir: string, name: string): Promise<string | null> => {
+      const created = await platform.createSidebarFile(parentDir, name);
+      if (created) {
+        await refreshSidebarTree(sidebarFolder);
+        // Open + focus the new file through the same path as a sidebar click,
+        // which loads content (empty) and focuses the editor.
+        await handleSidebarFileClick(created);
+      }
+      return created;
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sidebarFolder, refreshSidebarTree, handleSidebarFileClick],
+  );
+
+  // Create a folder inside `parentDir` and refresh the tree. The sidebar tree
+  // is a markdown browser that prunes empty folders, so a brand-new empty
+  // folder is created on disk and the tree refreshes, but it only renders as a
+  // row once it contains a markdown file. The parent stays expanded during the
+  // create flow so the inline input is visible.
+  const handleSidebarCreateFolder = useCallback(
+    async (parentDir: string, name: string): Promise<string | null> => {
+      const created = await platform.createSidebarFolder(parentDir, name);
+      if (created) {
+        await refreshSidebarTree(sidebarFolder);
+      }
+      return created;
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sidebarFolder, refreshSidebarTree],
   );
 
   // --- Workspace prefs save / load (Phase 3) ---
@@ -3696,6 +3770,8 @@ function AppContent() {
           onChooseFolder={handleChooseFolder}
           sortKey={sidebarSort}
           onSortChange={handleSidebarSortChange}
+          showEmptyFolders={showEmptyFolders}
+          onToggleShowEmptyFolders={handleToggleShowEmptyFolders}
           initialWidth={sidebarWidth ?? undefined}
           onWidthChange={handleSidebarWidthChange}
           onShowInExplorer={handleSidebarShowInExplorer}
@@ -3712,6 +3788,8 @@ function AppContent() {
           onDeleteFile={handleSidebarDeleteFile}
           onGetAssetSummary={(p) => platform.getAssetSummary(p)}
           onMoveFile={handleSidebarMoveFile}
+          onCreateFile={handleSidebarCreateFile}
+          onCreateFolder={handleSidebarCreateFolder}
           onShowToast={(msg) => showToast(msg)}
           workspaces={workspaceList}
           activeWorkspaceId={activeWorkspaceId}

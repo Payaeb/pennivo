@@ -54,7 +54,8 @@ export function createElectronPlatform(): PennivoPlatform {
     getSidebarFolder: () => api.getSidebarFolder(),
     setSidebarFolder: (folderPath) => api.setSidebarFolder(folderPath),
     chooseSidebarFolder: () => api.chooseSidebarFolder(),
-    readDirectory: (folderPath) => api.readDirectory(folderPath),
+    readDirectory: (folderPath, showEmptyFolders) =>
+      api.readDirectory(folderPath, showEmptyFolders),
     onSidebarFolderChanged: (cb) => api.onSidebarFolderChanged(cb),
     setOpenFile: (filePath) => api.setOpenFile(filePath),
     showItemInFolder: (filePath) => api.showItemInFolder(filePath),
@@ -123,6 +124,10 @@ export function createElectronPlatform(): PennivoPlatform {
     renameFile: (oldPath, newName) => api.renameFile(oldPath, newName),
     moveFile: (srcPath, destDir, overwrite = false) =>
       api.moveFile(srcPath, destDir, overwrite),
+    createSidebarFile: (parentDir, name) =>
+      api.createSidebarFile(parentDir, name),
+    createSidebarFolder: (parentDir, name) =>
+      api.createSidebarFolder(parentDir, name),
 
     // Snapshot recovery (Phase 13a) — wired to the preload `snapshot` bridge
     snapshot: {

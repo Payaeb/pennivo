@@ -59,6 +59,13 @@ export function createMockPennivoAPI() {
         newPath: `${_destDir}/${_srcPath.split("/").pop()}`,
       }),
     ),
+    createSidebarFile: vi.fn(
+      async (parentDir: string, name: string) =>
+        `${parentDir}/${name.endsWith(".md") ? name : `${name}.md`}`,
+    ),
+    createSidebarFolder: vi.fn(
+      async (parentDir: string, name: string) => `${parentDir}/${name}`,
+    ),
 
     // Toolbar config
     getToolbarConfig: vi.fn(async () => null),

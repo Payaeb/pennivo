@@ -860,6 +860,13 @@ export function createCapacitorPlatform(): PennivoPlatform {
       }
     },
 
+    // New File / New Folder from the sidebar (Phase 11f) — there is no in-app
+    // sidebar tree with a context menu on Android v1, so these are stubbed to
+    // keep the interface satisfied and the build green. Mobile file creation
+    // goes through the FileBrowser's own `createFile(fileName)` flow.
+    createSidebarFile: async () => null,
+    createSidebarFolder: async () => null,
+
     // Snapshot recovery (Phase 13a) — Android does not support snapshots in
     // v1. The surface is stubbed so the renderer is platform-branch-free.
     // Android disk access requires SAF-aware writes outside the app's

@@ -432,6 +432,25 @@
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+/* ─── Inline create (New File / New Folder) ─── */
+
+.tree-item-rename-input--invalid {
+  border-color: var(--danger, #e5484d);
+}
+
+.tree-item-rename-input--invalid:focus {
+  box-shadow: 0 0 0 2px var(--danger-soft, rgba(229, 72, 77, 0.18));
+}
+
+.tree-item-create-error {
+  margin-left: 6px;
+  flex-shrink: 0;
+  color: var(--danger, #e5484d);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs, 11px);
+  white-space: nowrap;
+}
+
 /* ─── Sort menu ─── */
 
 .sidebar-sort {
@@ -539,6 +558,13 @@
 .sidebar-sort-option-check svg {
   width: 14px;
   height: 14px;
+}
+
+/* Divider between the sort options and the display-pref toggle below them. */
+.sidebar-sort-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
 }
 
 /* ─── Workspace switcher (Phase 4) — sibling of the sort menu above ─── */
