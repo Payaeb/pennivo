@@ -6,6 +6,10 @@ import {
 } from "../../utils/sortTree";
 import { ContextMenu, type ContextMenuEntry } from "../ContextMenu/ContextMenu";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
+import {
+  WorkspaceSwitcher,
+  type WorkspaceSwitcherItem,
+} from "./WorkspaceSwitcher";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -67,6 +71,20 @@ interface SidebarProps {
   }>;
   /** Surface success / error feedback (e.g. "Path copied", "Rename failed"). */
   onShowToast?: (message: string, isError?: boolean) => void;
+  /**
+   * Workspaces for the header title dropdown (Phase 4). When omitted, the
+   * header renders the plain folder-name title exactly as before, so a host
+   * that hasn't wired workspaces (or has none) sees no visual change.
+   */
+  workspaces?: WorkspaceSwitcherItem[];
+  /** Id of the active workspace, or null when none is selected. */
+  activeWorkspaceId?: string | null;
+  /** Switch to a different workspace by id (save-then-load on the host). */
+  onSwitchWorkspace?: (id: string) => void;
+  /** Open the folder picker and add the chosen folder as a new workspace. */
+  onAddWorkspace?: () => void;
+  /** Forget a workspace by id. Never touches files on disk. */
+  onRemoveWorkspace?: (id: string) => void;
 }
 
 const MIN_WIDTH = 180;
@@ -110,6 +128,11 @@ export function Sidebar({
   onGetAssetSummary,
   onMoveFile,
   onShowToast,
+  workspaces,
+  activeWorkspaceId = null,
+  onSwitchWorkspace,
+  onAddWorkspace,
+  onRemoveWorkspace,
 }: SidebarProps) {
   const [width, setWidth] = useState(
     typeof initialWidth === "number" ? clampWidth(initialWidth) : DEFAULT_WIDTH,
@@ -440,12 +463,32 @@ export function Sidebar({
     ? folderPath.replace(/\\/g, "/").split("/").pop() || "Folder"
     : null;
 
+  // The header switcher is enabled once the host wires the workspace handlers.
+  // Prefer the active workspace's name for the displayed title; fall back to
+  // the folder-derived name so a no-workspace install reads exactly like today.
+  const switcherEnabled =
+    !!onSwitchWorkspace && !!onAddWorkspace && !!onRemoveWorkspace;
+  const activeWorkspace = workspaces?.find((w) => w.id === activeWorkspaceId);
+  const displayTitle = activeWorkspace?.name || folderName || "Files";
+
   return (
     <div className="sidebar" ref={sidebarRef} style={{ width }}>
       <div className="sidebar-header">
-        <span className="sidebar-title" title={folderPath || undefined}>
-          {folderName || "Files"}
-        </span>
+        {switcherEnabled ? (
+          <WorkspaceSwitcher
+            workspaces={workspaces ?? []}
+            activeWorkspaceId={activeWorkspaceId}
+            displayName={displayTitle}
+            titleTooltip={activeWorkspace?.rootPath || folderPath || undefined}
+            onSwitchWorkspace={onSwitchWorkspace}
+            onAddWorkspace={onAddWorkspace}
+            onRemoveWorkspace={onRemoveWorkspace}
+          />
+        ) : (
+          <span className="sidebar-title" title={folderPath || undefined}>
+            {folderName || "Files"}
+          </span>
+        )}
         {folderPath && tree.length > 0 && (
           <span className="sidebar-file-count">{countFiles(tree)}</span>
         )}

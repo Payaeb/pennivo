@@ -540,3 +540,251 @@
   width: 14px;
   height: 14px;
 }
+
+/* ─── Workspace switcher (Phase 4) — sibling of the sort menu above ─── */
+
+.sidebar-workspace {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The trigger wraps the existing `.sidebar-title` span plus a chevron. It is
+   a bare button so the title keeps its look; the chevron only appears on
+   hover / focus / open so a single-workspace install reads like today. */
+.sidebar-workspace-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.sidebar-workspace-trigger:hover,
+.sidebar-workspace-trigger[aria-expanded="true"] {
+  background: var(--accent-soft);
+}
+
+/* Reuse the existing `.sidebar-title` typography untouched; just let it shrink
+   inside the trigger flex row. */
+.sidebar-workspace-trigger .sidebar-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-workspace-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  opacity: 0;
+  transition:
+    opacity var(--transition-fast),
+    transform 0.12s ease;
+}
+
+.sidebar-workspace-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.sidebar-workspace-trigger:hover .sidebar-workspace-chevron,
+.sidebar-workspace-trigger:focus-visible .sidebar-workspace-chevron,
+.sidebar-workspace-trigger[aria-expanded="true"] .sidebar-workspace-chevron {
+  opacity: 1;
+}
+
+.sidebar-workspace-chevron--open {
+  transform: rotate(180deg);
+}
+
+.sidebar-workspace-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: sidebar-sort-menu-in 120ms ease-out;
+}
+
+.sidebar-workspace-section-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  padding: 6px 10px 4px;
+}
+
+.sidebar-workspace-empty {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+  padding: 4px 10px 6px;
+}
+
+/* A row is the option button plus a hover-revealed remove affordance. */
+.sidebar-workspace-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.sidebar-workspace-row:hover,
+.sidebar-workspace-row:focus-within {
+  background: var(--accent-soft);
+}
+
+.sidebar-workspace-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-workspace-option:focus-visible {
+  outline: none;
+}
+
+.sidebar-workspace-row--selected .sidebar-workspace-option {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.sidebar-workspace-option-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.sidebar-workspace-option-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar-workspace-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Subtle remove (x) — hidden until the row is hovered or keyboard-focused. */
+.sidebar-workspace-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.sidebar-workspace-row:hover .sidebar-workspace-remove,
+.sidebar-workspace-row:focus-within .sidebar-workspace-remove,
+.sidebar-workspace-remove:focus-visible {
+  opacity: 1;
+}
+
+.sidebar-workspace-remove:hover,
+.sidebar-workspace-remove:focus-visible {
+  color: var(--danger);
+  background: var(--danger-soft);
+  outline: none;
+}
+
+.sidebar-workspace-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.sidebar-workspace-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.sidebar-workspace-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-workspace-add:hover,
+.sidebar-workspace-add:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.sidebar-workspace-add-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.sidebar-workspace-add-icon svg {
+  width: 14px;
+  height: 14px;
+}

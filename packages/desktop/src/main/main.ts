@@ -384,12 +384,37 @@ function readSettings(): AppSettings {
   }
 }
 
+// Serializes concurrent settings writes so two in-flight callers (e.g. a prefs
+// save racing a set-active) cannot interleave their temp-file + rename steps.
+let settingsWriteChain: Promise<void> = Promise.resolve();
+
 async function writeSettings(settings: AppSettings): Promise<void> {
-  await fs.writeFile(
-    getSettingsPath(),
-    JSON.stringify(settings, null, 2),
-    "utf-8",
-  );
+  // Atomic write: serialize, write to a unique temp file, then rename over the
+  // target. A rename is atomic on the same filesystem, so a concurrent reader
+  // (readSettings) never observes a half-written settings.json and falls back
+  // to an empty object, which would otherwise re-migrate from the legacy folder
+  // and drop every workspace except the active one (the multiple-workspaces
+  // startup corruption this guards against).
+  const run = settingsWriteChain.then(async () => {
+    const target = getSettingsPath();
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    const data = JSON.stringify(settings, null, 2);
+    try {
+      await fs.writeFile(tmp, data, "utf-8");
+      await fs.rename(tmp, target);
+    } catch (err) {
+      // Best-effort cleanup of the temp file if the rename failed.
+      try {
+        await fs.unlink(tmp);
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
+  });
+  // Keep the chain alive even if this write rejects, so later writes still run.
+  settingsWriteChain = run.catch(() => {});
+  await run;
 }
 
 /**

@@ -95,6 +95,7 @@ import {
   suggestFilenameFromContent,
   shouldShowCapBanner,
   defaultWorkspacePrefs,
+  type Workspace,
   type WorkspacesState,
   type WorkspacePrefs,
 } from "@pennivo/core";
@@ -417,6 +418,10 @@ function AppContent() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarFolder, setSidebarFolder] = useState<string | null>(null);
   const [sidebarTree, setSidebarTree] = useState<FileTreeEntry[]>([]);
+  // Most-recently-requested folder for refreshSidebarTree. Used as a last-write-
+  // wins token so an out-of-order async readDirectory result never clobbers a
+  // newer tree (matters when a startup folder load races an early user switch).
+  const sidebarTreeRequestRef = useRef<string | null>(null);
   const [sidebarSort, setSidebarSort] = useState<SidebarSortKey>(DEFAULT_SORT);
   // Map of normalized file path → millisecond timestamp of last open in Pennivo.
   // Powers the "Recently opened" sort. Persisted per active workspace (Phase 3).
@@ -439,6 +444,19 @@ function AppContent() {
   // active id; the prefs writers and the save/load helpers just read it. Phase
   // 4's switcher can promote this to state when it needs a reactive highlight.
   const activeWorkspaceIdRef = useRef<string | null>(null);
+  // Phase 4: the switcher renders off React state. We mirror the active id and
+  // the workspace list here so the header reflects switches/adds/removes. The
+  // ref above stays the source of truth for the prefs writers (synchronous,
+  // not subject to render timing); these two follow it.
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
+    null,
+  );
+  const [workspaceList, setWorkspaceList] = useState<Workspace[]>([]);
+  // True once a user-initiated workspace mutation (switch / add / remove) has
+  // run. The mount-time settings load reads this to avoid reseeding the active
+  // id or the workspace list from the stale startup snapshot after the user has
+  // already acted in the sub-300ms launch window (a launch-only race).
+  const userTouchedWorkspacesRef = useRef(false);
   // Mirror refs for the prefs values, so saveActiveWorkspacePrefs can gather a
   // current snapshot without depending on (and being recreated by) each value.
   const sidebarSortRef = useRef<SidebarSortKey>(DEFAULT_SORT);
@@ -621,6 +639,21 @@ function AppContent() {
         const activeId = workspaces?.activeWorkspaceId ?? null;
         const activePrefs =
           activeId && workspaces ? workspaces.prefs[activeId] : undefined;
+
+        // Startup race guard: if the user already switched / added / removed a
+        // workspace during this load's sub-300ms window, the switcher handlers
+        // have written the authoritative active id and list to React state (and
+        // to activeWorkspaceIdRef synchronously). Reseeding from this stale
+        // startup snapshot would revert their choice (e.g. flip the active id
+        // back, or re-add a just-removed workspace), so bail out entirely and
+        // leave the live user-driven state untouched.
+        if (userTouchedWorkspacesRef.current) {
+          return;
+        }
+
+        // Phase 4: seed the switcher's React state from the persisted list.
+        setWorkspaceList(workspaces?.workspaces ?? []);
+        setActiveWorkspaceId(activeId);
 
         if (activeId && activePrefs) {
           // Active workspace: drive sort / width / timestamps from its prefs.
@@ -891,26 +924,65 @@ function AppContent() {
 
   // --- Sidebar helpers ---
   const refreshSidebarTree = useCallback(async (folder: string | null) => {
+    // Last-write-wins guard. Concurrent refreshes for different folders (e.g. a
+    // late startup folder load racing an early user workspace switch) must not
+    // land out of order and show a stale tree. Record the folder this call is
+    // for and drop the result if a newer refresh has since superseded it.
+    sidebarTreeRequestRef.current = folder;
     if (!folder) {
-      setSidebarTree([]);
+      if (sidebarTreeRequestRef.current === folder) setSidebarTree([]);
       return;
     }
     const tree = await platform.readDirectory(folder);
+    if (sidebarTreeRequestRef.current !== folder) return;
     if (tree) setSidebarTree(tree);
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pick a folder and adopt it as a workspace. Phase 4 folds the legacy
+  // "Set Folder" path into the workspace model: choosing a folder here adds it
+  // as a workspace (or re-activates an existing one with the same root) and
+  // makes it active. This is the empty-state "Open Folder" entry point AND the
+  // header folder button; the switcher's "+ Add workspace..." reuses the same
+  // add+activate logic via handleAddWorkspace below.
   const handleChooseFolder = useCallback(async () => {
     const folder = await platform.chooseSidebarFolder();
-    if (folder) {
-      setSidebarFolder(folder);
-      setSidebarVisible(true);
-      refreshSidebarTree(folder);
+    if (!folder) return;
+
+    // User committed to adding a workspace: protect the resulting state from a
+    // late mount-time reseed (defensive; the folder dialog already serializes
+    // after the launch-race window).
+    userTouchedWorkspacesRef.current = true;
+
+    const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+    const rawState = await platform.workspaces.add(folder);
+    const state = rawState as WorkspacesState | null | undefined;
+    if (state?.workspaces) setWorkspaceList(state.workspaces);
+
+    const target = state?.workspaces.find(
+      (w) => norm(w.rootPath) === norm(folder),
+    );
+
+    setSidebarVisible(true);
+
+    if (target) {
+      // Activate via the platform so prefs persist + the active id is recorded.
+      const activeRaw = await platform.workspaces.setActive(target.id);
+      const activeState = activeRaw as WorkspacesState | null | undefined;
+      activeWorkspaceIdRef.current = target.id;
+      setActiveWorkspaceId(target.id);
+      if (activeState?.workspaces) setWorkspaceList(activeState.workspaces);
+      applyWorkspacePrefsToState(
+        activeState?.prefs[target.id] ?? defaultWorkspacePrefs(),
+      );
     }
+
+    setSidebarFolder(folder);
+    await refreshSidebarTree(folder);
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSidebarTree]);
+  }, [refreshSidebarTree, applyWorkspacePrefsToState]);
 
   // Forward-ref to the post-rename reload routine. Populated by an effect
   // later in the component (after loadContent + showToast are declared) —
@@ -1020,6 +1092,13 @@ function AppContent() {
       platform.getSidebarFolder(),
       platform.getSettings(),
     ]).then(([rawWorkspaces, legacyFolder, saved]) => {
+      // Startup race guard: if the user already switched / added / removed a
+      // workspace during this load's launch window, the switcher handlers have
+      // already pointed the sidebar at the chosen workspace's root and refreshed
+      // its tree. Reseeding the persisted active workspace's folder here would
+      // clobber that tree back to the startup workspace, so bail out.
+      if (userTouchedWorkspacesRef.current) return;
+
       const workspaces = rawWorkspaces as WorkspacesState | null | undefined;
       const active = workspaces?.workspaces.find(
         (w) => w.id === workspaces.activeWorkspaceId,
@@ -1614,7 +1693,7 @@ function AppContent() {
   // Gather the current sort key, sidebar width, fileOpenTimestamps, and the
   // currently-open file path, then persist them into the ACTIVE workspace's
   // prefs. No-op when there is no active workspace.
-  const saveActiveWorkspacePrefs = useCallback(() => {
+  const saveActiveWorkspacePrefs = useCallback(async () => {
     const id = activeWorkspaceIdRef.current;
     if (!id) return;
     const patch: Partial<WorkspacePrefs> = {
@@ -1625,7 +1704,9 @@ function AppContent() {
     if (typeof sidebarWidthRef.current === "number") {
       patch.sidebarWidth = sidebarWidthRef.current;
     }
-    void platform.workspaces.setPrefs(id, patch);
+    // Returns the platform promise so callers that must order a subsequent
+    // settings read (e.g. loadWorkspacePrefs -> setActive) can await the write.
+    await platform.workspaces.setPrefs(id, patch);
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1637,15 +1718,33 @@ function AppContent() {
   // triggers it yet.
   const loadWorkspacePrefs = useCallback(
     async (id: string) => {
-      // Save the workspace we're leaving before switching away from it.
-      if (activeWorkspaceIdRef.current && activeWorkspaceIdRef.current !== id) {
-        saveActiveWorkspacePrefs();
+      // Mark workspace state as user-touched BEFORE any await so a late-
+      // resolving mount-time load won't reseed over this switch (launch-race).
+      userTouchedWorkspacesRef.current = true;
+
+      // Save the workspace we're leaving before switching away from it. AWAIT
+      // the write: setActive below reads + rewrites the same settings.json, and
+      // an un-awaited save would race that read. A reader catching the settings
+      // file mid-write parses nothing, falls back to migrating the legacy
+      // single folder, and would drop every other workspace from the persisted
+      // state. Serializing the two operations from here closes that window.
+      const previousActiveId = activeWorkspaceIdRef.current;
+      if (previousActiveId && previousActiveId !== id) {
+        await saveActiveWorkspacePrefs();
       }
+
+      // Claim the active id synchronously, BEFORE the awaits below. This makes a
+      // user-initiated switch visible to any in-flight async load (notably the
+      // mount-time settings load), so a late-resolving startup load can detect
+      // the switch and avoid reverting the user's choice.
+      activeWorkspaceIdRef.current = id;
 
       const rawState = await platform.workspaces.setActive(id);
       const state = rawState as WorkspacesState | null | undefined;
 
-      activeWorkspaceIdRef.current = id;
+      // Phase 4: reflect the switch in the React state the header renders off.
+      setActiveWorkspaceId(id);
+      if (state?.workspaces) setWorkspaceList(state.workspaces);
 
       const prefs = state?.prefs[id] ?? defaultWorkspacePrefs();
       applyWorkspacePrefsToState(prefs);
@@ -1674,10 +1773,77 @@ function AppContent() {
     ],
   );
 
-  // Silence unused-var lint until Phase 4's switcher wires these up. They are
-  // intentionally defined here so that work can call them without touching
-  // this persistence logic again.
-  void loadWorkspacePrefs;
+  // --- Phase 4: workspace switcher handlers ---
+
+  // Switch to a workspace from the header dropdown. Thin wrapper over the
+  // Phase 3 save-then-load helper so the switcher stays presentational.
+  const handleSwitchWorkspace = useCallback(
+    (id: string) => {
+      void loadWorkspacePrefs(id);
+    },
+    [loadWorkspacePrefs],
+  );
+
+  // "+ Add workspace...": identical to the folder button — pick a folder, add
+  // it as a workspace (or re-activate an existing one), and switch to it. Also
+  // covers adding the FIRST workspace from a no-workspace install. Delegates to
+  // handleChooseFolder so there is a single add+activate code path.
+  const handleAddWorkspace = useCallback(() => {
+    void handleChooseFolder();
+  }, [handleChooseFolder]);
+
+  // Remove (forget) a workspace. Never touches files on disk. If the removed
+  // one was active, switch to whatever the platform reports as the new active
+  // workspace, or clear to the no-workspace state when none remain.
+  const handleRemoveWorkspace = useCallback(
+    async (id: string) => {
+      // Mark workspace state as user-touched BEFORE the await so a late-
+      // resolving mount-time load won't reseed the stale list (re-adding the
+      // workspace we are about to remove) during the launch-race window.
+      userTouchedWorkspacesRef.current = true;
+
+      const wasActive = activeWorkspaceIdRef.current === id;
+      const rawState = await platform.workspaces.remove(id);
+      const state = rawState as WorkspacesState | null | undefined;
+      const nextWorkspaces = state?.workspaces ?? [];
+      setWorkspaceList(nextWorkspaces);
+
+      if (!wasActive) {
+        // The removed workspace was not active, so the active workspace's prefs
+        // and tree are unchanged. Still sync the active id from the platform's
+        // post-remove state into React state + the ref: because we set
+        // userTouchedWorkspacesRef above, the mount-time load will skip its
+        // reseed, so this handler is now responsible for reflecting the active
+        // id (covers the launch-race where the user removes a workspace before
+        // the startup load has applied the persisted active id).
+        const stillActiveId = state?.activeWorkspaceId ?? null;
+        if (stillActiveId) {
+          activeWorkspaceIdRef.current = stillActiveId;
+          setActiveWorkspaceId(stillActiveId);
+        }
+        return;
+      }
+
+      const nextActiveId = state?.activeWorkspaceId ?? null;
+      if (nextActiveId) {
+        // Platform picked a new active workspace; load its prefs + tree.
+        await loadWorkspacePrefs(nextActiveId);
+        return;
+      }
+
+      // No workspaces left: clear to the graceful no-workspace state. We drop
+      // the sidebar folder + tree and reset the ref so the prefs writers fall
+      // back to the legacy global-settings path (matches a fresh install).
+      activeWorkspaceIdRef.current = null;
+      setActiveWorkspaceId(null);
+      setSidebarFolder(null);
+      setSidebarTree([]);
+      applyWorkspacePrefsToState(defaultWorkspacePrefs());
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loadWorkspacePrefs, applyWorkspacePrefsToState],
+  );
 
   // --- New file ---
   const doNewFile = useCallback(async () => {
@@ -3520,6 +3686,11 @@ function AppContent() {
           onGetAssetSummary={(p) => platform.getAssetSummary(p)}
           onMoveFile={handleSidebarMoveFile}
           onShowToast={(msg) => showToast(msg)}
+          workspaces={workspaceList}
+          activeWorkspaceId={activeWorkspaceId}
+          onSwitchWorkspace={handleSwitchWorkspace}
+          onAddWorkspace={handleAddWorkspace}
+          onRemoveWorkspace={handleRemoveWorkspace}
         />
       }
       outline={
