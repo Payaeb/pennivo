@@ -89,6 +89,16 @@ export {
 } from "./trash";
 
 export {
+  type Workspace,
+  type WorkspacePrefs,
+  type WorkspacesState,
+  defaultWorkspacePrefs,
+  workspaceNameFromPath,
+  findWorkspaceForPath,
+  migrateWorkspaces,
+} from "./workspaces";
+
+export {
   type DiffMode,
   type DiffLine,
   type DiffLineKind,
