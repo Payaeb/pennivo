@@ -35,6 +35,13 @@ export {
   encodeImageUrlSpaces,
 } from "./assetNormalizer";
 
+export {
+  type WorkspaceFile,
+  type LinkMoveInput,
+  type LinkRewriteResult,
+  planLinkRewrite,
+} from "./linkRewriter";
+
 export { suggestFilenameFromContent } from "./filenameSuggest";
 
 export {
