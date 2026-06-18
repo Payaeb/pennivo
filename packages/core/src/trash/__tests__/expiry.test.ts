@@ -44,7 +44,10 @@ describe("computeExpiresAtMs", () => {
   });
 });
 
-function makeEntry(deletedAtMs: number, expiresAtMs: number | null): TrashEntry {
+function makeEntry(
+  deletedAtMs: number,
+  expiresAtMs: number | null,
+): TrashEntry {
   return {
     id: `dummy-${deletedAtMs}`,
     absolutePath: "/foo/bar.md",

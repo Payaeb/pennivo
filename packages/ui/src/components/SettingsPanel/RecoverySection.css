@@ -12,7 +12,8 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: background var(--transition-base),
+  transition:
+    background var(--transition-base),
     border-color var(--transition-base);
 }
 
@@ -92,7 +93,8 @@
   font-size: 14px;
   line-height: 1;
   opacity: 0;
-  transition: opacity var(--transition-fast),
+  transition:
+    opacity var(--transition-fast),
     background var(--transition-fast),
     color var(--transition-fast);
 }
@@ -118,7 +120,8 @@
   padding: 4px 10px;
   border-radius: 5px;
   cursor: pointer;
-  transition: background var(--transition-fast),
+  transition:
+    background var(--transition-fast),
     color var(--transition-fast);
 }
 

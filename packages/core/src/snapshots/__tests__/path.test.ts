@@ -87,9 +87,7 @@ describe("snapshotFileBasename", () => {
   });
 
   it("respects a custom extension", () => {
-    expect(snapshotFileBasename(0, "txt")).toBe(
-      "1970-01-01T00-00-00-000Z.txt",
-    );
+    expect(snapshotFileBasename(0, "txt")).toBe("1970-01-01T00-00-00-000Z.txt");
   });
 });
 

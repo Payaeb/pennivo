@@ -1,14 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  defaultRetentionPolicy,
-  prune,
-  tierForAge,
-} from "../retention";
-import type {
-  RetentionPolicy,
-  RetentionTier,
-  Snapshot,
-} from "../types";
+import { defaultRetentionPolicy, prune, tierForAge } from "../retention";
+import type { RetentionPolicy, RetentionTier, Snapshot } from "../types";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -17,7 +9,9 @@ const DAY_MS = 86_400_000;
 // align cleanly without DST wobble (UTC throughout). 2026-06-15T12:00:00Z.
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
 
-function snap(overrides: Partial<Snapshot> & { id: string; ts: number }): Snapshot {
+function snap(
+  overrides: Partial<Snapshot> & { id: string; ts: number },
+): Snapshot {
   return {
     sizeBytes: 1024,
     contentHash: `hash-${overrides.id}`,
@@ -275,11 +269,7 @@ describe("prune — multi-tier composition", () => {
     const t2a = snap({ id: "t2a", ts: day + 1000 });
     const t2b = snap({ id: "t2b", ts: day + 5 * HOUR_MS }); // latest
 
-    const result = prune(
-      [t0a, t0b, t1a, t1b, t1c, t2a, t2b],
-      policy,
-      NOW,
-    );
+    const result = prune([t0a, t0b, t1a, t1b, t1c, t2a, t2b], policy, NOW);
     expect(ids(result.keep).sort()).toEqual(["t0a", "t0b", "t1c", "t2b"]);
     expect(ids(result.evict).sort()).toEqual(["t1a", "t1b", "t2a"]);
   });
@@ -458,11 +448,7 @@ describe("prune — degenerate inputs", () => {
 
   it("evicts everything when policy has zero tiers", () => {
     const policy: RetentionPolicy = { tiers: [] };
-    const result = prune(
-      [snap({ id: "a", ts: NOW - 1 })],
-      policy,
-      NOW,
-    );
+    const result = prune([snap({ id: "a", ts: NOW - 1 })], policy, NOW);
     expect(result.keep).toEqual([]);
     expect(ids(result.evict)).toEqual(["a"]);
   });

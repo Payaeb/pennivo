@@ -30,15 +30,9 @@ export { defaultRetentionPolicy, tierForAge, prune } from "./retention";
 
 export { routeSnapshot } from "./routing";
 
-export {
-  detectExternalChange,
-  type ExternalChangeStatus,
-} from "./external";
+export { detectExternalChange, type ExternalChangeStatus } from "./external";
 
-export {
-  dedupeArchiveQueue,
-  type ArchiveQueueEntry,
-} from "./archiveQueue";
+export { dedupeArchiveQueue, type ArchiveQueueEntry } from "./archiveQueue";
 
 export {
   defaultRecoverySettings,

@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createRef, type MutableRefObject, type ReactNode } from "react";
 
@@ -90,7 +96,9 @@ function renderCompareMergeView(
     <CompareMergeView
       filePath="/path/test.md"
       filename="test.md"
-      selection={overrides.selection ?? { left: "snap-left", right: "snap-right" }}
+      selection={
+        overrides.selection ?? { left: "snap-left", right: "snap-right" }
+      }
       currentContent={overrides.currentContent ?? ""}
       onShowToast={onShowToast}
       onOpenFilePath={onOpenFilePath}
@@ -119,7 +127,9 @@ describe("CompareMergeView", () => {
         screen.getByRole("button", { name: "Take left" }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByRole("button", { name: "Take right" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Take right" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Both" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit…" })).toBeInTheDocument();
   });
@@ -127,10 +137,14 @@ describe("CompareMergeView", () => {
   it("disables the Save buttons until every hunk is resolved", async () => {
     renderCompareMergeView();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: "Take left" }),
+      ).toBeInTheDocument(),
     );
     const saveAsNew = screen.getByRole("button", { name: /Save as new file/ });
-    const replace = screen.getByRole("button", { name: /Replace current file/ });
+    const replace = screen.getByRole("button", {
+      name: /Replace current file/,
+    });
     expect(saveAsNew).toBeDisabled();
     expect(replace).toBeDisabled();
 
@@ -144,24 +158,28 @@ describe("CompareMergeView", () => {
     await waitFor(() =>
       expect(screen.getByTestId("compare-merge-counter")).toBeInTheDocument(),
     );
-    expect(
-      screen.getByTestId("compare-merge-counter").textContent,
-    ).toMatch(/0 resolved/);
+    expect(screen.getByTestId("compare-merge-counter").textContent).toMatch(
+      /0 resolved/,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Take right" }));
     await waitFor(() =>
-      expect(
-        screen.getByTestId("compare-merge-counter").textContent,
-      ).toMatch(/1 resolved/),
+      expect(screen.getByTestId("compare-merge-counter").textContent).toMatch(
+        /1 resolved/,
+      ),
     );
   });
 
   it("Replace current opens a confirm dialog with pre-restore copy", async () => {
     renderCompareMergeView();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: "Take left" }),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Take left" }));
-    fireEvent.click(screen.getByRole("button", { name: /Replace current file/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Replace current file/ }),
+    );
     expect(
       screen.getByRole("alertdialog", { name: /Replace current file/ }),
     ).toBeInTheDocument();
@@ -173,7 +191,9 @@ describe("CompareMergeView", () => {
   it("Save as new file calls saveMerged with mode=as-new-file and opens the new path", async () => {
     const { onOpenFilePath, onClose } = renderCompareMergeView();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: "Take left" }),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Both" }));
     fireEvent.click(screen.getByRole("button", { name: /Save as new file/ }));
@@ -271,9 +291,9 @@ describe("CompareMergeView", () => {
     // Resolve ONE of the two hunks → progress without allResolved.
     fireEvent.click(screen.getAllByRole("button", { name: "Take left" })[0]);
     await waitFor(() =>
-      expect(
-        screen.getByTestId("compare-merge-counter").textContent,
-      ).toMatch(/1 resolved · 1 remaining/),
+      expect(screen.getByTestId("compare-merge-counter").textContent).toMatch(
+        /1 resolved · 1 remaining/,
+      ),
     );
 
     // With progress, the guard should NOT close immediately — instead it
@@ -320,9 +340,9 @@ describe("CompareMergeView", () => {
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Take left" })[0]);
     await waitFor(() =>
-      expect(
-        screen.getByTestId("compare-merge-counter").textContent,
-      ).toMatch(/1 resolved · 1 remaining/),
+      expect(screen.getByTestId("compare-merge-counter").textContent).toMatch(
+        /1 resolved · 1 remaining/,
+      ),
     );
 
     act(() => {
@@ -360,7 +380,9 @@ describe("CompareMergeView", () => {
       />,
     );
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: "Take left" }),
+      ).toBeInTheDocument(),
     );
     expect(typeof closeGuardRef.current).toBe("function");
     unmount();
@@ -373,13 +395,17 @@ describe("CompareMergeView", () => {
       currentContent: "alpha\nx\ngamma",
     });
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Take left" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: "Take left" }),
+      ).toBeInTheDocument(),
     );
     // The "current file" chip appears in the right pane header (and Replace
     // current file button label also matches /current file/i — narrow the
     // assertion to the chip element).
     expect(
-      screen.getByText("current file", { selector: ".compare-merge-side-chip" }),
+      screen.getByText("current file", {
+        selector: ".compare-merge-side-chip",
+      }),
     ).toBeInTheDocument();
   });
 });

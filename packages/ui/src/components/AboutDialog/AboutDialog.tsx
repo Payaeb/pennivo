@@ -19,8 +19,8 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
     platform.getAppInfo().then((info) => {
       if (info?.version) setVersion(info.version);
     });
-  // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   useEffect(() => {
@@ -60,8 +60,8 @@ export function AboutDialog({ visible, onClose }: AboutDialogProps) {
           <div>Licensed under MIT</div>
         </div>
         <p className="about-privacy">
-          Snapshots and trash are stored locally. Configure an archive folder
-          in Settings &rarr; Recovery to mirror older snapshots to a backup
+          Snapshots and trash are stored locally. Configure an archive folder in
+          Settings &rarr; Recovery to mirror older snapshots to a backup
           location.{" "}
           <button
             type="button"

@@ -30,11 +30,7 @@ export function CapExceededToast({
   }, [onDismiss, autoDismissMs]);
 
   return (
-    <div
-      className="cap-exceeded-toast"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="cap-exceeded-toast" role="status" aria-live="polite">
       <div className="cap-exceeded-toast-body">
         <span className="cap-exceeded-toast-message">
           {warning.protectedSnapshotCount} protected snapshot
@@ -67,6 +63,7 @@ export function CapExceededToast({
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
-  if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${Math.round(bytes / (1024 * 1024))} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

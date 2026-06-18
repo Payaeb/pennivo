@@ -73,9 +73,11 @@ beforeEach(() => {
   };
 });
 
-function renderTrashView(overrides: Partial<{
-  modalWidth: number;
-}> = {}) {
+function renderTrashView(
+  overrides: Partial<{
+    modalWidth: number;
+  }> = {},
+) {
   const onLayoutChange = vi.fn();
   const onShowToast = vi.fn();
   const utils = render(
@@ -175,7 +177,9 @@ describe("TrashView", () => {
       screen.getByRole("button", { name: /Restore selected \(1\)/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Delete selected permanently \(1\)/i }),
+      screen.getByRole("button", {
+        name: /Delete selected permanently \(1\)/i,
+      }),
     ).toBeInTheDocument();
   });
 

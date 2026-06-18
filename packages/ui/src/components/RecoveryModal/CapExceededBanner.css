@@ -56,7 +56,8 @@
   padding: 4px 10px;
   border-radius: 5px;
   cursor: pointer;
-  transition: background var(--transition-fast),
+  transition:
+    background var(--transition-fast),
     border-color var(--transition-fast);
 }
 

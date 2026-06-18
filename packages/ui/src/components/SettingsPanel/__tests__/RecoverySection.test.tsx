@@ -127,10 +127,9 @@ describe("RecoverySection", () => {
 
   it("device-name input emits its value", () => {
     const { onChange } = renderSection();
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /Device name/i }),
-      { target: { value: "MacBook" } },
-    );
+    fireEvent.change(screen.getByRole("textbox", { name: /Device name/i }), {
+      target: { value: "MacBook" },
+    });
     expect(onChange).toHaveBeenCalledWith({ deviceName: "MacBook" });
   });
 
@@ -172,7 +171,9 @@ describe("RecoverySection", () => {
 
   it("Clear all snapshots opens a confirm dialog", () => {
     renderSection();
-    fireEvent.click(screen.getByRole("button", { name: /Clear all snapshots/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Clear all snapshots/i }),
+    );
     expect(
       screen.getByRole("alertdialog", { name: /Clear all snapshots/i }),
     ).toBeInTheDocument();

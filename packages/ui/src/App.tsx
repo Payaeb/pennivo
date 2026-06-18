@@ -360,8 +360,9 @@ function AppContent() {
   const [capBannerDismissedAt, setCapBannerDismissedAt] = useState<
     number | null
   >(null);
-  const [lastCapWarningOverageBytes, setLastCapWarningOverageBytes] =
-    useState<number | null>(null);
+  const [lastCapWarningOverageBytes, setLastCapWarningOverageBytes] = useState<
+    number | null
+  >(null);
 
   // --- Trash count state (drives sidebar Trash entry visibility) ---
   const [trashCount, setTrashCount] = useState(0);
@@ -3432,11 +3433,13 @@ function AppContent() {
                 setSettingsOpen(true);
               }}
               onManageManually={() => {
-                if (capWarning) void persistCapBannerDismissal(capWarning.overageBytes);
+                if (capWarning)
+                  void persistCapBannerDismissal(capWarning.overageBytes);
                 showToast("We'll wait — delete snapshots from the timeline.");
               }}
               onDismiss={() => {
-                if (capWarning) void persistCapBannerDismissal(capWarning.overageBytes);
+                if (capWarning)
+                  void persistCapBannerDismissal(capWarning.overageBytes);
               }}
             />
           )}

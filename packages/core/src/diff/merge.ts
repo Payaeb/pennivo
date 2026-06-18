@@ -94,10 +94,8 @@ export function computeMergeSegments(
   ) => {
     // Translate the next line numbers to 0-based; if a side has null we
     // treat it as "no advancement on this side."
-    const leftTarget =
-      nextLeftLine === null ? leftIdx : nextLeftLine - 1;
-    const rightTarget =
-      nextRightLine === null ? rightIdx : nextRightLine - 1;
+    const leftTarget = nextLeftLine === null ? leftIdx : nextLeftLine - 1;
+    const rightTarget = nextRightLine === null ? rightIdx : nextRightLine - 1;
 
     // Both pointers should advance equally across the context gap.
     const leftAdvance = leftTarget - leftIdx;

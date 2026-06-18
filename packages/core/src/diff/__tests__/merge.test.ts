@@ -141,7 +141,9 @@ describe("applyMergeResolutions", () => {
       0: "left",
       1: "right",
     });
-    expect(merged).toBe(["a", "B1", "c", "d", "e", "f", "g", "X2", "h"].join("\n"));
+    expect(merged).toBe(
+      ["a", "B1", "c", "d", "e", "f", "g", "X2", "h"].join("\n"),
+    );
   });
 
   it("throws when a hunk has no resolution", () => {

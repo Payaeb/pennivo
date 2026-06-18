@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   formatDayGroupHeader,
   formatRowTime,
@@ -190,7 +184,10 @@ export function HistoryView({
   // ----- Selection handlers -----
 
   const toggleSelection = useCallback(
-    (id: string, ev: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => {
+    (
+      id: string,
+      ev: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean },
+    ) => {
       setSelectedIds((prev) => {
         const isShift = !!ev.shiftKey;
         const isToggle = !!(ev.ctrlKey || ev.metaKey);
@@ -240,10 +237,7 @@ export function HistoryView({
         if (!dragStartRef.current) return;
         const delta = me.clientX - dragStartRef.current.startX;
         const proposed = dragStartRef.current.startWidth + delta;
-        const maxAllowed = Math.max(
-          TIMELINE_MIN,
-          modalWidth - PREVIEW_MIN - 8,
-        );
+        const maxAllowed = Math.max(TIMELINE_MIN, modalWidth - PREVIEW_MIN - 8);
         const next = Math.max(TIMELINE_MIN, Math.min(maxAllowed, proposed));
         onLayoutChange({ timelineWidth: next });
       };
@@ -294,7 +288,9 @@ export function HistoryView({
         filePath,
       );
       if (res) {
-        onShowToast?.(`Restored snapshot from ${formatRowTime(new Date(sel.ts))}.`);
+        onShowToast?.(
+          `Restored snapshot from ${formatRowTime(new Date(sel.ts))}.`,
+        );
         // Re-open the file so the editor picks up the restored content.
         onOpenFilePath(filePath);
       } else {

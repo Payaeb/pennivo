@@ -249,7 +249,9 @@
   color: var(--text-primary);
   border-radius: 4px;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .compare-merge-chip:hover {

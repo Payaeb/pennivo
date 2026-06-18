@@ -112,7 +112,12 @@ describe("RecoveryModal", () => {
   it("Esc key calls onClose", () => {
     const onClose = vi.fn();
     render(
-      <RecoveryModal open mode="history" onModeChange={vi.fn()} onClose={onClose}>
+      <RecoveryModal
+        open
+        mode="history"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+      >
         <div>x</div>
       </RecoveryModal>,
     );
@@ -123,7 +128,12 @@ describe("RecoveryModal", () => {
   it("clicking the close button calls onClose", () => {
     const onClose = vi.fn();
     render(
-      <RecoveryModal open mode="history" onModeChange={vi.fn()} onClose={onClose}>
+      <RecoveryModal
+        open
+        mode="history"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+      >
         <div>x</div>
       </RecoveryModal>,
     );
@@ -134,7 +144,12 @@ describe("RecoveryModal", () => {
   it("clicking the overlay calls onClose; clicking inside does not", () => {
     const onClose = vi.fn();
     render(
-      <RecoveryModal open mode="history" onModeChange={vi.fn()} onClose={onClose}>
+      <RecoveryModal
+        open
+        mode="history"
+        onModeChange={vi.fn()}
+        onClose={onClose}
+      >
         <div>body</div>
       </RecoveryModal>,
     );

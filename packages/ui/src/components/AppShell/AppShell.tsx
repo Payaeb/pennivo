@@ -27,9 +27,10 @@ interface AppShellProps {
   recentFiles?: RecentFileEntry[];
   onOpenRecentFile?: (filePath: string) => void;
   /** Drives the inline `Archive offline` chip in the titlebar. */
-  archiveStatus?:
-    | { status: "ok" | "unavailable" | "queued"; count: number }
-    | null;
+  archiveStatus?: {
+    status: "ok" | "unavailable" | "queued";
+    count: number;
+  } | null;
   /** Click handler for the archive chip. */
   onArchiveStatusClick?: () => void;
   toolbar: ReactNode;

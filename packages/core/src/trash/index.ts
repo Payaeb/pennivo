@@ -7,7 +7,4 @@ export { trashEntryDirName } from "./path";
 export { computeExpiresAtMs, findExpired } from "./expiry";
 export { pickRestorePath, type PickRestorePathOptions } from "./restore";
 export { formatTrashExpiry } from "./display";
-export {
-  computeNextSelection,
-  type MultiSelectInput,
-} from "./multiSelect";
+export { computeNextSelection, type MultiSelectInput } from "./multiSelect";

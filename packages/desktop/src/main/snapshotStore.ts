@@ -155,7 +155,9 @@ function emit(channel: string, payload: unknown): void {
 
 // ---------- List + read ----------
 
-async function readSnapshotMeta(metaPath: string): Promise<SnapshotMetaFile | null> {
+async function readSnapshotMeta(
+  metaPath: string,
+): Promise<SnapshotMetaFile | null> {
   try {
     const data = await fs.readFile(metaPath, "utf-8");
     return JSON.parse(data) as SnapshotMetaFile;
@@ -370,10 +372,7 @@ export async function drainArchiveQueue(): Promise<void> {
   const remaining: ArchiveQueueEntry[] = [];
   for (const entry of queue) {
     try {
-      const fileDir = path.join(
-        archiveFolder,
-        path.dirname(entry.relPath),
-      );
+      const fileDir = path.join(archiveFolder, path.dirname(entry.relPath));
       await fs.mkdir(fileDir, { recursive: true });
       await fs.writeFile(
         path.join(archiveFolder, entry.relPath),
@@ -508,10 +507,7 @@ export async function writeSnapshot(
         );
         wroteArchive = true;
       } catch (err) {
-        console.warn(
-          "[snapshotStore] archive write failed; enqueueing:",
-          err,
-        );
+        console.warn("[snapshotStore] archive write failed; enqueueing:", err);
         await enqueueArchiveWrite({
           absolutePath: input.absolutePath,
           snapshotId: id,

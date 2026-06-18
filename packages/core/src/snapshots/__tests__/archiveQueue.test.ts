@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  dedupeArchiveQueue,
-  type ArchiveQueueEntry,
-} from "../archiveQueue";
+import { dedupeArchiveQueue, type ArchiveQueueEntry } from "../archiveQueue";
 
 function entry(overrides: Partial<ArchiveQueueEntry> = {}): ArchiveQueueEntry {
   return {

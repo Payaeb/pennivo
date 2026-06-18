@@ -21,9 +21,15 @@ describe("computeDiff", () => {
     expect(r.removedLines).toBe(0);
     expect(r.addedLines).toBeGreaterThanOrEqual(3);
     const allLines = r.hunks.flatMap((h) => h.lines);
-    expect(allLines.find((l) => l.kind === "add" && l.text === "one")).toBeTruthy();
-    expect(allLines.find((l) => l.kind === "add" && l.text === "two")).toBeTruthy();
-    expect(allLines.find((l) => l.kind === "add" && l.text === "three")).toBeTruthy();
+    expect(
+      allLines.find((l) => l.kind === "add" && l.text === "one"),
+    ).toBeTruthy();
+    expect(
+      allLines.find((l) => l.kind === "add" && l.text === "two"),
+    ).toBeTruthy();
+    expect(
+      allLines.find((l) => l.kind === "add" && l.text === "three"),
+    ).toBeTruthy();
   });
 
   it("flags every line as `remove` when newText is empty", () => {
@@ -32,8 +38,12 @@ describe("computeDiff", () => {
     expect(r.addedLines).toBe(0);
     expect(r.removedLines).toBeGreaterThanOrEqual(3);
     const allLines = r.hunks.flatMap((h) => h.lines);
-    expect(allLines.find((l) => l.kind === "remove" && l.text === "one")).toBeTruthy();
-    expect(allLines.find((l) => l.kind === "remove" && l.text === "three")).toBeTruthy();
+    expect(
+      allLines.find((l) => l.kind === "remove" && l.text === "one"),
+    ).toBeTruthy();
+    expect(
+      allLines.find((l) => l.kind === "remove" && l.text === "three"),
+    ).toBeTruthy();
   });
 
   it("returns unchanged=true when both inputs are empty", () => {
@@ -52,9 +62,9 @@ describe("computeDiff", () => {
     expect(r.removedLines).toBe(1);
     expect(r.hunks.length).toBe(1);
     const lines = r.hunks[0].lines;
-    expect(lines.some((l) => l.kind === "remove" && l.text === "old-line")).toBe(
-      true,
-    );
+    expect(
+      lines.some((l) => l.kind === "remove" && l.text === "old-line"),
+    ).toBe(true);
     expect(lines.some((l) => l.kind === "add" && l.text === "new-line")).toBe(
       true,
     );
@@ -138,12 +148,8 @@ describe("computeDiff", () => {
   it("tags lines inside fenced code blocks as inCodeBlock", () => {
     // Modify the code line so the hunk's context window covers the
     // intro/fence/outro lines on either side and we can assert their tags.
-    const oldText = ["intro", "```js", "let x = 1;", "```", "outro"].join(
-      "\n",
-    );
-    const newText = ["intro", "```js", "let x = 2;", "```", "outro"].join(
-      "\n",
-    );
+    const oldText = ["intro", "```js", "let x = 1;", "```", "outro"].join("\n");
+    const newText = ["intro", "```js", "let x = 2;", "```", "outro"].join("\n");
     const r = computeDiff(oldText, newText);
     const flat = r.hunks.flatMap((h) => h.lines);
     const intro = flat.find((l) => l.text === "intro");

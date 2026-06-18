@@ -590,7 +590,9 @@ function renderGridRows(
         key={key++}
         data-hunk-index={index}
       >
-        <span className="compare-merge-hunk-caption-text">── {hunkLabel} ──</span>
+        <span className="compare-merge-hunk-caption-text">
+          ── {hunkLabel} ──
+        </span>
       </div>,
     );
     rows.push(
@@ -599,7 +601,9 @@ function renderGridRows(
         key={key++}
         data-hunk-index={index}
       >
-        <span className="compare-merge-hunk-caption-text">── {hunkLabel} ──</span>
+        <span className="compare-merge-hunk-caption-text">
+          ── {hunkLabel} ──
+        </span>
       </div>,
     );
 

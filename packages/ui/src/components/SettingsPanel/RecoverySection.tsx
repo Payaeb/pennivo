@@ -52,7 +52,10 @@ const TRASH_RETENTION_OPTIONS: Array<{ label: string; value: number }> = [
   { label: "Forever", value: -1 },
 ];
 
-const GRANULARITY_OPTIONS: Array<{ label: string; value: RetentionGranularity }> = [
+const GRANULARITY_OPTIONS: Array<{
+  label: string;
+  value: RetentionGranularity;
+}> = [
   { label: "Every save", value: "every" },
   { label: "Hourly", value: "hourly" },
   { label: "Daily", value: "daily" },
@@ -345,10 +348,7 @@ export function RecoverySection({
           <span className="settings-label-desc">
             {storageBytes === null
               ? "Calculating usage…"
-              : formatStorageSubLabel(
-                  storageBytes,
-                  settings.maxStorageBytes,
-                )}
+              : formatStorageSubLabel(storageBytes, settings.maxStorageBytes)}
           </span>
         </div>
         <select
@@ -391,7 +391,10 @@ export function RecoverySection({
           <div className="settings-label">Archive folder</div>
           {hasArchive ? (
             <div className="recovery-archive-row">
-              <span className="recovery-archive-path" title={settings.archiveFolder}>
+              <span
+                className="recovery-archive-path"
+                title={settings.archiveFolder}
+              >
                 {abbreviatePath(settings.archiveFolder!)}
               </span>
               <button
@@ -627,9 +630,7 @@ function AddTierForm({ onCancel, onAdd }: AddTierFormProps) {
       <span className="recovery-add-tier-label">keep</span>
       <select
         value={granularity}
-        onChange={(e) =>
-          setGranularity(e.target.value as RetentionGranularity)
-        }
+        onChange={(e) => setGranularity(e.target.value as RetentionGranularity)}
         className="settings-select recovery-add-tier-granularity"
         aria-label="Tier granularity"
       >
@@ -639,11 +640,7 @@ function AddTierForm({ onCancel, onAdd }: AddTierFormProps) {
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        className="recovery-add-tier-btn"
-        onClick={submit}
-      >
+      <button type="button" className="recovery-add-tier-btn" onClick={submit}>
         Add
       </button>
       <button

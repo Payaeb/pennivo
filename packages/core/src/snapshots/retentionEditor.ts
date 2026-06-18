@@ -61,7 +61,10 @@ export function msToTierAge(maxAgeMs: number): {
     return { count: maxAgeMs / MS_PER_WEEK, unit: "weeks" };
   if (maxAgeMs >= MS_PER_DAY && maxAgeMs % MS_PER_DAY === 0)
     return { count: maxAgeMs / MS_PER_DAY, unit: "days" };
-  return { count: Math.max(1, Math.round(maxAgeMs / MS_PER_HOUR)), unit: "hours" };
+  return {
+    count: Math.max(1, Math.round(maxAgeMs / MS_PER_HOUR)),
+    unit: "hours",
+  };
 }
 
 /**
@@ -144,7 +147,9 @@ export function insertTier(
 
   // De-dupe + insert.
   const filtered = existingTiers.filter((t) => t.maxAgeMs !== newTier.maxAgeMs);
-  const filteredDest = filtered.map((t) => existingDestByMaxAge.get(t.maxAgeMs)!);
+  const filteredDest = filtered.map(
+    (t) => existingDestByMaxAge.get(t.maxAgeMs)!,
+  );
   filtered.push(newTier);
   filteredDest.push({
     tierIndex: filtered.length - 1,

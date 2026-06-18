@@ -68,7 +68,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition-fast),
+  transition:
+    background var(--transition-fast),
     color var(--transition-fast);
 }
 
@@ -110,7 +111,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition-fast),
+  transition:
+    background var(--transition-fast),
     color var(--transition-fast);
 }
 
@@ -287,7 +289,9 @@
   padding: 3px 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .history-view-preview-tab:hover {
@@ -354,7 +358,8 @@
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background var(--transition-fast),
+  transition:
+    background var(--transition-fast),
     border-color var(--transition-fast);
   flex-shrink: 0;
 }

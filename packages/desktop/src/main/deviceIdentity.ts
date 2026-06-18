@@ -63,7 +63,9 @@ let memoizedRecord: DeviceRecord | null = null;
  * persistence write are swallowed (logged) so an unwritable userData dir
  * doesn't block the entire app from loading.
  */
-export async function getDeviceRecord(userDataDir: string): Promise<DeviceRecord> {
+export async function getDeviceRecord(
+  userDataDir: string,
+): Promise<DeviceRecord> {
   if (memoizedRecord) return memoizedRecord;
   const filePath = path.join(userDataDir, "device.json");
 

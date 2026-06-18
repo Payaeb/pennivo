@@ -27,17 +27,13 @@ describe("ArchiveStatusChip", () => {
   });
 
   it("renders the chip when status is 'queued' with N count tooltip", () => {
-    render(
-      <ArchiveStatusChip status="queued" count={5} onClick={vi.fn()} />,
-    );
+    render(<ArchiveStatusChip status="queued" count={5} onClick={vi.fn()} />);
     const btn = screen.getByRole("button", { name: /5 snapshots waiting/ });
     expect(btn).toBeInTheDocument();
   });
 
   it("singularizes the queued count copy", () => {
-    render(
-      <ArchiveStatusChip status="queued" count={1} onClick={vi.fn()} />,
-    );
+    render(<ArchiveStatusChip status="queued" count={1} onClick={vi.fn()} />);
     expect(
       screen.getByRole("button", { name: /1 snapshot waiting/ }),
     ).toBeInTheDocument();
@@ -45,9 +41,7 @@ describe("ArchiveStatusChip", () => {
 
   it("fires onClick when the chip is clicked", () => {
     const onClick = vi.fn();
-    render(
-      <ArchiveStatusChip status="queued" count={2} onClick={onClick} />,
-    );
+    render(<ArchiveStatusChip status="queued" count={2} onClick={onClick} />);
     fireEvent.click(screen.getByRole("button"));
     expect(onClick).toHaveBeenCalledOnce();
   });

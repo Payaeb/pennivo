@@ -52,8 +52,9 @@ describe("tierAgeToMs / msToTierAge round-trip", () => {
 
 describe("formatTierAgeRange", () => {
   it("renders the first tier as `< X`", () => {
-    expect(formatTierAgeRange({ maxAgeMs: HOUR, granularity: "every" }, 0, false))
-      .toBe("< 1 hour");
+    expect(
+      formatTierAgeRange({ maxAgeMs: HOUR, granularity: "every" }, 0, false),
+    ).toBe("< 1 hour");
   });
 
   it("renders mid tiers as `prev – upper`", () => {
@@ -93,9 +94,13 @@ describe("insertTier", () => {
     expect(nextDest.map((d) => d.tierIndex)).toEqual([0, 1, 2, 3]);
     // New tier inherits ['local']; existing tiers' destinations follow them
     // by maxAgeMs order.
-    const insertedIdx = nextPolicy.tiers.findIndex((t) => t.maxAgeMs === 12 * HOUR);
+    const insertedIdx = nextPolicy.tiers.findIndex(
+      (t) => t.maxAgeMs === 12 * HOUR,
+    );
     expect(nextDest[insertedIdx].destinations).toEqual(["local"]);
-    const oldestIdx = nextPolicy.tiers.findIndex((t) => t.maxAgeMs === 30 * DAY);
+    const oldestIdx = nextPolicy.tiers.findIndex(
+      (t) => t.maxAgeMs === 30 * DAY,
+    );
     expect(nextDest[oldestIdx].destinations).toEqual(["local", "archive"]);
   });
 
@@ -126,7 +131,11 @@ describe("removeTier", () => {
   it("returns input verbatim for out-of-range index", () => {
     const policy = policyOf();
     const dest = destOf();
-    const { policy: same, destinations: sameDest } = removeTier(policy, dest, 99);
+    const { policy: same, destinations: sameDest } = removeTier(
+      policy,
+      dest,
+      99,
+    );
     expect(same).toBe(policy);
     expect(sameDest).toBe(dest);
   });

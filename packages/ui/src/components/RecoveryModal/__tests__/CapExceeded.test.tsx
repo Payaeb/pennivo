@@ -24,9 +24,15 @@ describe("CapExceededBanner", () => {
     expect(
       screen.getByText(/12 protected snapshots are 80 MB over your 200 MB cap/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change rules" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Manage manually" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Change rules" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Manage manually" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 
@@ -68,7 +74,9 @@ describe("CapExceededToast", () => {
         autoDismissMs={500}
       />,
     );
-    expect(screen.getByRole("button", { name: "Open Settings" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open Settings" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
     act(() => {
       vi.advanceTimersByTime(500);

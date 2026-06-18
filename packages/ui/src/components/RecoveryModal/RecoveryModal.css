@@ -72,7 +72,9 @@
   padding: 4px 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .recovery-modal-segmented-btn:hover {
@@ -97,7 +99,9 @@
   font-family: var(--font-ui);
   font-size: 12px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
   flex-shrink: 0;
 }
 

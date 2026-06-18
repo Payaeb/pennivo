@@ -5,9 +5,9 @@ import type { TierDestinationConfig } from "../types";
 describe("routeSnapshot", () => {
   it("returns ['local'] when no config matches the tier", () => {
     expect(routeSnapshot(0, [])).toEqual(["local"]);
-    expect(routeSnapshot(2, [{ tierIndex: 0, destinations: ["local"] }])).toEqual(
-      ["local"],
-    );
+    expect(
+      routeSnapshot(2, [{ tierIndex: 0, destinations: ["local"] }]),
+    ).toEqual(["local"]);
   });
 
   it("returns the configured destinations for a matching tier", () => {

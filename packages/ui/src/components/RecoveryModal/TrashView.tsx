@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  useCallback,
-  useRef,
-} from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   computeNextSelection,
   formatDayGroupHeader,
@@ -85,7 +79,9 @@ export function TrashView({
       const ts: TrashRow[] = rows.map((r) => ({ ...r, ts: r.deletedAtMs }));
       setEntries(ts);
       // Drop dead selections so the footer counter stays honest.
-      setSelectedIds((prev) => prev.filter((id) => ts.some((r) => r.id === id)));
+      setSelectedIds((prev) =>
+        prev.filter((id) => ts.some((r) => r.id === id)),
+      );
     } catch (err) {
       console.error("[TrashView] list failed:", err);
       setEntries([]);
@@ -128,10 +124,7 @@ export function TrashView({
     };
   }, [lastSelectedId, platform]);
 
-  const orderedIds = useMemo(
-    () => (entries ?? []).map((r) => r.id),
-    [entries],
-  );
+  const orderedIds = useMemo(() => (entries ?? []).map((r) => r.id), [entries]);
 
   const toggleSelection = useCallback(
     (
@@ -168,10 +161,7 @@ export function TrashView({
         if (!dragStartRef.current) return;
         const delta = me.clientX - dragStartRef.current.startX;
         const proposed = dragStartRef.current.startWidth + delta;
-        const maxAllowed = Math.max(
-          TIMELINE_MIN,
-          modalWidth - PREVIEW_MIN - 8,
-        );
+        const maxAllowed = Math.max(TIMELINE_MIN, modalWidth - PREVIEW_MIN - 8);
         const next = Math.max(TIMELINE_MIN, Math.min(maxAllowed, proposed));
         onLayoutChange({ timelineWidth: next });
       };
@@ -217,9 +207,7 @@ export function TrashView({
       }
     }
     if (restored > 0) {
-      onShowToast?.(
-        `Restored ${restored} file${restored === 1 ? "" : "s"}.`,
-      );
+      onShowToast?.(`Restored ${restored} file${restored === 1 ? "" : "s"}.`);
     }
     if (failures.length > 0) {
       onShowToast?.(

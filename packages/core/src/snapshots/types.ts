@@ -14,12 +14,7 @@
  *                   open (faulty sync, another editor, OS hiccup, etc.).
  * - `sync`        — Phase 13b cross-device sync delivered this snapshot.
  */
-export type SnapshotAuthor =
-  | "user"
-  | "mcp"
-  | "inline-ai"
-  | "external"
-  | "sync";
+export type SnapshotAuthor = "user" | "mcp" | "inline-ai" | "external" | "sync";
 
 /**
  * Granularity rule applied within a retention tier.

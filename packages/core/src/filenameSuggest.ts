@@ -45,7 +45,9 @@ export function suggestFilenameFromContent(markdown: string): string {
 
   if (!cleaned) return FALLBACK;
 
-  return cleaned.length > MAX_LEN ? cleaned.slice(0, MAX_LEN).trimEnd() : cleaned;
+  return cleaned.length > MAX_LEN
+    ? cleaned.slice(0, MAX_LEN).trimEnd()
+    : cleaned;
 }
 
 function stripHeadingMarks(line: string): string {
@@ -53,5 +55,5 @@ function stripHeadingMarks(line: string): string {
   // end of line. The latter handles "# " (trim drops the trailing space) so
   // an empty heading falls through to the next line via the empty result.
   const m = /^(#{1,6})(?:\s+(.*)|)$/.exec(line);
-  return m ? m[2] ?? "" : line;
+  return m ? (m[2] ?? "") : line;
 }

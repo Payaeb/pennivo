@@ -111,9 +111,7 @@ function bucketKey(ts: number, granularity: RetentionGranularity): string {
       );
       const week =
         1 +
-        Math.round(
-          (target.getTime() - firstThursday.getTime()) / (7 * DAY_MS),
-        );
+        Math.round((target.getTime() - firstThursday.getTime()) / (7 * DAY_MS));
       return `${target.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
     }
     case "monthly":

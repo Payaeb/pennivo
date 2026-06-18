@@ -13,15 +13,7 @@
 // otherwise" *except* on Today/Yesterday rows where we keep the full date so
 // it's never ambiguous in screenshots / docs.
 
-const WEEKDAYS = [
-  "Sun",
-  "Mon",
-  "Tue",
-  "Wed",
-  "Thu",
-  "Fri",
-  "Sat",
-] as const;
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const MONTHS = [
   "Jan",
@@ -91,7 +83,10 @@ function dayGroupForOlder(d: Date, today: Date): string {
  *
  * `now` defaults to `new Date()` but is injectable so tests can pin time.
  */
-export function formatDayGroupHeader(date: Date, now: Date = new Date()): string {
+export function formatDayGroupHeader(
+  date: Date,
+  now: Date = new Date(),
+): string {
   const dY = ymd(date);
   const nY = ymd(now);
   if (sameDay(dY, nY)) return `Today · ${fullWithWeekday(date)}`;
@@ -124,7 +119,11 @@ export function groupByLocalDay<T extends { ts: number }>(
   const buckets = new Map<number, { date: Date; items: T[] }>();
   for (const item of sorted) {
     const d = new Date(item.ts);
-    const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayKey = new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+    ).getTime();
     let bucket = buckets.get(dayKey);
     if (!bucket) {
       bucket = { date: new Date(dayKey), items: [] };

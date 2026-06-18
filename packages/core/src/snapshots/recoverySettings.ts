@@ -105,9 +105,7 @@ export function defaultRecoverySettings(): RecoverySettings {
  * Unknown extra keys are dropped — settings should round-trip cleanly through
  * a typed shape.
  */
-export function migrateRecoverySettings(
-  raw: unknown,
-): RecoverySettings {
+export function migrateRecoverySettings(raw: unknown): RecoverySettings {
   const defaults = defaultRecoverySettings();
   if (!raw || typeof raw !== "object") return defaults;
   const r = raw as Partial<RecoverySettings> & Record<string, unknown>;

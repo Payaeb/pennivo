@@ -42,7 +42,8 @@ export function pickRestorePath(
     originalPath.lastIndexOf("\\"),
   );
   const dir = lastSlash >= 0 ? originalPath.slice(0, lastSlash + 1) : "";
-  const fileName = lastSlash >= 0 ? originalPath.slice(lastSlash + 1) : originalPath;
+  const fileName =
+    lastSlash >= 0 ? originalPath.slice(lastSlash + 1) : originalPath;
   const dotIdx = fileName.lastIndexOf(".");
   const stem = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
   const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";

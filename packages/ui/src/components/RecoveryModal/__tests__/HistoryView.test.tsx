@@ -87,15 +87,17 @@ beforeEach(() => {
   };
 });
 
-function renderHistoryView(overrides: Partial<{
-  filePath: string | null;
-  filename: string | null;
-  currentContent: string;
-  timelineWidth: number;
-  timelineCollapsed: boolean;
-  previewCollapsed: boolean;
-  modalWidth: number;
-}> = {}) {
+function renderHistoryView(
+  overrides: Partial<{
+    filePath: string | null;
+    filename: string | null;
+    currentContent: string;
+    timelineWidth: number;
+    timelineCollapsed: boolean;
+    previewCollapsed: boolean;
+    modalWidth: number;
+  }> = {},
+) {
   const onLayoutChange = vi.fn();
   const onOpenFilePath = vi.fn();
   const onShowToast = vi.fn();
@@ -180,7 +182,9 @@ describe("HistoryView", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("option").length).toBeGreaterThanOrEqual(3),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Restore as current/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Restore as current/i }),
+    );
     expect(
       screen.getByRole("alertdialog", { name: /Restore snapshot/i }),
     ).toBeInTheDocument();

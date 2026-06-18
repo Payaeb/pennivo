@@ -18,7 +18,10 @@ interface TitlebarProps {
    * Archive queue health, drives the inline `Archive offline` chip. Hidden
    * in the `'ok'` state. `null` while the engine hasn't reported anything.
    */
-  archiveStatus?: { status: "ok" | "unavailable" | "queued"; count: number } | null;
+  archiveStatus?: {
+    status: "ok" | "unavailable" | "queued";
+    count: number;
+  } | null;
   /** Click handler for the archive chip — opens Settings → Recovery. */
   onArchiveStatusClick?: () => void;
 }

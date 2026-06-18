@@ -16,9 +16,7 @@ describe("formatDayGroupHeader", () => {
 
   it("formats yesterday with `Yesterday · Wed May 6, 2026`", () => {
     const date = new Date(2026, 4, 6, 23, 0, 0);
-    expect(formatDayGroupHeader(date, now)).toBe(
-      "Yesterday · Wed May 6, 2026",
-    );
+    expect(formatDayGroupHeader(date, now)).toBe("Yesterday · Wed May 6, 2026");
   });
 
   it("formats same-week earlier days as `Mon May 4`", () => {

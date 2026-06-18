@@ -241,7 +241,11 @@ export async function moveToTrash(
     deletedByDeviceId: input.deviceId,
     deletedByDeviceName: input.deviceName,
   };
-  await fs.writeFile(trashMetaPath(trashId), JSON.stringify(meta, null, 2), "utf-8");
+  await fs.writeFile(
+    trashMetaPath(trashId),
+    JSON.stringify(meta, null, 2),
+    "utf-8",
+  );
 
   // 6. Finally remove the original .md. If this fails AFTER the trash write
   //    succeeded, roll back the trash entry — we'd rather show the file is
@@ -417,14 +421,14 @@ export async function restoreFromTrash(
 
   // Remove the trash dir on success — best-effort. If this fails the user
   // sees a stale trash entry; running sweep later will eventually clean it.
-  await fs.rm(trashEntryDir(trashId), { recursive: true, force: true }).catch(
-    (err) => {
+  await fs
+    .rm(trashEntryDir(trashId), { recursive: true, force: true })
+    .catch((err) => {
       console.warn(
         `[trashStore] failed to remove trash dir after restore (will retry on sweep):`,
         err,
       );
-    },
-  );
+    });
 
   void emitCountChanged();
   return { restoredPath: target.replace(/\\/g, "/") };
