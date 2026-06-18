@@ -124,7 +124,22 @@ export function TrashView({
     };
   }, [lastSelectedId, platform]);
 
-  const orderedIds = useMemo(() => (entries ?? []).map((r) => r.id), [entries]);
+  // Grouped-by-day view, in render order. Defined here (before the selection
+  // helpers) so range-selection operates on the SAME order the DOM shows.
+  const groups = useMemo(() => {
+    if (!entries) return [];
+    return groupByLocalDay(entries);
+  }, [entries]);
+
+  // Range selection (shift-click) must walk the visible order, not the raw
+  // `entries` array — `groupByLocalDay` re-buckets and sorts within a day, so
+  // the two can diverge (e.g. two same-day entries whose order depends on the
+  // wall clock). Flatten the rendered groups so anchor→target ranges match
+  // exactly what the user sees.
+  const orderedIds = useMemo(
+    () => groups.flatMap((g) => g.items.map((r) => r.id)),
+    [groups],
+  );
 
   const toggleSelection = useCallback(
     (
@@ -256,11 +271,6 @@ export function TrashView({
   }, [pendingConfirm, selectedIds, entries, platform, onShowToast, refresh]);
 
   // ----- Render: grouped trash rows -----
-
-  const groups = useMemo(() => {
-    if (!entries) return [];
-    return groupByLocalDay(entries);
-  }, [entries]);
 
   const timelineEff = timelineCollapsed || autoCollapsed;
   const previewEff = previewCollapsed && !timelineEff;

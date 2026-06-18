@@ -20,22 +20,25 @@ let mockPlatform: {
 import { TrashView } from "../TrashView";
 
 function fixtureTrash(): TrashEntry[] {
-  // Two entries today, one a week ago.
+  // Two entries today, one a week ago. The two same-day entries are listed
+  // OLDEST-first on purpose, so the raw array order diverges from the
+  // newest-first render order (groupByLocalDay sorts desc). That makes the
+  // shift-click range test exercise the group-ordering path deterministically
+  // on every run, regardless of timezone or time of day — it's the divergence
+  // that regressed range selection (range walked the array order, not the
+  // visible order).
+  const hour = 3600_000;
+  const day = 24 * hour;
   const now = Date.now();
-  const todayMorning = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    new Date().getDate(),
-    9,
-    15,
-  ).getTime();
+  const olderToday = now - 2 * hour;
+  const weekAgo = now - 7 * day;
   return [
     {
       id: "trash-3",
       absolutePath: "/ws/notes.md",
       fileBasename: "notes.md",
-      deletedAtMs: now,
-      expiresAtMs: now + 30 * 24 * 3600_000,
+      deletedAtMs: olderToday,
+      expiresAtMs: olderToday + 30 * day,
       hasAssets: false,
       assetFolderNames: [],
     },
@@ -43,8 +46,8 @@ function fixtureTrash(): TrashEntry[] {
       id: "trash-2",
       absolutePath: "/ws/draft.md",
       fileBasename: "draft.md",
-      deletedAtMs: todayMorning,
-      expiresAtMs: todayMorning + 30 * 24 * 3600_000,
+      deletedAtMs: now,
+      expiresAtMs: now + 30 * day,
       hasAssets: false,
       assetFolderNames: [],
     },
@@ -52,8 +55,8 @@ function fixtureTrash(): TrashEntry[] {
       id: "trash-1",
       absolutePath: "/ws/old.md",
       fileBasename: "old.md",
-      deletedAtMs: now - 7 * 24 * 3600_000,
-      expiresAtMs: now - 7 * 24 * 3600_000 + 30 * 24 * 3600_000,
+      deletedAtMs: weekAgo,
+      expiresAtMs: weekAgo + 30 * day,
       hasAssets: false,
       assetFolderNames: [],
     },
