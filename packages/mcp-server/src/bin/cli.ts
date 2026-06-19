@@ -92,7 +92,7 @@ function printHelp(): void {
       "  -w, --workspace <path>   Folder to expose (required). Or set PENNIVO_WORKSPACE.",
       "      --audit-log <file>   Append a JSONL audit log of every tool call.",
       "      --allow <tools>      Comma-separated tools to enable beyond the read-only",
-      "                           default, e.g. --allow write_file,create_file,rename_file.",
+      "                           default, e.g. --allow write_file,edit_file,create_folder.",
       "      --settings <file>    Read permissions live from a JSON file's `mcp` slice",
       "                           (re-read per call). Overrides --allow. Used by the app.",
       "      --http               Serve over loopback HTTP instead of stdio.",

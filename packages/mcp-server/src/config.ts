@@ -7,13 +7,29 @@
 
 import type { PermissionProvider } from "./deps.js";
 
-export const READ_TOOLS = ["list_files", "read_file", "search"] as const;
+export const READ_TOOLS = [
+  "list_files",
+  "read_file",
+  "search",
+  "find_backlinks",
+  "get_outline",
+  "list_workspaces",
+  "list_snapshots",
+  "list_trash",
+] as const;
 export const WRITE_TOOLS = [
   "write_file",
   "create_file",
   "append_to_file",
   "delete_file",
   "rename_file",
+  "create_folder",
+  "move_folder",
+  "replace_in_file",
+  "edit_file",
+  "restore_snapshot",
+  "restore_from_trash",
+  "stream_into_file",
 ] as const;
 export const ALL_TOOLS = [...READ_TOOLS, ...WRITE_TOOLS] as const;
 
@@ -32,11 +48,23 @@ export const DEFAULT_PERMISSIONS: PermissionConfig = {
     list_files: true,
     read_file: true,
     search: true,
+    find_backlinks: true,
+    get_outline: true,
+    list_workspaces: true,
+    list_snapshots: true,
+    list_trash: true,
     write_file: false,
     create_file: false,
     append_to_file: false,
     delete_file: false,
     rename_file: false,
+    create_folder: false,
+    move_folder: false,
+    replace_in_file: false,
+    edit_file: false,
+    restore_snapshot: false,
+    restore_from_trash: false,
+    stream_into_file: false,
   },
 };
 
