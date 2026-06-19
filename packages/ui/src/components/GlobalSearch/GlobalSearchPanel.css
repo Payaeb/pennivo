@@ -1,0 +1,262 @@
+/* ─── Global Search Panel (sidebar rail) ─── */
+
+.global-search {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  animation: global-search-in 0.12s ease;
+}
+
+@keyframes global-search-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Input row (mirrors the command-palette search field) ─── */
+
+.global-search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.global-search-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.global-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  caret-color: var(--accent);
+}
+
+.global-search-input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.global-search-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* ─── Option toggle chips (Aa / whole-word) ─── */
+
+.global-search-toggles {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.global-search-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.global-search-toggle:hover {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+}
+
+.global-search-toggle--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.global-search-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ─── Summary line (count of matches / files) ─── */
+
+.global-search-summary {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Results list ─── */
+
+.global-search-results {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 8px;
+}
+
+.global-search-results::-webkit-scrollbar {
+  width: 4px;
+}
+
+.global-search-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.global-search-results::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.global-search-results:hover::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+}
+
+/* ─── File header row ─── */
+
+.global-search-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.global-search-file:not(:first-child) {
+  margin-top: 4px;
+}
+
+.global-search-file-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.global-search-file-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-faint);
+  background: var(--bg-overlay);
+  padding: 1px 6px;
+  border-radius: 8px;
+  line-height: 1.4;
+}
+
+/* ─── Result line row ─── */
+
+.global-search-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 12px 4px 16px;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-primary);
+  transition: background 0.08s ease;
+}
+
+.global-search-line:hover {
+  background: rgba(128, 128, 128, 0.06);
+}
+
+.global-search-line--selected {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  transition: none;
+}
+
+.global-search-line-no {
+  flex-shrink: 0;
+  min-width: 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.global-search-snippet {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.global-search-ellipsis {
+  color: var(--text-faint);
+}
+
+/* Match highlight - mirrors the Find & Replace highlight token/treatment. */
+.global-search-highlight {
+  background: rgba(74, 124, 89, 0.18);
+  color: var(--text-primary);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(74, 124, 89, 0.25);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .global-search-highlight {
+  background: rgba(94, 158, 116, 0.28);
+  box-shadow: 0 0 0 1px rgba(94, 158, 116, 0.4);
+}
+
+/* ─── Empty + footer states ─── */
+
+.global-search-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.global-search-footer {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}

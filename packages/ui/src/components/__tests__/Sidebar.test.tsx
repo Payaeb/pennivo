@@ -116,6 +116,38 @@ describe("Sidebar", () => {
     });
   });
 
+  describe("Global search toggle", () => {
+    it("does not render the search button when onToggleSearch is omitted", () => {
+      render(<Sidebar {...defaultProps} />);
+      expect(
+        screen.queryByLabelText("Search in workspace"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the search button and calls onToggleSearch on click", () => {
+      const onToggleSearch = vi.fn();
+      render(
+        <Sidebar {...defaultProps} onToggleSearch={onToggleSearch} />,
+      );
+      fireEvent.click(screen.getByLabelText("Search in workspace"));
+      expect(onToggleSearch).toHaveBeenCalledOnce();
+    });
+
+    it("renders the search panel in place of the tree when searchActive", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          onToggleSearch={vi.fn()}
+          searchActive
+          searchPanel={<div data-testid="search-panel">panel</div>}
+        />,
+      );
+      expect(screen.getByTestId("search-panel")).toBeInTheDocument();
+      // Tree files are hidden while search mode is on.
+      expect(screen.queryByText("readme.md")).not.toBeInTheDocument();
+    });
+  });
+
   describe("Sort menu", () => {
     it("does not render sort button when onSortChange is not provided", () => {
       render(<Sidebar {...defaultProps} />);

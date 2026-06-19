@@ -23,3 +23,6 @@ export {
 export { wrapHtmlWithStyles } from "./utils/exportHtml";
 export { LinkActionSheet } from "./components/LinkActionSheet/LinkActionSheet";
 export type { LinkActionSheetProps } from "./components/LinkActionSheet/LinkActionSheet";
+export { GlobalSearchPanel } from "./components/GlobalSearch/GlobalSearchPanel";
+export type { GlobalSearchPanelProps } from "./components/GlobalSearch/GlobalSearchPanel";
+export { joinWorkspacePath } from "./components/GlobalSearch/searchPanelUtils";

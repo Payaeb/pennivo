@@ -46,6 +46,7 @@ import { LinkPopover } from "./components/LinkPopover/LinkPopover";
 import { FindReplace } from "./components/FindReplace/FindReplace";
 import type { SaveStatus } from "./components/Statusbar/Statusbar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+import { GlobalSearchPanel } from "./components/GlobalSearch/GlobalSearchPanel";
 import {
   RecoveryModal,
   HistoryView,
@@ -100,6 +101,7 @@ import {
   type WorkspacesState,
   type WorkspacePrefs,
   type TrashEntry,
+  type SearchOptions,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -441,6 +443,10 @@ function AppContent() {
   // Phase 3 lifts this out of the Sidebar component so it can round-trip
   // through workspace prefs.
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(null);
+
+  // --- Global search (Phase 3) ---
+  // When true, the sidebar rail swaps the file tree for the GlobalSearchPanel.
+  const [searchActive, setSearchActive] = useState(false);
 
   // --- Active workspace (Phase 3 per-workspace prefs) ---
   // The id of the workspace whose prefs (sort key, sidebar width,
@@ -1847,6 +1853,10 @@ function AppContent() {
       setActiveWorkspaceId(id);
       if (state?.workspaces) setWorkspaceList(state.workspaces);
 
+      // A workspace switch invalidates any open search (results belong to the
+      // previous root). Drop back to tree mode so stale hits don't linger.
+      setSearchActive(false);
+
       const prefs = state?.prefs[id] ?? defaultWorkspacePrefs();
       applyWorkspacePrefsToState(prefs);
 
@@ -3250,6 +3260,12 @@ function AppContent() {
         } else if (e.key === "B") {
           e.preventDefault();
           setSidebarVisible((v) => !v);
+        } else if (e.key === "F") {
+          // Global search: reveal the sidebar if hidden, then switch the rail
+          // into search mode. The panel focuses its input on mount.
+          e.preventDefault();
+          setSidebarVisible(true);
+          setSearchActive(true);
         }
       } else {
         if (e.key === "f") {
@@ -3796,6 +3812,20 @@ function AppContent() {
           onSwitchWorkspace={handleSwitchWorkspace}
           onAddWorkspace={handleAddWorkspace}
           onRemoveWorkspace={handleRemoveWorkspace}
+          searchActive={searchActive}
+          onToggleSearch={() => setSearchActive((v) => !v)}
+          searchPanel={
+            <GlobalSearchPanel
+              rootPath={sidebarFolder}
+              onSearch={(query: string, options?: SearchOptions) =>
+                platform.searchWorkspace(query, options)
+              }
+              onOpenResult={(absPath) => {
+                void handleSidebarFileClick(absPath);
+              }}
+              onClose={() => setSearchActive(false)}
+            />
+          }
         />
       }
       outline={

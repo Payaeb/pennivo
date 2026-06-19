@@ -73,6 +73,11 @@
   background: var(--accent-soft);
 }
 
+.sidebar-set-folder-btn--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .sidebar-set-folder-btn svg {
   width: 14px;
   height: 14px;

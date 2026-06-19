@@ -106,6 +106,15 @@ interface SidebarProps {
   onAddWorkspace?: () => void;
   /** Forget a workspace by id. Never touches files on disk. */
   onRemoveWorkspace?: (id: string) => void;
+  /**
+   * Global search (Phase 3). When `onToggleSearch` is wired, the header shows a
+   * magnifier toggle. When `searchActive` is true, `searchPanel` replaces the
+   * file tree in the rail (the header + workspace switcher stay visible). The
+   * panel node is supplied by the host so packages/ui stays platform-free.
+   */
+  searchActive?: boolean;
+  onToggleSearch?: () => void;
+  searchPanel?: React.ReactNode;
 }
 
 const MIN_WIDTH = 180;
@@ -213,6 +222,9 @@ export function Sidebar({
   onSwitchWorkspace,
   onAddWorkspace,
   onRemoveWorkspace,
+  searchActive = false,
+  onToggleSearch,
+  searchPanel,
 }: SidebarProps) {
   const [width, setWidth] = useState(
     typeof initialWidth === "number" ? clampWidth(initialWidth) : DEFAULT_WIDTH,
@@ -708,13 +720,24 @@ export function Sidebar({
         {folderPath && tree.length > 0 && (
           <span className="sidebar-file-count">{countFiles(tree)}</span>
         )}
-        {folderPath && onSortChange && (
+        {folderPath && onSortChange && !searchActive && (
           <SortMenu
             sortKey={sortKey}
             onSortChange={onSortChange}
             showEmptyFolders={showEmptyFolders}
             onToggleShowEmptyFolders={onToggleShowEmptyFolders}
           />
+        )}
+        {onToggleSearch && (
+          <button
+            className={`sidebar-set-folder-btn${searchActive ? " sidebar-set-folder-btn--active" : ""}`}
+            onClick={onToggleSearch}
+            title={searchActive ? "Close search" : "Search in workspace"}
+            aria-label="Search in workspace"
+            aria-pressed={searchActive}
+          >
+            <SearchIcon />
+          </button>
         )}
         <button
           className="sidebar-set-folder-btn"
@@ -725,6 +748,10 @@ export function Sidebar({
         </button>
       </div>
 
+      {searchActive ? (
+        searchPanel
+      ) : (
+        <>
       {trashCount > 0 && onShowTrash && (
         <button
           type="button"
@@ -783,6 +810,8 @@ export function Sidebar({
               : "Drag a folder here or click to browse"}
           </span>
         </div>
+      )}
+        </>
       )}
 
       <div
@@ -1582,6 +1611,21 @@ function ChevronIcon() {
       strokeLinejoin="round"
     >
       <polyline points="6,4 10,8 6,12" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
+      <circle cx="7" cy="7" r="4.5" />
+      <line x1="10.5" y1="10.5" x2="14" y2="14" />
     </svg>
   );
 }
