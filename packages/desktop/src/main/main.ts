@@ -21,9 +21,12 @@ import {
   migrateRecoverySettings,
   migrateWorkspaces,
   planNormalize,
+  searchFiles,
   workspaceNameFromPath,
   defaultWorkspacePrefs,
   type RecoverySettings,
+  type SearchOptions,
+  type SearchResults,
   type Workspace,
   type WorkspacePrefs,
   type WorkspacesState,
@@ -559,6 +562,12 @@ async function writeSidebarFolder(folderPath: string | null): Promise<void> {
 // it on already-migrated state passes that state through untouched. We do
 // NOT write during the read — persistence happens only when the renderer
 // mutates state via the `workspaces:*` handlers below.
+
+// Largest document (in UTF-8 bytes) the global-search handler will scan. Core
+// exposes no shared large-file constant, so we define a local cap here: files
+// above this are skipped so one giant document cannot dominate a search. This
+// sits above the editor's source-mode lock threshold (1.5 MB) by a margin.
+const SEARCH_MAX_FILE_BYTES = 2_000_000;
 
 /**
  * Read settings + resolve the current `WorkspacesState`, running the lazy
@@ -1967,6 +1976,48 @@ function registerIpcHandlers() {
     if (activeRoot) return activeRoot;
     return readSidebarFolder();
   });
+
+  // --- Global search (Phase 2: IPC plumbing, dormant until the UI lands) ---
+  // Walk every markdown document under the active workspace root and run the
+  // pure `searchFiles` matcher against them. The handler resolves the root the
+  // same way `sidebar:get-folder` does (active workspace, then legacy folder),
+  // never walks the fs for trivially-short queries, and skips oversized files
+  // so a single giant document cannot dominate a search. It never throws across
+  // the IPC boundary: any failure returns the empty result shape.
+  ipcMain.handle(
+    "workspace:search",
+    async (
+      _e,
+      query: string,
+      options?: SearchOptions,
+    ): Promise<SearchResults> => {
+      const trimmed = (query ?? "").trim();
+      const empty: SearchResults = {
+        query: trimmed,
+        files: [],
+        totalMatches: 0,
+        capped: false,
+      };
+      // Fewer than 2 non-space characters is not worth a full-tree walk.
+      if (trimmed.length < 2) return empty;
+      try {
+        const { workspaces } = await readWorkspacesState();
+        const root =
+          activeWorkspaceRoot(workspaces) ?? (await readSidebarFolder());
+        if (!root) return empty;
+        const files = await enumerateMarkdownFiles(root);
+        // File-size guard: skip documents above the threshold (measured in
+        // UTF-8 bytes) so one outsized file cannot dominate the search.
+        const within = files.filter(
+          (f) => Buffer.byteLength(f.content, "utf-8") <= SEARCH_MAX_FILE_BYTES,
+        );
+        return searchFiles(trimmed, within, options);
+      } catch (err) {
+        console.error("[workspace:search] search failed:", err);
+        return empty;
+      }
+    },
+  );
 
   // Renderer reports its currently-open file so the watcher can live-reload it
   // (Phase 12d-pre). `null` when no document is open.

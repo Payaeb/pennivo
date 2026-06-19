@@ -669,6 +669,15 @@ export function createCapacitorPlatform(): PennivoPlatform {
     },
     getWorkspaces: async () => readMobileWorkspaces(),
 
+    // Global search (Phase 2) — mobile vault search is out of scope for v1,
+    // so return the empty result shape rather than throw.
+    searchWorkspace: async (query) => ({
+      query: query.trim(),
+      files: [],
+      totalMatches: 0,
+      capped: false,
+    }),
+
     // Toolbar config
     getToolbarConfig: async () => {
       try {

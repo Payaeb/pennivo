@@ -81,6 +81,14 @@ interface PennivoAPI {
     setPrefs: (id: string, prefs: unknown) => Promise<unknown>;
   };
 
+  // Global search (Phase 2): walk the active workspace and run the core
+  // matcher in the main process. Inline `import(...)` types keep this file an
+  // ambient global declaration (no top-level import turns it into a module).
+  searchWorkspace: (
+    query: string,
+    options?: import("@pennivo/core").SearchOptions,
+  ) => Promise<import("@pennivo/core").SearchResults>;
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) => Promise<boolean>;
   getAssetSummary: (

@@ -1,3 +1,5 @@
+import type { SearchOptions, SearchResults } from "@pennivo/core";
+
 export interface FileTreeEntry {
   name: string;
   path: string;
@@ -250,6 +252,19 @@ export interface PennivoPlatform {
    * workspace's root path for the existing sidebar code path.
    */
   getWorkspaces: () => Promise<unknown>;
+
+  /**
+   * Global search across every markdown document in the active workspace
+   * (Phase 2). The host walks the workspace root and runs the pure
+   * `searchFiles` matcher; this surface returns its `SearchResults` directly.
+   * Unlike the workspaces/trash surfaces this one IS typed with core types,
+   * since the matcher's result is a closed, fully-serializable shape. Web and
+   * mobile stub this to an empty result (no workspace filesystem to walk).
+   */
+  searchWorkspace: (
+    query: string,
+    options?: SearchOptions,
+  ) => Promise<SearchResults>;
 
   // Move a file into a different folder. Returns ok=true with the new
   // absolute path on success. On a name collision in destDir, returns

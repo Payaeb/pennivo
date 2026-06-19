@@ -70,6 +70,10 @@ export function createElectronPlatform(): PennivoPlatform {
     },
     getWorkspaces: () => api.workspaces.get(),
 
+    // Global search (Phase 2): delegate to the preload `searchWorkspace`
+    // bridge, which runs the core matcher in the main process.
+    searchWorkspace: (query, options) => api.searchWorkspace(query, options),
+
     // Toolbar config
     getToolbarConfig: () => api.getToolbarConfig(),
     setToolbarConfig: (actions) => api.setToolbarConfig(actions),

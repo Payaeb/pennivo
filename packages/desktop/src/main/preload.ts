@@ -122,6 +122,12 @@ contextBridge.exposeInMainWorld("pennivo", {
       ipcRenderer.invoke("workspaces:set-prefs", id, prefs) as Promise<unknown>,
   },
 
+  // Global search (Phase 2): walk the active workspace and run the pure
+  // matcher in the main process. Returns the JSON-serializable `SearchResults`
+  // shape; the renderer narrows it via the core `SearchResults` type.
+  searchWorkspace: (query: string, options?: unknown) =>
+    ipcRenderer.invoke("workspace:search", query, options) as Promise<unknown>,
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) =>
     ipcRenderer.invoke("sidebar:show-in-folder", filePath) as Promise<boolean>,

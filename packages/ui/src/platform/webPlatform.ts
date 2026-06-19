@@ -275,6 +275,15 @@ export function createWebPlatform(): PennivoPlatform {
     },
     getWorkspaces: async () => readWebWorkspaces(),
 
+    // Global search (Phase 2) — no workspace filesystem to walk in the
+    // browser, so return the empty result shape.
+    searchWorkspace: async (query) => ({
+      query: query.trim(),
+      files: [],
+      totalMatches: 0,
+      capped: false,
+    }),
+
     // Toolbar config — persisted in localStorage
     getToolbarConfig: async () =>
       lsGet<string[] | null>(LS_TOOLBAR_CONFIG, null),

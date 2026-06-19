@@ -106,6 +106,14 @@ export function createMockPennivoAPI() {
       })),
     },
 
+    // Global search (Phase 2)
+    searchWorkspace: vi.fn(async (query: string) => ({
+      query: query.trim(),
+      files: [],
+      totalMatches: 0,
+      capped: false,
+    })),
+
     // Settings
     getSettings: vi.fn(async () => ({})),
     setSettings: vi.fn(async () => undefined),
