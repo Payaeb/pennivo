@@ -424,7 +424,10 @@
   min-width: 0;
   margin-left: 4px;
   padding: 2px 6px;
-  background: var(--bg-surface);
+  /* Elevated overlay surface rather than --bg-surface: in dark mode this lifts
+     the field a touch above the near-black sidebar instead of flashing a harsh
+     bright field, while staying near-identical to the old look in light mode. */
+  background: var(--bg-overlay);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -447,12 +450,35 @@
   box-shadow: 0 0 0 2px var(--danger-soft, rgba(229, 72, 77, 0.18));
 }
 
+/* Column wrapper around the create input so the validation error can sit BELOW
+   the field. Keeping the error under the input (not to its right) means a long
+   typed name can never push the error off the narrow sidebar's visible edge. */
+/* Top-align the row's icon with the input (not the input+error stack) so the
+   icon stays put and only the row height grows when the error appears. */
+.tree-item--creating {
+  align-items: flex-start;
+}
+
+.tree-item-create-field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+  gap: 2px;
+}
+
+.tree-item-create-field .tree-item-rename-input {
+  margin-left: 0;
+}
+
 .tree-item-create-error {
-  margin-left: 6px;
-  flex-shrink: 0;
-  color: var(--danger, #e5484d);
+  color: var(--danger);
   font-family: var(--font-ui);
-  font-size: var(--text-xs, 11px);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -495,16 +521,28 @@
 .sidebar-sort-menu {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  /* Anchor the popover to the sidebar's LEFT edge and open rightward, mirroring
+     `.sidebar-workspace-menu`. The sort button sits near the left of the narrow
+     (~240px) sidebar, so `right: 0` previously pushed the popover's left edge
+     past the window's left edge, clipping the reserved check column and the
+     "Show empty folders" toggle box entirely off-screen. Anchoring `left: 0`
+     keeps that left column on-screen. `max-width` lets it extend over the tree
+     without overflowing the right edge on the narrowest sidebar. */
+  left: 0;
   z-index: 1000;
   min-width: 200px;
+  max-width: 320px;
   padding: 4px;
-  background: var(--bg-surface);
+  /* Use the elevated base surface (lighter than the sidebar's --bg-surface) so
+     the popover reads as a distinct, fully opaque layer floating above the
+     tree. A stronger shadow keeps occluded tree rows from peeking through the
+     shadow gutter. */
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 2px 4px rgba(0, 0, 0, 0.04);
+    0 6px 18px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -554,8 +592,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   color: var(--accent);
 }
@@ -563,6 +601,17 @@
 .sidebar-sort-option-check svg {
   width: 14px;
   height: 14px;
+}
+
+/* The "Show empty folders" row is a checkbox-style toggle, not a radio. Its
+   box reads faint when off and accent-filled when on, distinguishing it from
+   the single-select sort options above. */
+.sidebar-sort-toggle-box {
+  color: var(--text-faint);
+}
+
+.sidebar-sort-toggle--on .sidebar-sort-toggle-box {
+  color: var(--accent);
 }
 
 /* Divider between the sort options and the display-pref toggle below them. */
@@ -648,12 +697,15 @@
   min-width: 220px;
   max-width: 320px;
   padding: 4px;
-  background: var(--bg-surface);
+  /* Fully opaque, elevated surface (lighter than the sidebar's --bg-surface)
+     so occluded tree rows do not bleed through the popover. Paired with a
+     stronger shadow than before to seal the shadow gutter. */
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 2px 4px rgba(0, 0, 0, 0.04);
+    0 6px 18px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
   gap: 1px;

@@ -210,6 +210,28 @@ describe("Sidebar", () => {
       expect(other).toHaveAttribute("aria-checked", "false");
     });
 
+    it("renders a check glyph in the reserved check column for the selected option only", () => {
+      const onSortChange = vi.fn();
+      render(
+        <Sidebar
+          {...defaultProps}
+          sortKey="modified-desc"
+          onSortChange={onSortChange}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      // The selected option's check column holds a rendered check SVG.
+      const selected = screen.getByText("Modified (newest)").closest("button")!;
+      const selectedCheck = selected.querySelector(".sidebar-sort-option-check");
+      expect(selectedCheck).not.toBeNull();
+      expect(selectedCheck!.querySelector("svg")).not.toBeNull();
+      // A non-selected option reserves the column but paints no glyph.
+      const other = screen.getByText("Name (A → Z)").closest("button")!;
+      const otherCheck = other.querySelector(".sidebar-sort-option-check");
+      expect(otherCheck).not.toBeNull();
+      expect(otherCheck!.querySelector("svg")).toBeNull();
+    });
+
     it("clicking a sort option calls onSortChange and closes the menu", () => {
       const onSortChange = vi.fn();
       render(<Sidebar {...defaultProps} onSortChange={onSortChange} />);
@@ -277,6 +299,44 @@ describe("Sidebar", () => {
       fireEvent.click(screen.getByTitle("Sort files"));
       const toggle = screen.getByText("Show empty folders").closest("button");
       expect(toggle).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("renders a checkbox-style box (not a radio check) and reflects on/off in its class", () => {
+      const onSortChange = vi.fn();
+      const { rerender } = render(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          showEmptyFolders={true}
+          onToggleShowEmptyFolders={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("Sort files"));
+      const onToggle = screen.getByText("Show empty folders").closest("button")!;
+      // Distinct checkbox-style affordance: the toggle box always renders a box
+      // SVG (on or off), unlike the single-select sort options.
+      expect(onToggle).toHaveClass("sidebar-sort-toggle");
+      expect(onToggle).toHaveClass("sidebar-sort-toggle--on");
+      const box = onToggle.querySelector(".sidebar-sort-toggle-box");
+      expect(box).not.toBeNull();
+      expect(box!.querySelector("svg")).not.toBeNull();
+
+      // When off, the box still renders but the "on" modifier is dropped.
+      rerender(
+        <Sidebar
+          {...defaultProps}
+          onSortChange={onSortChange}
+          showEmptyFolders={false}
+          onToggleShowEmptyFolders={vi.fn()}
+        />,
+      );
+      const offToggle = screen
+        .getByText("Show empty folders")
+        .closest("button")!;
+      expect(offToggle).not.toHaveClass("sidebar-sort-toggle--on");
+      expect(
+        offToggle.querySelector(".sidebar-sort-toggle-box svg"),
+      ).not.toBeNull();
     });
 
     it("reflects the setting via aria-checked (off)", () => {
@@ -687,6 +747,11 @@ describe("Sidebar", () => {
       fireEvent.change(input, { target: { value: "bad/name" } });
       // Inline validation appears
       expect(screen.getByText("Invalid character")).toBeInTheDocument();
+      // The error sits BELOW the input inside the create-field column wrapper,
+      // not to its right, so a long name can never push it off-screen.
+      const field = input.closest(".tree-item-create-field");
+      expect(field).not.toBeNull();
+      expect(field!.querySelector(".tree-item-create-error")).not.toBeNull();
       // Enter does not submit while invalid
       fireEvent.keyDown(input, { key: "Enter" });
       expect(onCreateFolder).not.toHaveBeenCalled();

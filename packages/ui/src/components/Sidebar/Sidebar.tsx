@@ -1564,32 +1564,37 @@ function CreateInput({
       <span className="tree-item-icon">
         {kind === "folder" ? <FolderClosedIcon /> : <MarkdownFileIcon />}
       </span>
-      <input
-        ref={inputRef}
-        className={`tree-item-rename-input${invalid ? " tree-item-rename-input--invalid" : ""}`}
-        value={value}
-        placeholder={kind === "folder" ? "New folder name" : "New file name"}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          // Same rationale as RenameInput: keep keystrokes off global handlers.
-          e.stopPropagation();
-          if (e.key === "Enter") {
-            e.preventDefault();
-            trySubmit();
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-        onBlur={trySubmit}
-        aria-label={kind === "folder" ? "New folder name" : "New file name"}
-        aria-invalid={invalid}
-      />
-      {invalid && (
-        <span className="tree-item-create-error" role="alert">
-          Invalid character
-        </span>
-      )}
+      {/* Input + below-input error stack so a long name never pushes the error
+          off the narrow sidebar's visible edge (the error lives under the
+          field instead of to its right). */}
+      <span className="tree-item-create-field">
+        <input
+          ref={inputRef}
+          className={`tree-item-rename-input${invalid ? " tree-item-rename-input--invalid" : ""}`}
+          value={value}
+          placeholder={kind === "folder" ? "New folder name" : "New file name"}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            // Same rationale as RenameInput: keep keystrokes off global handlers.
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              trySubmit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel();
+            }
+          }}
+          onBlur={trySubmit}
+          aria-label={kind === "folder" ? "New folder name" : "New file name"}
+          aria-invalid={invalid}
+        />
+        {invalid && (
+          <span className="tree-item-create-error" role="alert">
+            Invalid character
+          </span>
+        )}
+      </span>
     </div>
   );
 }
@@ -1727,6 +1732,8 @@ function SortIcon() {
 function CheckIcon() {
   return (
     <svg
+      width="14"
+      height="14"
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
@@ -1736,6 +1743,44 @@ function CheckIcon() {
       aria-hidden="true"
     >
       <polyline points="3,8 7,12 13,4" />
+    </svg>
+  );
+}
+
+/**
+ * Checkbox-style affordance for the "Show empty folders" toggle. Renders a
+ * rounded box that is empty when off and filled with a check when on, so the
+ * toggle reads as a distinct control type from the single-select sort options
+ * (which use the bare {@link CheckIcon}).
+ */
+function ToggleBoxIcon({ checked }: { checked: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect
+        x="2.5"
+        y="2.5"
+        width="11"
+        height="11"
+        rx="3"
+        fill={checked ? "currentColor" : "none"}
+      />
+      {checked && (
+        <polyline
+          points="5,8 7,10 11,5.5"
+          stroke="var(--bg-surface)"
+          strokeWidth="1.6"
+        />
+      )}
     </svg>
   );
 }
@@ -1826,13 +1871,13 @@ function SortMenu({
             <>
               <div className="sidebar-sort-separator" role="separator" />
               <button
-                className="sidebar-sort-option"
+                className={`sidebar-sort-option sidebar-sort-toggle${showEmptyFolders ? " sidebar-sort-toggle--on" : ""}`}
                 role="menuitemcheckbox"
                 aria-checked={showEmptyFolders}
                 onClick={() => onToggleShowEmptyFolders(!showEmptyFolders)}
               >
-                <span className="sidebar-sort-option-check">
-                  {showEmptyFolders && <CheckIcon />}
+                <span className="sidebar-sort-option-check sidebar-sort-toggle-box">
+                  <ToggleBoxIcon checked={showEmptyFolders} />
                 </span>
                 <span>Show empty folders</span>
               </button>

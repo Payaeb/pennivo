@@ -53,6 +53,14 @@
   outline: none;
 }
 
+/* Softer, thinner accent focus ring than the global 2px solid outline so the
+   search field stays in keeping with the minimal aesthetic. */
+.global-search-input:focus-visible {
+  outline: 1px solid var(--accent-hover);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .global-search-input::placeholder {
   color: var(--text-faint);
 }
