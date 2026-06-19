@@ -868,6 +868,219 @@ describe("Sidebar", () => {
     });
   });
 
+  // Phase 11f: folder rows are draggable + droppable, with a client-side guard
+  // against dropping a folder onto itself / a descendant. A nested tree lets us
+  // exercise the descendant case.
+  describe("Folder drag and drop", () => {
+    function makeDataTransfer() {
+      const store: Record<string, string> = {};
+      return {
+        types: [] as string[],
+        effectAllowed: "" as string,
+        dropEffect: "" as string,
+        setData: (k: string, v: string) => {
+          store[k] = v;
+        },
+        getData: (k: string) => store[k] ?? "",
+      };
+    }
+
+    const nestedTree: FileTreeEntry[] = [
+      {
+        name: "stuff",
+        path: "/docs/stuff",
+        type: "folder",
+        children: [
+          { name: "inner.md", path: "/docs/stuff/inner.md", type: "file" },
+          {
+            name: "deep",
+            path: "/docs/stuff/deep",
+            type: "folder",
+            children: [
+              {
+                name: "leaf.md",
+                path: "/docs/stuff/deep/leaf.md",
+                type: "file",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "archive",
+        path: "/docs/archive",
+        type: "folder",
+        children: [],
+      },
+      { name: "readme.md", path: "/docs/readme.md", type: "file" },
+    ];
+
+    it("folder rows are draggable when onMoveFile is provided", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={vi.fn(async () => ({ ok: true, newPath: "/x" }))}
+        />,
+      );
+      const folderBtn = screen.getByText("archive").closest("button")!;
+      expect(folderBtn).toHaveAttribute("draggable", "true");
+    });
+
+    it("folder rows are not draggable when onMoveFile is missing", () => {
+      render(<Sidebar {...defaultProps} tree={nestedTree} />);
+      const folderBtn = screen.getByText("archive").closest("button")!;
+      expect(folderBtn.getAttribute("draggable")).not.toBe("true");
+    });
+
+    it("drag start on a folder sets the folder path on dataTransfer", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={vi.fn(async () => ({ ok: true, newPath: "/x" }))}
+        />,
+      );
+      const folderBtn = screen.getByText("stuff").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(folderBtn, { dataTransfer: dt });
+      expect(dt.getData("application/x-pennivo-path")).toBe("/docs/stuff");
+    });
+
+    it("dropping a folder onto a different folder calls onMoveFile with src + destDir", async () => {
+      const onMoveFile = vi.fn(async () => ({
+        ok: true,
+        newPath: "/docs/archive/stuff",
+      }));
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={onMoveFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const stuffBtn = screen.getByText("stuff").closest("button")!;
+      const archiveBtn = screen.getByText("archive").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(stuffBtn, { dataTransfer: dt });
+      fireEvent.dragOver(archiveBtn, { dataTransfer: dt });
+      fireEvent.drop(archiveBtn, { dataTransfer: dt });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).toHaveBeenCalledWith(
+        "/docs/stuff",
+        "/docs/archive",
+        false,
+      );
+    });
+
+    it("dropping a folder onto its own descendant is prevented (no move)", async () => {
+      const onMoveFile = vi.fn(async () => ({ ok: true, newPath: "" }));
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={onMoveFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      // Drag "stuff" onto its descendant "deep" (/docs/stuff/deep).
+      const stuffBtn = screen.getByText("stuff").closest("button")!;
+      const deepBtn = screen.getByText("deep").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(stuffBtn, { dataTransfer: dt });
+      fireEvent.drop(deepBtn, { dataTransfer: dt });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).not.toHaveBeenCalled();
+    });
+
+    it("dropping a folder onto itself is prevented (no move)", async () => {
+      const onMoveFile = vi.fn(async () => ({ ok: true, newPath: "" }));
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={onMoveFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const stuffBtn = screen.getByText("stuff").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(stuffBtn, { dataTransfer: dt });
+      fireEvent.drop(stuffBtn, { dataTransfer: dt });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).not.toHaveBeenCalled();
+    });
+
+    it("dropping a folder onto its own current parent is a silent no-op", async () => {
+      const onMoveFile = vi.fn(async () => ({ ok: true, newPath: "" }));
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={onMoveFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      // "deep" lives at /docs/stuff/deep; its parent is "stuff" (/docs/stuff).
+      const deepBtn = screen.getByText("deep").closest("button")!;
+      const stuffBtn = screen.getByText("stuff").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(deepBtn, { dataTransfer: dt });
+      fireEvent.drop(stuffBtn, { dataTransfer: dt });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).not.toHaveBeenCalled();
+    });
+
+    it("collision on a folder move shows the 'Replace existing folder?' dialog and confirm retries with overwrite=true", async () => {
+      const onMoveFile = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, reason: "collision" })
+        .mockResolvedValueOnce({ ok: true, newPath: "/docs/archive/stuff" });
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          onMoveFile={onMoveFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const stuffBtn = screen.getByText("stuff").closest("button")!;
+      const archiveBtn = screen.getByText("archive").closest("button")!;
+      const dt = makeDataTransfer();
+      fireEvent.dragStart(stuffBtn, { dataTransfer: dt });
+      fireEvent.drop(archiveBtn, { dataTransfer: dt });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).toHaveBeenNthCalledWith(
+        1,
+        "/docs/stuff",
+        "/docs/archive",
+        false,
+      );
+      const dialog = await screen.findByRole("alertdialog", {
+        name: "Replace existing folder?",
+      });
+      expect(dialog).toBeInTheDocument();
+      const replaceBtn = dialog.querySelector(
+        ".confirm-dialog-btn--danger",
+      ) as HTMLButtonElement;
+      fireEvent.click(replaceBtn);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onMoveFile).toHaveBeenNthCalledWith(
+        2,
+        "/docs/stuff",
+        "/docs/archive",
+        true,
+      );
+    });
+  });
+
   describe("Trash entry", () => {
     it("does not render when trashCount is 0", () => {
       const { container } = render(

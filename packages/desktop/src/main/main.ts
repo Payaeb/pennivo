@@ -634,6 +634,28 @@ async function resolveWorkspaceRootFor(
  * Must be called BEFORE the fs move/rename so the snapshot reflects the
  * pre-move world.
  */
+/**
+ * Move a filesystem entry (file or directory) from `src` to `dest`. Prefers
+ * `fs.rename` (atomic, same-volume). When that fails with EXDEV — the source
+ * and destination live on different devices/mount points, where rename is not
+ * permitted — fall back to a recursive copy followed by a recursive remove of
+ * the source. Any other error propagates to the caller. Used by the sidebar
+ * move so a directory move works across volumes and carries its whole subtree.
+ */
+async function moveEntry(src: string, dest: string): Promise<void> {
+  try {
+    await fs.rename(src, dest);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EXDEV") {
+      // Cross-device: copy the subtree, then remove the original.
+      await fs.cp(src, dest, { recursive: true, force: true });
+      await fs.rm(src, { recursive: true, force: true });
+      return;
+    }
+    throw err;
+  }
+}
+
 async function prepareLinkRewrite(
   oldAbs: string,
   newAbs: string,
@@ -2239,17 +2261,48 @@ function registerIpcHandlers() {
           return { ok: true, newPath: srcPath.replace(/\\/g, "/") };
         }
 
-        // Discover asset folders to move alongside the .md. The convention is
-        // "<name>-md-images/" but a renamed file's actual folder may have a
-        // different name — we scan content references too.
-        const srcDir = path.dirname(srcPath);
-        const assetFolderNames = await findAssetFoldersForFile(srcPath);
+        // Phase 11f: derive directory-ness from a stat. A directory move is a
+        // recursive move of the whole subtree (the per-file `*-md-images/`
+        // asset folders inside it come along automatically as children); a file
+        // move additionally relocates its sibling asset folders.
+        let isDirectory = false;
+        try {
+          isDirectory = (await fs.stat(srcPath)).isDirectory();
+        } catch {
+          // Stat failure is non-fatal — treat as a file.
+        }
 
-        // Collision check: file
-        let fileExists = false;
+        // Server-side guard (defense in depth): never attempt an illegal
+        // directory move. Dropping a folder into itself or into one of its own
+        // descendants would either fail at the fs layer or corrupt the tree;
+        // the client guards this too, and the planner refuses the link rewrite,
+        // but the fs op must never run. (`newPath === srcPath` is handled above
+        // as a success no-op.)
+        if (isDirectory) {
+          const resolvedSrc = path.resolve(srcPath);
+          const resolvedNew = path.resolve(newPath);
+          const srcWithSep = resolvedSrc.endsWith(path.sep)
+            ? resolvedSrc
+            : resolvedSrc + path.sep;
+          if (resolvedNew === resolvedSrc || resolvedNew.startsWith(srcWithSep)) {
+            return { ok: false, reason: "error" };
+          }
+        }
+
+        const srcDir = path.dirname(srcPath);
+
+        // Asset folders are only relocated separately for a FILE move. For a
+        // directory move they live INSIDE the moved tree, so the recursive move
+        // carries them automatically.
+        const assetFolderNames = isDirectory
+          ? []
+          : await findAssetFoldersForFile(srcPath);
+
+        // Collision check on the primary destination (file or folder).
+        let destExists = false;
         try {
           await fs.access(newPath);
-          fileExists = true;
+          destExists = true;
         } catch {
           // ENOENT — destination is free
         }
@@ -2265,9 +2318,14 @@ function registerIpcHandlers() {
           }
         }
 
-        if (fileExists || collidingAssetFolders.length > 0) {
+        if (destExists || collidingAssetFolders.length > 0) {
           if (!overwrite) return { ok: false, reason: "collision" };
-          if (fileExists) await fs.unlink(newPath);
+          // Replace: remove ONLY the specific destination path (and any
+          // colliding asset folders for a file move). `fs.rm` with recursive
+          // handles both a file and a directory destination.
+          if (destExists) {
+            await fs.rm(newPath, { recursive: true, force: true });
+          }
           for (const name of collidingAssetFolders) {
             await fs.rm(path.join(destDir, name), {
               recursive: true,
@@ -2278,22 +2336,24 @@ function registerIpcHandlers() {
 
         // Phase 11f: snapshot the markdown set + compute workspace-relative
         // old/new POSIX paths BEFORE moving, so the pure planner sees the
-        // pre-move world. Folder moves arrive in a later sub-part; a .md move
-        // is always a file (isDirectory false), but we derive the flag from a
-        // stat so the integration generalizes when folder moves land.
-        let isDirectory = false;
-        try {
-          isDirectory = (await fs.stat(srcPath)).isDirectory();
-        } catch {
-          // Stat failure is non-fatal — treat as a file.
-        }
+        // pre-move world. For a directory, oldRelPosix/newRelPosix are the
+        // FOLDER paths, so planLinkRewrite rewrites links to every file inside
+        // the moved subtree.
         const rewritePrep = await prepareLinkRewrite(srcPath, newPath);
 
-        // Move the file first (the user's primary intent), then each asset folder.
-        await fs.rename(srcPath, newPath);
+        // Recursive-safe move: try rename first (atomic, same-volume). Fall
+        // back to copy + remove when rename fails with EXDEV (cross-device),
+        // which can happen for a directory spanning mount points.
+        await moveEntry(srcPath, newPath);
+
+        // File move only: relocate each sibling asset folder. (Directory moves
+        // already carried their inner asset folders via the recursive move.)
         for (const name of assetFolderNames) {
           try {
-            await fs.rename(path.join(srcDir, name), path.join(destDir, name));
+            await moveEntry(
+              path.join(srcDir, name),
+              path.join(destDir, name),
+            );
           } catch (imgErr) {
             // Best-effort: the .md file is at its new location. If an asset
             // folder failed to move (rare — usually disk/permission), log and
@@ -2307,7 +2367,7 @@ function registerIpcHandlers() {
           }
         }
 
-        // Cross-document rewrite (writes the moved file's outbound links and
+        // Cross-document rewrite (writes the moved entity's outbound links and
         // every other referrer). A plain move does not change the basename, so
         // the moved file's asset-folder references already line up with the
         // folders we relocated above; unlike rename, move historically does

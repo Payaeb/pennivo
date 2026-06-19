@@ -129,6 +129,61 @@ function countFiles(entries: FileTreeEntry[]): number {
 // Drop target for the workspace root (when dragging a file out of any folder).
 const ROOT_DROP_TARGET = "__root__";
 
+/** Normalize a path to forward slashes + lowercase for case-insensitive compare. */
+function normForCompare(p: string): string {
+  return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+/** The directory `path` lives in (its parent), normalized. */
+function parentDirOf(path: string): string {
+  return normForCompare(path).replace(/\/[^/]+$/, "");
+}
+
+/**
+ * Whether moving `srcPath` INTO `destDir` is illegal or a no-op, so the drop
+ * must be suppressed. Covers:
+ *  - dropping any entry onto its own current parent directory (no-op),
+ *  - dropping a folder onto itself,
+ *  - dropping a folder into one of its own descendants.
+ * Files can never be a descendant container, so the folder-specific cases only
+ * trigger for `isFolder`.
+ */
+function isIllegalMoveTarget(
+  srcPath: string,
+  destDir: string,
+  isFolder: boolean,
+): boolean {
+  const src = normForCompare(srcPath);
+  const dest = normForCompare(destDir);
+  // No-op: the entry already lives directly in this destination folder.
+  if (parentDirOf(srcPath) === dest) return true;
+  if (isFolder) {
+    // Into itself, or into any descendant of the dragged folder.
+    if (dest === src || dest.startsWith(src + "/")) return true;
+  }
+  return false;
+}
+
+/**
+ * Look up whether `path` names a folder in the tree. Used as a fallback to
+ * recover the source's folder-ness when the in-flight `draggingIsFolder` state
+ * is unavailable (e.g. a synthetic drop dispatched without a dragstart).
+ */
+function isPathAFolder(path: string, entries: FileTreeEntry[]): boolean {
+  const target = normForCompare(path);
+  const find = (list: FileTreeEntry[]): FileTreeEntry | null => {
+    for (const e of list) {
+      if (normForCompare(e.path) === target) return e;
+      if (e.children) {
+        const found = find(e.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return find(entries)?.type === "folder";
+}
+
 export function Sidebar({
   visible,
   folderPath,
@@ -209,11 +264,17 @@ export function Sidebar({
   // pendingMove: set when a move was attempted but hit a collision; used by
   // the "Replace existing?" dialog so user can retry with overwrite=true.
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
+  // Whether the in-flight drag source is a folder. Drives the client-side
+  // self/descendant guard for folder moves (a file can never be a container).
+  const [draggingIsFolder, setDraggingIsFolder] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  // pendingMove carries `isFolder` so the collision dialog can show the
+  // folder-appropriate "Replace existing folder?" copy on a directory move.
   const [pendingMove, setPendingMove] = useState<{
     srcPath: string;
     destDir: string;
     destFilename: string;
+    isFolder: boolean;
   } | null>(null);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
@@ -374,7 +435,12 @@ export function Sidebar({
   // --- Drag-and-drop handlers ---
 
   const tryMove = useCallback(
-    async (srcPath: string, destDir: string, overwrite: boolean) => {
+    async (
+      srcPath: string,
+      destDir: string,
+      overwrite: boolean,
+      isFolder: boolean,
+    ) => {
       if (!onMoveFile) return;
       const result = await onMoveFile(srcPath, destDir, overwrite);
       if (result.ok) {
@@ -386,7 +452,7 @@ export function Sidebar({
         );
       } else if (result.reason === "collision") {
         const filename = srcPath.replace(/\\/g, "/").split("/").pop() ?? "";
-        setPendingMove({ srcPath, destDir, destFilename: filename });
+        setPendingMove({ srcPath, destDir, destFilename: filename, isFolder });
       } else {
         onShowToast?.("Move failed", true);
       }
@@ -396,8 +462,11 @@ export function Sidebar({
 
   const handleDragStart = useCallback(
     (entry: FileTreeEntry, e: React.DragEvent) => {
-      // Only files are draggable in v1
-      if (entry.type !== "file" || !onMoveFile) {
+      // Files AND folders are draggable when a move handler is wired. Folders
+      // use the same `application/x-pennivo-path` payload as files; the move
+      // handler stats the source and generalizes a folder move to a recursive
+      // move (with the same collision flow).
+      if (!onMoveFile || (entry.type !== "file" && entry.type !== "folder")) {
         e.preventDefault();
         return;
       }
@@ -406,23 +475,33 @@ export function Sidebar({
       // text/plain fallback for tools that read clipboard-like data
       e.dataTransfer.setData("text/plain", entry.path);
       setDraggingPath(entry.path);
+      setDraggingIsFolder(entry.type === "folder");
     },
     [onMoveFile],
   );
 
   const handleDragEnd = useCallback(() => {
     setDraggingPath(null);
+    setDraggingIsFolder(false);
     setDragOverPath(null);
   }, []);
 
   const handleDragOverTarget = useCallback(
-    (targetKey: string, e: React.DragEvent) => {
+    (targetKey: string, destDir: string, e: React.DragEvent) => {
       if (!onMoveFile || !draggingPath) return;
+      // Suppress the drop-allowed indicator for illegal targets: a folder
+      // dropped onto itself / a descendant, or any entry onto its own current
+      // parent (a no-op). Not calling preventDefault leaves the cursor in the
+      // browser's default "no-drop" state and no row highlight is shown.
+      if (isIllegalMoveTarget(draggingPath, destDir, draggingIsFolder)) {
+        if (dragOverPath === targetKey) setDragOverPath(null);
+        return;
+      }
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       if (dragOverPath !== targetKey) setDragOverPath(targetKey);
     },
-    [onMoveFile, draggingPath, dragOverPath],
+    [onMoveFile, draggingPath, draggingIsFolder, dragOverPath],
   );
 
   const handleDragLeaveTarget = useCallback((targetKey: string) => {
@@ -436,25 +515,32 @@ export function Sidebar({
       const srcPath =
         e.dataTransfer.getData("application/x-pennivo-path") ||
         e.dataTransfer.getData("text/plain");
+      // Capture the source's folder-ness before clearing the drag state. We
+      // fall back to the tree when `draggingIsFolder` is stale (e.g. a drop
+      // dispatched without a matching dragstart in tests).
+      const isFolder = draggingPath
+        ? draggingIsFolder
+        : isPathAFolder(srcPath, tree);
       setDraggingPath(null);
+      setDraggingIsFolder(false);
       setDragOverPath(null);
       if (!srcPath) return;
 
-      // No-op: file already lives directly in this folder
-      const srcDir = srcPath.replace(/\\/g, "/").replace(/\/[^/]+$/, "");
-      const normalizedDest = destDir.replace(/\\/g, "/");
-      if (srcDir.toLowerCase() === normalizedDest.toLowerCase()) return;
+      // Guard (mirrors handleDragOverTarget): ignore illegal/no-op drops —
+      // onto the source's own parent, onto the dragged folder itself, or into
+      // any of its descendants. The move handler also guards server-side.
+      if (isIllegalMoveTarget(srcPath, destDir, isFolder)) return;
 
-      await tryMove(srcPath, destDir, false);
+      await tryMove(srcPath, destDir, false, isFolder);
     },
-    [onMoveFile, tryMove],
+    [onMoveFile, tryMove, draggingPath, draggingIsFolder, tree],
   );
 
   const handleConfirmReplaceMove = useCallback(async () => {
     if (!pendingMove) return;
-    const { srcPath, destDir } = pendingMove;
+    const { srcPath, destDir, isFolder } = pendingMove;
     setPendingMove(null);
-    await tryMove(srcPath, destDir, true);
+    await tryMove(srcPath, destDir, true, isFolder);
   }, [pendingMove, tryMove]);
 
   // Build the items list for the active context menu
@@ -757,10 +843,16 @@ export function Sidebar({
 
       <ConfirmDialog
         open={pendingMove !== null}
-        title="Replace existing file?"
+        title={
+          pendingMove?.isFolder
+            ? "Replace existing folder?"
+            : "Replace existing file?"
+        }
         message={
           pendingMove
-            ? `A file named "${pendingMove.destFilename}" already exists in the destination folder. Replace it? This cannot be undone.`
+            ? pendingMove.isFolder
+              ? `A folder named "${pendingMove.destFilename}" already exists in the destination folder. Replacing it removes the existing folder and everything inside it. This cannot be undone.`
+              : `A file named "${pendingMove.destFilename}" already exists in the destination folder. Replace it? This cannot be undone.`
             : ""
         }
         confirmLabel="Replace"
@@ -799,7 +891,11 @@ interface TreeContext {
   dragEnabled: boolean;
   onDragStart: (entry: FileTreeEntry, e: React.DragEvent) => void;
   onDragEnd: () => void;
-  onDragOverTarget: (targetKey: string, e: React.DragEvent) => void;
+  onDragOverTarget: (
+    targetKey: string,
+    destDir: string,
+    e: React.DragEvent,
+  ) => void;
   onDragLeaveTarget: (targetKey: string) => void;
   onDropOnTarget: (destDir: string, e: React.DragEvent) => void;
 }
@@ -1015,7 +1111,7 @@ function TreeContainer({
         // background, not a nested folder row (folder rows handle their own
         // dragOver via stopPropagation in handleDropOnTarget).
         if (e.currentTarget === e.target) {
-          onDragOverTarget(ROOT_DROP_TARGET, e);
+          onDragOverTarget(ROOT_DROP_TARGET, rootDir, e);
         }
       }}
       onDragLeave={(e) => {
@@ -1199,17 +1295,19 @@ function TreeNode({
           />
         ) : (
           <button
-            className={`tree-item tree-item--folder${isDragTarget ? " tree-item--drag-over" : ""}`}
+            className={`tree-item tree-item--folder${isDragTarget ? " tree-item--drag-over" : ""}${isDragSource ? " tree-item--dragging" : ""}`}
             style={
               { paddingLeft: indent, "--depth": depth } as React.CSSProperties
             }
             onClick={() => toggleExpanded(entry.path)}
             onFocus={() => setFocusedPath(entry.path)}
             onContextMenu={(e) => onContextMenuOpen?.(entry, e)}
+            draggable={dragEnabled}
+            onDragStart={(e) => onDragStart(entry, e)}
             onDragOver={(e) => {
               if (!dragEnabled) return;
               e.stopPropagation();
-              onDragOverTarget(entry.path, e);
+              onDragOverTarget(entry.path, entry.path, e);
             }}
             onDragLeave={(e) => {
               e.stopPropagation();
@@ -1220,6 +1318,7 @@ function TreeNode({
               e.stopPropagation();
               onDropOnTarget(entry.path, e);
             }}
+            onDragEnd={onDragEnd}
             role="treeitem"
             aria-expanded={expanded}
             tabIndex={isFocused ? 0 : -1}
