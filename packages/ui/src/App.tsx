@@ -303,6 +303,12 @@ function AppContent() {
   const [sourceContent, setSourceContent] = useState("");
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import("@codemirror/view").EditorView | null>(null);
+  // Monotonic token for search-result jumps. Each handleOpenSearchResult bumps
+  // it; the runPendingJump rAF loop captures the value for its invocation and
+  // bails the moment a newer click supersedes it, so overlapping clicks can't
+  // leave an older loop yanking scroll/selection to a stale target. Mirrors the
+  // requestIdRef last-write-wins pattern in GlobalSearchPanel.
+  const jumpTokenRef = useRef(0);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const typewriterModeRef = useRef(false);
@@ -3232,8 +3238,11 @@ function AppContent() {
       const from = Math.min(Math.max(target.fileOffset, 0), docLen);
       // Select the matched term when it is a plain (non-regex) string we can
       // verify at the offset; otherwise just place the cursor at the start.
+      // Search is multi-term AND, so the whole raw query is not a single literal
+      // substring at the offset. Locate using the FIRST term only (the matcher
+      // is case-insensitive); single-term queries are unaffected.
       let to = from;
-      const term = target.query;
+      const term = target.query.split(/\s+/).filter(Boolean)[0] ?? target.query;
       if (term) {
         const slice = view.state.doc.sliceString(
           from,
@@ -3254,7 +3263,11 @@ function AppContent() {
     (target: GlobalSearchJumpTarget): boolean => {
       const view = getEditorView();
       if (!view) return false;
-      const term = target.query;
+      // Search is multi-term AND; passing the whole raw query as one literal
+      // substring would never match the rendered doc. Locate using the FIRST
+      // term only (findFirstPmMatch is case-insensitive by default). Single-term
+      // queries are unaffected.
+      const term = target.query.split(/\s+/).filter(Boolean)[0] ?? target.query;
       if (!term) return true; // nothing to locate; opening the file is enough
       // Raw file offsets do not map 1:1 to ProseMirror positions, so re-find
       // the first occurrence of the term in the rendered document and drive the
@@ -3275,25 +3288,31 @@ function AppContent() {
   );
 
   const runPendingJump = useCallback(
-    (target: GlobalSearchJumpTarget, attempt: number) => {
+    (target: GlobalSearchJumpTarget, attempt: number, token: number) => {
+      // A newer result click has started its own jump — abandon this loop so it
+      // can't yank scroll/selection back to the older target.
+      if (token !== jumpTokenRef.current) return;
       const MAX_ATTEMPTS = 30; // ~0.5s at 60fps; well past editor settle time
       const applied = sourceModeRef.current
         ? applySourceJump(target)
         : applyWysiwygJump(target);
       if (applied || attempt >= MAX_ATTEMPTS) return;
-      requestAnimationFrame(() => runPendingJump(target, attempt + 1));
+      requestAnimationFrame(() => runPendingJump(target, attempt + 1, token));
     },
     [applySourceJump, applyWysiwygJump],
   );
 
   const handleOpenSearchResult = useCallback(
     (absPath: string, target: GlobalSearchJumpTarget) => {
+      // Each click supersedes any in-flight jump: bump the token and capture it
+      // so the rAF loop below bails the instant a later click takes over.
+      const token = ++jumpTokenRef.current;
       // Open (or no-op if already open), then poll until the editor view holds
       // the new document and apply the jump. handleSidebarFileClick resolves
       // once content is pushed; the view applies it on a later frame, so we
       // start the rAF poll after the open settles.
       void handleSidebarFileClick(absPath).then(() => {
-        requestAnimationFrame(() => runPendingJump(target, 0));
+        requestAnimationFrame(() => runPendingJump(target, 0, token));
       });
     },
     [handleSidebarFileClick, runPendingJump],

@@ -182,6 +182,14 @@ export function GlobalSearchPanel({
 
   const showEmpty = flatItems.length === 0;
 
+  // Number of result LINES actually rendered. `totalMatches` is the true count
+  // of term occurrences (including any beyond the cap), so it is wrong for both
+  // the "showing N" footer and a capped summary; this reflects what is on screen.
+  const shownResults = useMemo(
+    () => (results?.files ?? []).reduce((n, f) => n + f.lines.length, 0),
+    [results],
+  );
+
   return (
     <div className="global-search" role="search" onKeyDown={handleKeyDown}>
       <div className="global-search-input-row">
@@ -237,9 +245,18 @@ export function GlobalSearchPanel({
 
       {!showEmpty && results && (
         <div className="global-search-summary" aria-live="polite">
-          {results.totalMatches} match
-          {results.totalMatches === 1 ? "" : "es"} in {results.files.length}{" "}
-          file{results.files.length === 1 ? "" : "s"}
+          {results.capped ? (
+            <>
+              Showing {shownResults} of {results.totalMatches} match
+              {results.totalMatches === 1 ? "" : "es"}
+            </>
+          ) : (
+            <>
+              {results.totalMatches} match
+              {results.totalMatches === 1 ? "" : "es"} in {results.files.length}{" "}
+              file{results.files.length === 1 ? "" : "s"}
+            </>
+          )}
         </div>
       )}
 
@@ -292,7 +309,8 @@ export function GlobalSearchPanel({
 
       {results?.capped && (
         <div className="global-search-footer">
-          Showing first {results.totalMatches} matches. Refine your search.
+          Showing the first {shownResults} result
+          {shownResults === 1 ? "" : "s"}. Refine your search.
         </div>
       )}
     </div>

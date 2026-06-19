@@ -172,7 +172,8 @@ describe("GlobalSearchPanel", () => {
       );
     });
 
-    it("shows the capped footer when results.capped is true", async () => {
+    it("shows the capped footer with the SHOWN result count (not totalMatches)", async () => {
+      // 3 result lines on screen (alpha 1 + bravo 2) but 500 true occurrences.
       const capped = { ...makeResults(), capped: true, totalMatches: 500 };
       const onSearch = vi.fn(async () => capped);
       render(<GlobalSearchPanel {...baseProps} onSearch={onSearch} />);
@@ -180,8 +181,28 @@ describe("GlobalSearchPanel", () => {
       fireEvent.change(input, { target: { value: "salmon" } });
       await waitFor(() =>
         expect(
-          screen.getByText(/Showing first 500 matches/),
+          screen.getByText(/Showing the first 3 results\. Refine your search\./),
         ).toBeInTheDocument(),
+      );
+    });
+
+    it("capped summary reads 'Showing N of total matches'", async () => {
+      const capped = { ...makeResults(), capped: true, totalMatches: 500 };
+      const onSearch = vi.fn(async () => capped);
+      render(<GlobalSearchPanel {...baseProps} onSearch={onSearch} />);
+      const input = screen.getByPlaceholderText("Search in workspace...");
+      fireEvent.change(input, { target: { value: "salmon" } });
+      await waitFor(() =>
+        expect(screen.getByText("Showing 3 of 500 matches")).toBeInTheDocument(),
+      );
+    });
+
+    it("uncapped summary reads 'total matches in N files'", async () => {
+      render(<GlobalSearchPanel {...baseProps} />);
+      const input = screen.getByPlaceholderText("Search in workspace...");
+      fireEvent.change(input, { target: { value: "salmon" } });
+      await waitFor(() =>
+        expect(screen.getByText("3 matches in 2 files")).toBeInTheDocument(),
       );
     });
   });

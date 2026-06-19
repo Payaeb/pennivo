@@ -434,6 +434,40 @@ async function writeSettings(settings: AppSettings): Promise<void> {
 }
 
 /**
+ * Read-modify-write the settings file with no gap: the `produce` callback runs
+ * INSIDE the serialized write chain, receiving the freshest on-disk settings
+ * and returning the object to persist. Use this (over a bare readSettings →
+ * writeSettings) whenever the write must reflect concurrent mutations that may
+ * have landed since the caller's own earlier read — e.g. settings:set must pick
+ * up the live `workspaces` slice rather than reverting it from a stale renderer
+ * snapshot. The atomic temp-file + rename is identical to `writeSettings`.
+ */
+async function mutateSettings(
+  produce: (current: AppSettings) => AppSettings,
+): Promise<void> {
+  const run = settingsWriteChain.then(async () => {
+    const current = readSettings();
+    const settings = produce(current);
+    const target = getSettingsPath();
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    const data = JSON.stringify(settings, null, 2);
+    try {
+      await fs.writeFile(tmp, data, "utf-8");
+      await fs.rename(tmp, target);
+    } catch (err) {
+      try {
+        await fs.unlink(tmp);
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
+  });
+  settingsWriteChain = run.catch(() => {});
+  await run;
+}
+
+/**
  * Read settings + migrate the recovery sub-section to a fully-populated
  * shape. Always returns a `recovery` field so downstream code can treat it
  * as required.
@@ -2670,6 +2704,16 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("settings:set", async (_e, incoming: AppSettings) => {
+    // The `workspaces` slice is owned SOLELY by the `workspaces:*` handlers (and
+    // the `sidebar:set-folder` shim). settings:set carries a whole settings
+    // object echoed back from the renderer, which may hold a STALE `workspaces`
+    // snapshot read before a concurrent workspaces:add / set-prefs / set-active.
+    // Writing that snapshot verbatim would silently revert the workspace
+    // mutation, so we strip it here and re-merge the FRESH on-disk slice inside
+    // the serialized write chain (no read-modify-write gap).
+    const rest: AppSettings = { ...incoming };
+    delete rest.workspaces;
+
     // Detect first-time archive folder pick → apply daily-and-older
     // archive routing defaults (without overriding any user-set tier).
     const previous = readSettingsWithRecovery();
@@ -2688,11 +2732,12 @@ function registerIpcHandlers() {
         };
       }
     }
-    const merged: AppSettings = {
-      ...incoming,
+    await mutateSettings((current) => ({
+      ...rest,
       recovery: nextRecovery ?? previous.recovery,
-    };
-    await writeSettings(merged);
+      // Preserve whatever the workspaces:* handlers last wrote to disk.
+      workspaces: current.workspaces,
+    }));
     await refreshSnapshotEnvironment();
   });
 
