@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { connect, callTool, firstText, type Harness } from "./harness.js";
-import { seedWorkspace, cleanup } from "./fixtures.js";
+import { seedWorkspace, cleanup, writeFile } from "./fixtures.js";
 
 interface TreeNode {
   name: string;
@@ -106,30 +106,190 @@ describe("read tools", () => {
   });
 
   describe("search", () => {
+    interface SearchMatch {
+      path: string;
+      line: number;
+      preview: string;
+    }
+    interface SearchFileGroup {
+      path: string;
+      matchCount: number;
+      lines: {
+        line: number;
+        snippet: string;
+        ranges: { start: number; end: number }[];
+        truncatedStart: boolean;
+        truncatedEnd: boolean;
+      }[];
+    }
+    interface SearchData {
+      query: string;
+      scope: string;
+      matchCount: number;
+      capped: boolean;
+      files: SearchFileGroup[];
+      matches: SearchMatch[];
+    }
+
     it("finds matching lines across the workspace", async () => {
       const res = await callTool(h, "search", { query: "fox" });
-      const data = JSON.parse(firstText(res)) as {
-        matchCount: number;
-        matches: { path: string; line: number; preview: string }[];
-      };
+      const data = JSON.parse(firstText(res)) as SearchData;
       expect(data.matchCount).toBeGreaterThanOrEqual(2);
       const paths = data.matches.map((m) => m.path);
       expect(paths).toContain("notes.md");
       expect(paths).toContain("sub/deep.md");
     });
 
-    it("scopes search to a subfolder", async () => {
-      const res = await callTool(h, "search", { query: "fox", scope: "sub" });
-      const data = JSON.parse(firstText(res)) as {
-        matches: { path: string }[];
-      };
-      expect(data.matches.every((m) => m.path.startsWith("sub/"))).toBe(true);
+    it("exposes the backward-compatible matches[] shape", async () => {
+      const res = await callTool(h, "search", { query: "fox" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(Array.isArray(data.matches)).toBe(true);
+      expect(data.matches.length).toBeGreaterThan(0);
+      for (const m of data.matches) {
+        expect(typeof m.path).toBe("string");
+        expect(typeof m.line).toBe("number");
+        expect(typeof m.preview).toBe("string");
+      }
     });
 
-    it("is case-insensitive", async () => {
+    it("exposes the new ranked files[] grouping", async () => {
+      const res = await callTool(h, "search", { query: "fox" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(Array.isArray(data.files)).toBe(true);
+      const group = data.files.find((f) => f.path === "notes.md");
+      expect(group).toBeDefined();
+      expect(group?.matchCount).toBeGreaterThanOrEqual(1);
+      expect(group?.lines[0]).toMatchObject({
+        line: expect.any(Number),
+        snippet: expect.any(String),
+        ranges: expect.any(Array),
+        truncatedStart: expect.any(Boolean),
+        truncatedEnd: expect.any(Boolean),
+      });
+    });
+
+    it("requires every whitespace-split term (multi-term AND)", async () => {
+      // notes.md contains both "quick" and "fox"; deep.md contains "fox" only.
+      const res = await callTool(h, "search", { query: "quick fox" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      const paths = data.files.map((f) => f.path);
+      expect(paths).toContain("notes.md");
+      expect(paths).not.toContain("sub/deep.md");
+    });
+
+    it("excludes files missing one of the terms", async () => {
+      // "fox" exists, "zebra" exists nowhere -> no file qualifies.
+      const res = await callTool(h, "search", { query: "fox zebra" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.matchCount).toBe(0);
+      expect(data.files).toHaveLength(0);
+      expect(data.matches).toHaveLength(0);
+    });
+
+    it("scopes search to a subfolder", async () => {
+      const res = await callTool(h, "search", { query: "fox", scope: "sub" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.matches.every((m) => m.path.startsWith("sub/"))).toBe(true);
+      expect(data.files.every((f) => f.path.startsWith("sub/"))).toBe(true);
+    });
+
+    it("is case-insensitive by default", async () => {
       const res = await callTool(h, "search", { query: "FOX" });
-      const data = JSON.parse(firstText(res)) as { matchCount: number };
+      const data = JSON.parse(firstText(res)) as SearchData;
       expect(data.matchCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it("honors caseSensitive", async () => {
+      const insensitive = JSON.parse(
+        firstText(await callTool(h, "search", { query: "FOX" })),
+      ) as SearchData;
+      const sensitive = JSON.parse(
+        firstText(
+          await callTool(h, "search", { query: "FOX", caseSensitive: true }),
+        ),
+      ) as SearchData;
+      expect(insensitive.matchCount).toBeGreaterThanOrEqual(2);
+      // The fixtures spell "fox" in lowercase, so a case-sensitive "FOX" misses.
+      expect(sensitive.matchCount).toBe(0);
+    });
+
+    it("matches whole words only with wholeWord", async () => {
+      writeFile(root, "words.md", "cat\ncategory\n");
+      const all = JSON.parse(
+        firstText(await callTool(h, "search", { query: "cat" })),
+      ) as SearchData;
+      // Plain substring "cat" hits both the "cat" line and "category".
+      const allLines = all.files.find((f) => f.path === "words.md")?.matchCount;
+      expect(allLines).toBe(2);
+
+      const whole = JSON.parse(
+        firstText(
+          await callTool(h, "search", { query: "cat", wholeWord: true }),
+        ),
+      ) as SearchData;
+      const wholeGroup = whole.files.find((f) => f.path === "words.md");
+      expect(wholeGroup?.matchCount).toBe(1);
+      expect(wholeGroup?.lines[0].line).toBe(1);
+    });
+
+    it("supports basic regex patterns", async () => {
+      const res = await callTool(h, "search", {
+        query: "qu.ck",
+        regex: true,
+      });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.files.some((f) => f.path === "notes.md")).toBe(true);
+    });
+
+    it("returns empty for an invalid regex without throwing", async () => {
+      const res = await callTool(h, "search", {
+        query: "fox(",
+        regex: true,
+      });
+      expect(res.isError).toBeFalsy();
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.matchCount).toBe(0);
+      expect(data.files).toHaveLength(0);
+      expect(data.matches).toHaveLength(0);
+    });
+
+    it("returns empty for a sub-2-character query (MIN_QUERY_CHARS)", async () => {
+      const res = await callTool(h, "search", { query: "f" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.matchCount).toBe(0);
+      expect(data.files).toHaveLength(0);
+      expect(data.matches).toHaveLength(0);
+    });
+
+    it("caps result lines at 200 and flags capped", async () => {
+      // The matcher emits up to 20 lines per file, so spread matches across
+      // enough files (20 files x 20 lines = 400 candidate lines) to exceed the
+      // 200 global cap and exercise capping.
+      const block = Array.from({ length: 20 }, () => "needle here").join("\n");
+      for (let i = 0; i < 20; i++) {
+        writeFile(root, `cap/file-${i}.md`, `${block}\n`);
+      }
+      const res = await callTool(h, "search", { query: "needle", scope: "cap" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      expect(data.capped).toBe(true);
+      expect(data.matches.length).toBe(200);
+      // matchCount is the true total occurrence count, not the capped line count.
+      expect(data.matchCount).toBeGreaterThanOrEqual(400);
+    });
+
+    it("returns a windowed snippet around the match", async () => {
+      const long = `${"x".repeat(200)} needle ${"y".repeat(200)}`;
+      writeFile(root, "long.md", `${long}\n`);
+      const res = await callTool(h, "search", { query: "needle" });
+      const data = JSON.parse(firstText(res)) as SearchData;
+      const group = data.files.find((f) => f.path === "long.md");
+      expect(group).toBeDefined();
+      const line = group!.lines[0];
+      // The snippet is windowed, so it is far shorter than the full line.
+      expect(line.snippet.length).toBeLessThan(long.length);
+      expect(line.snippet).toContain("needle");
+      expect(line.truncatedStart).toBe(true);
+      expect(line.truncatedEnd).toBe(true);
     });
   });
 

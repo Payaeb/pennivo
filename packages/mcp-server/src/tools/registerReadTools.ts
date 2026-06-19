@@ -5,7 +5,11 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { decodeImageUrlSpaces } from "@pennivo/core";
+import {
+  decodeImageUrlSpaces,
+  searchFiles,
+  type SearchInputFile,
+} from "@pennivo/core";
 import type { ServerDeps } from "../deps.js";
 import { resolveInWorkspace, toWorkspaceRelative } from "../fs/pathSafety.js";
 import {
@@ -13,10 +17,11 @@ import {
   walkMarkdown,
   readFileText,
   isMarkdown,
+  MAX_READ_BYTES,
 } from "../fs/workspaceFs.js";
 import { guardedTool, jsonResult, textResult, errorResult } from "./shared.js";
 
-/** Hard cap on search matches returned in one call. */
+/** Hard cap on search result lines returned in one call (global cap). */
 const SEARCH_MATCH_CAP = 200;
 
 interface ListFilesArgs {
@@ -29,6 +34,9 @@ interface ReadFileArgs {
 interface SearchArgs {
   query: string;
   scope?: string;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
 }
 
 export function registerReadTools(
@@ -107,14 +115,35 @@ export function registerReadTools(
     {
       title: "Search",
       description:
-        "Case-insensitive substring search across markdown files in the workspace. Returns matching lines with their file path and line number. Optionally scope to a subfolder.",
+        "Search markdown files in the workspace. Whitespace splits the query into terms and a file must contain EVERY term (multi-term AND); a 2-character minimum applies. Case-insensitive by default. Returns ranked per-file groups plus a flat list of matching lines; each `preview`/`snippet` is a windowed excerpt around the first match on the line. Optionally scope to a subfolder, or set `caseSensitive`, `wholeWord`, or `regex`.",
       inputSchema: {
-        query: z.string().min(1).describe("Text to search for."),
+        query: z
+          .string()
+          .min(1)
+          .describe(
+            "Text to search for. Whitespace splits into terms (AND); 2-char minimum.",
+          ),
         scope: z
           .string()
           .optional()
           .describe(
             "Workspace-relative folder to search within. Defaults to the root.",
+          ),
+        caseSensitive: z
+          .boolean()
+          .optional()
+          .describe("Match case exactly. Default false (case-insensitive)."),
+        wholeWord: z
+          .boolean()
+          .optional()
+          .describe(
+            "Each term must be a whole word (\\b boundaries). Default false.",
+          ),
+        regex: z
+          .boolean()
+          .optional()
+          .describe(
+            "Treat each term as a RegExp pattern. Invalid patterns return no matches. Default false.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -128,35 +157,53 @@ export function registerReadTools(
         const base = a.scope
           ? resolveInWorkspace(deps.root, a.scope)
           : deps.root;
-        const needle = a.query.toLowerCase();
-        const matches: { path: string; line: number; preview: string }[] = [];
 
-        outer: for await (const file of walkMarkdown(base)) {
-          let content: string;
+        // Enumerate markdown within the scope and build matcher input. Each read
+        // is guarded so an unreadable file is skipped, never aborting the scan.
+        // Files over the read cap are skipped to avoid loading a huge buffer.
+        const files: SearchInputFile[] = [];
+        for await (const abs of walkMarkdown(base)) {
+          let raw: string;
           try {
-            content = await fs.readFile(file, "utf-8");
+            const stat = await fs.stat(abs);
+            if (stat.size > MAX_READ_BYTES) continue;
+            raw = await fs.readFile(abs, "utf-8");
           } catch {
             continue;
           }
-          const lines = content.split(/\r?\n/);
-          const rel = toWorkspaceRelative(deps.root, file);
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes(needle)) {
-              matches.push({
-                path: rel,
-                line: i + 1,
-                preview: lines[i].trim().slice(0, 200),
-              });
-              if (matches.length >= SEARCH_MATCH_CAP) break outer;
-            }
+          files.push({
+            path: toWorkspaceRelative(deps.root, abs),
+            content: decodeImageUrlSpaces(raw),
+          });
+        }
+
+        const results = searchFiles(a.query, files, {
+          caseSensitive: a.caseSensitive,
+          wholeWord: a.wholeWord,
+          regex: a.regex,
+          maxTotalResults: SEARCH_MATCH_CAP,
+        });
+
+        // Flatten the ranked per-file groups into the legacy `matches[]` shape so
+        // existing clients keep working: one entry per emitted result line, with
+        // `preview` mapped from the windowed `snippet`.
+        const matches: { path: string; line: number; preview: string }[] = [];
+        for (const file of results.files) {
+          for (const ln of file.lines) {
+            matches.push({
+              path: file.path,
+              line: ln.line,
+              preview: ln.snippet,
+            });
           }
         }
 
         return jsonResult({
           query: a.query,
           scope: toWorkspaceRelative(deps.root, base),
-          matchCount: matches.length,
-          capped: matches.length >= SEARCH_MATCH_CAP,
+          matchCount: results.totalMatches,
+          capped: results.capped,
+          files: results.files,
           matches,
         });
       },

@@ -48,7 +48,7 @@ Restart Claude Desktop and the Pennivo tools appear.
 | --- | --- | --- |
 | `list_files(path?, recursive?)` | read | List markdown files and folders. |
 | `read_file(path)` | read | Read a markdown file as UTF-8. |
-| `search(query, scope?)` | read | Case-insensitive substring search across the workspace. |
+| `search(query, scope?, caseSensitive?, wholeWord?, regex?)` | read | Multi-term AND search (whitespace splits terms; a file must contain every term; 2-char minimum). Case-insensitive by default; supports `caseSensitive`, `wholeWord`, and `regex`. Returns ranked per-file groups plus a flat list of matching lines, each with a windowed snippet preview. |
 | `write_file(path, content)` | write | Overwrite (or create) a markdown file. |
 | `create_file(path?, content)` | write | Create a new file; derives a name from the first line if `path` is omitted. |
 | `append_to_file(path, content)` | write | Append to an existing file. |
