@@ -128,9 +128,12 @@ describe("TrashView", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("option").length).toBeGreaterThanOrEqual(3),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Empty trash/i }));
+    // No active workspace → global wording (button label, dialog title + body).
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Empty trash…$/i }),
+    );
     expect(
-      await screen.findByRole("alertdialog", { name: /Empty trash/i }),
+      await screen.findByRole("alertdialog", { name: /^Empty trash\?$/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Permanently delete all 3 file/i),
@@ -360,5 +363,49 @@ describe("TrashView — workspace scoping (Phase 5)", () => {
     expect(
       screen.queryByRole("checkbox", { name: /Show all workspaces/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses workspace-scoped empty-trash wording when filtered to a workspace", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: "alpha" });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    // Filtered to alpha (Show all OFF) → scoped button label + dialog copy.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Empty trash for this workspace…/i,
+      }),
+    );
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: /Empty trash for this workspace\?/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Permanently delete the 1 file shown in this workspace's trash\? This cannot be undone\./i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("uses global empty-trash wording when Show all workspaces is on", async () => {
+    renderTrashView({ workspaces: TWO_WS, activeWorkspaceId: "alpha" });
+    await waitFor(() =>
+      expect(screen.getByText("alpha-note.md")).toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Show all workspaces/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("beta-note.md")).toBeInTheDocument(),
+    );
+    // Show all ON → global wording for both entries.
+    fireEvent.click(screen.getByRole("button", { name: /^Empty trash…$/i }));
+    expect(
+      await screen.findByRole("alertdialog", { name: /^Empty trash\?$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Permanently delete all 2 file/i),
+    ).toBeInTheDocument();
   });
 });

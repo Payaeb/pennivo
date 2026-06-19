@@ -99,6 +99,13 @@ describe("GlobalSearchPanel", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Type to search")).toBeInTheDocument();
     });
+
+    it("shows the before-search secondary hint subline", () => {
+      render(<GlobalSearchPanel {...baseProps} />);
+      expect(
+        screen.getByText("Find text across every markdown file."),
+      ).toBeInTheDocument();
+    });
   });
 
   describe("Debounced searching", () => {
@@ -170,6 +177,9 @@ describe("GlobalSearchPanel", () => {
       await waitFor(() =>
         expect(screen.getByText("No matches")).toBeInTheDocument(),
       );
+      expect(
+        screen.getByText("Try a different term or check your spelling."),
+      ).toBeInTheDocument();
     });
 
     it("shows the capped footer with the SHOWN result count (not totalMatches)", async () => {

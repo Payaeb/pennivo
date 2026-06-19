@@ -193,19 +193,7 @@ export function GlobalSearchPanel({
   return (
     <div className="global-search" role="search" onKeyDown={handleKeyDown}>
       <div className="global-search-input-row">
-        <svg
-          className="global-search-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        >
-          <circle cx="7" cy="7" r="4.5" />
-          <line x1="10.5" y1="10.5" x2="14" y2="14" />
-        </svg>
+        <MagnifierIcon className="global-search-icon" width={14} height={14} />
         <input
           ref={inputRef}
           className="global-search-input"
@@ -263,7 +251,27 @@ export function GlobalSearchPanel({
       <div className="global-search-results" ref={listRef} role="listbox">
         {showEmpty ? (
           <div className="global-search-empty">
-            {hasSearched ? "No matches" : "Type to search"}
+            <MagnifierIcon
+              className="global-search-empty-icon"
+              width={28}
+              height={28}
+              aria-hidden="true"
+            />
+            {hasSearched ? (
+              <>
+                <p className="global-search-empty-title">No matches</p>
+                <p className="global-search-empty-hint">
+                  Try a different term or check your spelling.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="global-search-empty-title">Type to search</p>
+                <p className="global-search-empty-hint">
+                  Find text across every markdown file.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           results?.files.map((file, fileIndex) => (
@@ -351,6 +359,37 @@ function renderSnippet(
     parts.push(<span key="tail">{snippet.slice(cursor)}</span>);
   }
   return parts;
+}
+
+// Shared magnifier glyph used both inside the search input and, larger and
+// faint, in the empty states so the panel reads as one consistent surface.
+function MagnifierIcon({
+  className,
+  width = 14,
+  height = 14,
+  "aria-hidden": ariaHidden,
+}: {
+  className?: string;
+  width?: number;
+  height?: number;
+  "aria-hidden"?: boolean | "true" | "false";
+}) {
+  return (
+    <svg
+      className={className}
+      width={width}
+      height={height}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden={ariaHidden}
+    >
+      <circle cx="7" cy="7" r="4.5" />
+      <line x1="10.5" y1="10.5" x2="14" y2="14" />
+    </svg>
+  );
 }
 
 function WholeWordIcon() {

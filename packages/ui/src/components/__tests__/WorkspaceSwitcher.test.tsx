@@ -127,6 +127,46 @@ describe("WorkspaceSwitcher", () => {
     expect(onRemoveWorkspace).toHaveBeenCalledWith("ws2");
   });
 
+  it("remove control carries the expected class and an inner glyph", () => {
+    renderSwitcher();
+    fireEvent.click(screen.getByRole("button", { name: "Switch workspace" }));
+    const remove = screen.getByRole("button", {
+      name: "Remove workspace Notes",
+    });
+    expect(remove).toHaveClass("sidebar-workspace-remove");
+    // The x glyph renders as an inline svg inside the control.
+    expect(remove.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("a long workspace name row still renders the check + remove controls", () => {
+    const longName =
+      "A very very long workspace name that should ellipsis-truncate on one line";
+    renderSwitcher({
+      workspaces: [
+        { id: "ws1", name: longName, rootPath: "/docs" },
+        { id: "ws2", name: "Notes", rootPath: "/notes" },
+      ],
+      activeWorkspaceId: "ws1",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Switch workspace" }));
+    const menu = screen.getByRole("menu", { name: "Workspaces" });
+    // The full name is present (truncation is purely visual via CSS ellipsis).
+    const nameEl = within(menu).getByText(longName);
+    expect(nameEl).toHaveClass("sidebar-workspace-option-name");
+    // Its row is the active one, so it owns a rendered check glyph...
+    const row = nameEl.closest(".sidebar-workspace-row");
+    expect(row).not.toBeNull();
+    expect(
+      row!.querySelector(".sidebar-workspace-option-check svg"),
+    ).toBeInTheDocument();
+    // ...and the remove (x) control stays visible alongside the long name.
+    expect(
+      within(menu).getByRole("button", {
+        name: `Remove workspace ${longName}`,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("hides the remove affordance when only one workspace remains", () => {
     renderSwitcher({
       workspaces: [{ id: "ws1", name: "Docs", rootPath: "/docs" }],

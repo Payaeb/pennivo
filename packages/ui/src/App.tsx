@@ -504,6 +504,23 @@ function AppContent() {
     [],
   );
 
+  // Read-modify-write a shallow patch into the global settings object. Fetches
+  // the current settings, spreads the patch over them, and writes back. The
+  // main process strips the `workspaces` slice on settings:set (it is owned by
+  // the workspaces:* handlers), so shipping the full object here is safe.
+  // Use this only for the mechanical "merge these keys" case; blocks that read
+  // a value off the fetched settings (e.g. the nested `recovery` object) keep
+  // their own getSettings() so the read stays explicit.
+  const patchSettings = useCallback(
+    async (partial: Record<string, unknown>) => {
+      const current = await platform.getSettings();
+      await platform.setSettings({ ...current, ...partial });
+    },
+    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Keep the mirror refs in sync with the prefs state so the save helper can
   // read a current snapshot without re-subscribing to each value.
   useEffect(() => {
@@ -552,14 +569,10 @@ function AppContent() {
       if (activeWorkspaceIdRef.current) {
         writeActiveWorkspacePrefs({ sortKey: key });
       } else {
-        platform.getSettings().then((saved) => {
-          platform.setSettings({ ...saved, sidebarSort: key });
-        });
+        void patchSettings({ sidebarSort: key });
       }
     },
-    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [writeActiveWorkspacePrefs],
+    [writeActiveWorkspacePrefs, patchSettings],
   );
 
   // Persist a drag-resized sidebar width. Phase 3: per workspace. The Sidebar
@@ -599,16 +612,12 @@ function AppContent() {
             lastOpenFile: filePath,
           });
         } else {
-          platform.getSettings().then((saved) => {
-            platform.setSettings({ ...saved, fileOpenTimestamps: next });
-          });
+          void patchSettings({ fileOpenTimestamps: next });
         }
         return next;
       });
     },
-    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [normalizeFilePath, writeActiveWorkspacePrefs],
+    [normalizeFilePath, writeActiveWorkspacePrefs, patchSettings],
   );
 
   // --- Toolbar config ---
@@ -734,9 +743,7 @@ function AppContent() {
       sidebarVisibilityHydratedRef.current = true;
       return;
     }
-    platform.getSettings().then((saved) => {
-      platform.setSettings({ ...saved, sidebarVisible });
-    });
+    void patchSettings({ sidebarVisible });
     // platform is the project-wide stable singleton (getPlatform() returns the same instance)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarVisible]);
@@ -1011,14 +1018,10 @@ function AppContent() {
     (next: boolean) => {
       setShowEmptyFolders(next);
       showEmptyFoldersRef.current = next;
-      platform.getSettings().then((saved) => {
-        platform.setSettings({ ...saved, showEmptyFolders: next });
-      });
+      void patchSettings({ showEmptyFolders: next });
       refreshSidebarTree(sidebarFolder);
     },
-    // platform is the project-wide stable singleton (getPlatform() returns the same instance)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [refreshSidebarTree, sidebarFolder],
+    [refreshSidebarTree, sidebarFolder, patchSettings],
   );
 
   // Pick a folder and adopt it as a workspace. Phase 4 folds the legacy

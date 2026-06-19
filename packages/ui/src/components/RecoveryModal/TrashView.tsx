@@ -328,13 +328,21 @@ export function TrashView({
 
   const confirmDialogProps = pendingConfirm
     ? pendingConfirm.kind === "empty-trash"
-      ? {
-          title: "Empty trash?",
-          message: `Permanently delete all ${pendingConfirm.count} file${
-            pendingConfirm.count === 1 ? "" : "s"
-          } in trash? This cannot be undone.`,
-          confirmLabel: "Empty trash",
-        }
+      ? filterToWorkspace
+        ? {
+            title: "Empty trash for this workspace?",
+            message: `Permanently delete the ${pendingConfirm.count} file${
+              pendingConfirm.count === 1 ? "" : "s"
+            } shown in this workspace's trash? This cannot be undone.`,
+            confirmLabel: "Empty trash for this workspace",
+          }
+        : {
+            title: "Empty trash?",
+            message: `Permanently delete all ${pendingConfirm.count} file${
+              pendingConfirm.count === 1 ? "" : "s"
+            } in trash? This cannot be undone.`,
+            confirmLabel: "Empty trash",
+          }
       : {
           title: "Delete permanently?",
           message: `Permanently delete ${pendingConfirm.count} file${
@@ -505,7 +513,7 @@ export function TrashView({
           onClick={handleEmptyTrash}
           disabled={!hasEntries}
         >
-          Empty trash…
+          {filterToWorkspace ? "Empty trash for this workspace…" : "Empty trash…"}
         </button>
       </div>
 

@@ -254,10 +254,34 @@
 /* ─── Empty + footer states ─── */
 
 .global-search-empty {
-  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 24px;
   text-align: center;
+}
+
+.global-search-empty-icon {
   color: var(--text-faint);
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.global-search-empty-title {
+  margin: 0;
+  color: var(--text-muted);
   font-size: 13px;
+  font-weight: 500;
+}
+
+.global-search-empty-hint {
+  margin: 0;
+  max-width: 200px;
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 
 .global-search-footer {

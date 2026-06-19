@@ -734,6 +734,11 @@
   position: relative;
   display: flex;
   align-items: center;
+  /* Allow the option (and the name span inside it) to shrink below its
+     content width so a long workspace name ellipsis-truncates instead of
+     forcing the row past the popover's max-width. The check + remove (x)
+     keep their intrinsic size via flex-shrink: 0. */
+  min-width: 0;
   border-radius: var(--radius-sm);
 }
 
@@ -784,6 +789,11 @@
 }
 
 .sidebar-workspace-option-name {
+  /* min-width: 0 lets this flex child shrink below its content width so the
+     ellipsis can engage; without it the name would push the row wider and
+     never truncate. flex: 1 claims the space between the check and the x. */
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
