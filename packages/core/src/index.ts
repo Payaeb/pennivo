@@ -45,6 +45,16 @@ export {
 export { suggestFilenameFromContent } from "./filenameSuggest";
 
 export {
+  type SearchInputFile,
+  type SearchOptions,
+  type SearchMatchRange,
+  type SearchResultLine,
+  type SearchFileResult,
+  type SearchResults,
+  searchFiles,
+} from "./search";
+
+export {
   type Snapshot,
   type SnapshotAuthor,
   type RetentionGranularity,
