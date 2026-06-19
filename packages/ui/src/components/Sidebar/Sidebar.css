@@ -23,6 +23,12 @@
   gap: 6px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
+  /* Positioned ancestor for the header popovers (sort menu + workspace menu).
+     The header spans the full sidebar width, so anchoring the popovers to it
+     (rather than to a tiny button wrapper near the right edge) lets them be
+     right-aligned within the sidebar — never clipped off the left window edge
+     and never overhanging into the editor's stacking context. */
+  position: relative;
 }
 
 .sidebar-title {
@@ -324,6 +330,66 @@
   text-align: center;
 }
 
+/* ─── Empty-state create affordances (selected-but-empty workspace) ─── */
+
+/* Side-by-side "New File" / "New Folder" buttons shown in the empty state of a
+   selected workspace, so the user can start a structure at the root without
+   needing the tree-background context menu (which has no tree to attach to). */
+.sidebar-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sidebar-empty-create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.sidebar-empty-create-btn:hover,
+.sidebar-empty-create-btn:focus-visible {
+  background: var(--accent);
+  color: var(--bg-surface);
+  outline: none;
+}
+
+.sidebar-empty-create-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Wrapper that hosts the inline CreateInput in place of the buttons while the
+   user is typing the first file/folder's name. Full width so the input has
+   room to grow inside the centered empty-state column. */
+.sidebar-empty-create {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* Inside the empty state the CreateInput row sits on the elevated overlay
+   surface (as in the tree) and rounds its corners so it reads as a standalone
+   field rather than a flush tree row. */
+.sidebar-empty-create .tree-item--creating {
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+
 /* ─── Resize handle ─── */
 
 .sidebar-resize-handle {
@@ -485,7 +551,9 @@
 /* ─── Sort menu ─── */
 
 .sidebar-sort {
-  position: relative;
+  /* Not a positioned ancestor: the popover (`.sidebar-sort-menu`) anchors to
+     the full-width `.sidebar-header` so it can right-align inside the sidebar.
+     A `position: relative` here would re-trap it against this 22px button. */
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -521,17 +589,28 @@
 .sidebar-sort-menu {
   position: absolute;
   top: calc(100% + 6px);
-  /* Anchor the popover to the sidebar's LEFT edge and open rightward, mirroring
-     `.sidebar-workspace-menu`. The sort button sits near the left of the narrow
-     (~240px) sidebar, so `right: 0` previously pushed the popover's left edge
-     past the window's left edge, clipping the reserved check column and the
-     "Show empty folders" toggle box entirely off-screen. Anchoring `left: 0`
-     keeps that left column on-screen. `max-width` lets it extend over the tree
-     without overflowing the right edge on the narrowest sidebar. */
-  left: 0;
+  /* Anchor the popover to the sidebar's RIGHT edge (via the full-width
+     `.sidebar-header` positioned ancestor) and grow leftward. The header's
+     right padding is 14px, so `right: 14px` seats the menu just inside the
+     sidebar's right edge — it never overhangs into the editor (which paints
+     over any sidebar overflow), and growing leftward keeps the reserved check
+     column + "Show empty folders" toggle fully on-screen rather than clipped
+     off the left window edge. The width fits a default (~240px) sidebar; the
+     viewport clamp below keeps it inside an unusually narrow sidebar too. */
+  right: 14px;
+  left: auto;
   z-index: 1000;
-  min-width: 200px;
-  max-width: 320px;
+  /* Preferred width fits a default (~240px) sidebar; `max-width` clamps it to
+     the sidebar's inner width when the sidebar is dragged narrower. `100%`
+     resolves against the header (the positioned ancestor), which spans the
+     full sidebar width; subtracting the 14px left + 14px right padding keeps
+     the menu inside both the sidebar's left padding (so it never clips off the
+     left window edge) and its right padding (so it never overhangs under the
+     editor). `min-width` stays under the narrowest sidebar's inner width
+     (180 - 28 = 152px) so the clamp can never be overridden by it. */
+  width: 200px;
+  min-width: 0;
+  max-width: calc(100% - 28px);
   padding: 4px;
   /* Use the elevated base surface (lighter than the sidebar's --bg-surface) so
      the popover reads as a distinct, fully opaque layer floating above the
@@ -624,7 +703,9 @@
 /* ─── Workspace switcher (Phase 4) — sibling of the sort menu above ─── */
 
 .sidebar-workspace {
-  position: relative;
+  /* Not a positioned ancestor: like `.sidebar-sort`, the popover
+     (`.sidebar-workspace-menu`) anchors to the full-width `.sidebar-header` so
+     its width can be clamped to the sidebar and never overhang the editor. */
   flex: 1;
   min-width: 0;
 }
@@ -692,10 +773,17 @@
 .sidebar-workspace-menu {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
+  /* Anchor to the sidebar's LEFT edge (via the full-width `.sidebar-header`)
+     and grow rightward from there. `left: 14px` matches the header's left
+     padding so the menu lines up under the workspace title. `max-width` clamps
+     it to the sidebar's inner width so a wide workspace name can never push the
+     menu past the sidebar's right edge into / under the editor. */
+  left: 14px;
+  right: auto;
   z-index: 1000;
-  min-width: 220px;
-  max-width: 320px;
+  width: 220px;
+  min-width: 0;
+  max-width: calc(100% - 28px);
   padding: 4px;
   /* Fully opaque, elevated surface (lighter than the sidebar's --bg-surface)
      so occluded tree rows do not bleed through the popover. Paired with a

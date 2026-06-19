@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Sidebar } from "../Sidebar/Sidebar";
 
@@ -57,9 +57,9 @@ describe("Sidebar", () => {
       ).toBeInTheDocument();
     });
 
-    it('shows "No markdown files found" when folder is set but tree is empty', () => {
+    it('shows "No markdown files yet" when folder is set but tree is empty', () => {
       render(<Sidebar {...defaultProps} tree={[]} />);
-      expect(screen.getByText("No markdown files found")).toBeInTheDocument();
+      expect(screen.getByText("No markdown files yet")).toBeInTheDocument();
     });
 
     it("highlights current file", () => {
@@ -762,6 +762,138 @@ describe("Sidebar", () => {
       fireEvent.contextMenu(screen.getByText("notes").closest("button")!);
       expect(screen.queryByText("New File")).not.toBeInTheDocument();
       expect(screen.queryByText("New Folder")).not.toBeInTheDocument();
+    });
+  });
+
+  // BUG 1: a selected-but-empty workspace must not be a dead end. The empty
+  // state surfaces inline New File / New Folder affordances (and a right-click
+  // menu) targeting the workspace root, reusing the same create flow as the
+  // tree context menu.
+  describe("Empty-but-selected workspace create affordances", () => {
+    const emptyProps = { ...defaultProps, tree: [] as FileTreeEntry[] };
+
+    it("renders New File and New Folder buttons in the empty state when create handlers are wired", () => {
+      render(
+        <Sidebar
+          {...emptyProps}
+          onCreateFile={vi.fn(async () => "/docs/untitled.md")}
+          onCreateFolder={vi.fn(async () => "/docs/new")}
+          onShowToast={vi.fn()}
+        />,
+      );
+      // No tree, but the create buttons are reachable from the empty state.
+      expect(screen.getByText("New File")).toBeInTheDocument();
+      expect(screen.getByText("New Folder")).toBeInTheDocument();
+    });
+
+    it("does not render the create buttons when no create handlers are wired", () => {
+      render(<Sidebar {...emptyProps} onShowToast={vi.fn()} />);
+      expect(screen.queryByText("New File")).not.toBeInTheDocument();
+      expect(screen.queryByText("New Folder")).not.toBeInTheDocument();
+      // Falls back to the existing Change Folder affordance.
+      expect(screen.getByText("Change Folder")).toBeInTheDocument();
+    });
+
+    it("does not render the create buttons when no workspace is selected", () => {
+      render(
+        <Sidebar
+          {...emptyProps}
+          folderPath={null}
+          onCreateFile={vi.fn(async () => "/x")}
+          onCreateFolder={vi.fn(async () => "/y")}
+          onShowToast={vi.fn()}
+        />,
+      );
+      // The no-workspace state keeps its "Open Folder" affordance only.
+      expect(screen.getByText("Open Folder")).toBeInTheDocument();
+      expect(screen.queryByText("New File")).not.toBeInTheDocument();
+      expect(screen.queryByText("New Folder")).not.toBeInTheDocument();
+    });
+
+    it("clicking New File starts the inline create flow at the workspace root and submits with (folderPath, name)", async () => {
+      const onCreateFile = vi.fn(async () => "/docs/draft.md");
+      render(
+        <Sidebar
+          {...emptyProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByText("New File"));
+      const input = (await screen.findByLabelText(
+        "New file name",
+      )) as HTMLInputElement;
+      expect(input.value).toBe("");
+      fireEvent.change(input, { target: { value: "draft" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      // Targets the workspace ROOT (folderPath), not some nested dir.
+      expect(onCreateFile).toHaveBeenCalledWith("/docs", "draft");
+    });
+
+    it("clicking New Folder starts the inline create flow at the workspace root and submits with (folderPath, name)", async () => {
+      const onCreateFolder = vi.fn(async () => "/docs/archive");
+      render(
+        <Sidebar
+          {...emptyProps}
+          onCreateFolder={onCreateFolder}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByText("New Folder"));
+      const input = (await screen.findByLabelText(
+        "New folder name",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "archive" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      expect(onCreateFolder).toHaveBeenCalledWith("/docs", "archive");
+    });
+
+    it("right-clicking the empty state opens the root create menu targeting the workspace root", async () => {
+      const onCreateFile = vi.fn(async () => "/docs/draft.md");
+      const { container } = render(
+        <Sidebar
+          {...emptyProps}
+          onCreateFile={onCreateFile}
+          onCreateFolder={vi.fn(async () => "/docs/new")}
+          onShowToast={vi.fn()}
+        />,
+      );
+      const empty = container.querySelector(".sidebar-empty") as HTMLElement;
+      fireEvent.contextMenu(empty);
+      const menu = screen.getByRole("menu");
+      expect(menu).toBeInTheDocument();
+      // The menu's New File entry starts the same root-targeted create flow.
+      // Scope to the menu since the empty state also renders a "New File"
+      // button.
+      const menuNewFile = within(menu).getByText("New File");
+      fireEvent.click(menuNewFile);
+      const input = (await screen.findByLabelText(
+        "New file name",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "fromMenu" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await Promise.resolve();
+      expect(onCreateFile).toHaveBeenCalledWith("/docs", "fromMenu");
+    });
+
+    it("Escape during the empty-state create cancels and restores the buttons", async () => {
+      const onCreateFile = vi.fn();
+      render(
+        <Sidebar
+          {...emptyProps}
+          onCreateFile={onCreateFile}
+          onShowToast={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByText("New File"));
+      const input = await screen.findByLabelText("New file name");
+      fireEvent.change(input, { target: { value: "willcancel" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(onCreateFile).not.toHaveBeenCalled();
+      // Buttons return after cancel.
+      expect(screen.getByText("New File")).toBeInTheDocument();
     });
   });
 
