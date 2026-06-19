@@ -44,9 +44,16 @@ import {
 } from "./components/Toolbar/Toolbar.constants";
 import { LinkPopover } from "./components/LinkPopover/LinkPopover";
 import { FindReplace } from "./components/FindReplace/FindReplace";
+import {
+  findReplacePluginKey,
+  findFirstPmMatch,
+  scrollToPmMatch,
+} from "./components/FindReplace/FindReplace.plugin";
+import { scrollToCmMatch } from "./components/FindReplace/cmFindReplace";
 import type { SaveStatus } from "./components/Statusbar/Statusbar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { GlobalSearchPanel } from "./components/GlobalSearch/GlobalSearchPanel";
+import type { GlobalSearchJumpTarget } from "./components/GlobalSearch/GlobalSearchPanel";
 import {
   RecoveryModal,
   HistoryView,
@@ -3203,6 +3210,95 @@ function AppContent() {
     return view;
   }, [loading, getInstance]);
 
+  // --- Global-search jump-to-match ---
+  //
+  // After a search result opens a file we land the cursor on the exact match.
+  // The open is async and the editor view applies the new document on a later
+  // tick (CodeMirror via a React state -> effect, Milkdown via editor.action),
+  // so we cannot jump synchronously. Instead we poll across a few animation
+  // frames until the relevant view holds the new content, then jump. We bound
+  // the retries so a term that never appears (e.g. only in transformed content)
+  // can never spin forever; on exhaustion we simply leave the file open.
+  const applySourceJump = useCallback(
+    (target: GlobalSearchJumpTarget): boolean => {
+      const view = cmViewRef.current;
+      if (!view) return false;
+      const docLen = view.state.doc.length;
+      // The view still shows the previous file until the new content lands.
+      // fileOffset is an absolute char offset into the raw file, which equals
+      // the CodeMirror doc offset in source mode. Require the doc to be long
+      // enough to contain it before trusting the offset.
+      if (docLen < target.fileOffset) return false;
+      const from = Math.min(Math.max(target.fileOffset, 0), docLen);
+      // Select the matched term when it is a plain (non-regex) string we can
+      // verify at the offset; otherwise just place the cursor at the start.
+      let to = from;
+      const term = target.query;
+      if (term) {
+        const slice = view.state.doc.sliceString(
+          from,
+          Math.min(from + term.length, docLen),
+        );
+        if (slice.toLowerCase() === term.toLowerCase()) {
+          to = Math.min(from + term.length, docLen);
+        }
+      }
+      scrollToCmMatch(view, { from, to });
+      view.focus();
+      return true;
+    },
+    [],
+  );
+
+  const applyWysiwygJump = useCallback(
+    (target: GlobalSearchJumpTarget): boolean => {
+      const view = getEditorView();
+      if (!view) return false;
+      const term = target.query;
+      if (!term) return true; // nothing to locate; opening the file is enough
+      // Raw file offsets do not map 1:1 to ProseMirror positions, so re-find
+      // the first occurrence of the term in the rendered document and drive the
+      // same find decoration FindReplace uses, then scroll it into view.
+      const match = findFirstPmMatch(view.state.doc, term);
+      if (!match) return true; // term not present in rendered content; no jump
+      view.dispatch(
+        view.state.tr.setMeta(findReplacePluginKey, {
+          query: term,
+          useRegex: false,
+          currentIndex: 0,
+        }),
+      );
+      scrollToPmMatch(view, match);
+      return true;
+    },
+    [getEditorView],
+  );
+
+  const runPendingJump = useCallback(
+    (target: GlobalSearchJumpTarget, attempt: number) => {
+      const MAX_ATTEMPTS = 30; // ~0.5s at 60fps; well past editor settle time
+      const applied = sourceModeRef.current
+        ? applySourceJump(target)
+        : applyWysiwygJump(target);
+      if (applied || attempt >= MAX_ATTEMPTS) return;
+      requestAnimationFrame(() => runPendingJump(target, attempt + 1));
+    },
+    [applySourceJump, applyWysiwygJump],
+  );
+
+  const handleOpenSearchResult = useCallback(
+    (absPath: string, target: GlobalSearchJumpTarget) => {
+      // Open (or no-op if already open), then poll until the editor view holds
+      // the new document and apply the jump. handleSidebarFileClick resolves
+      // once content is pushed; the view applies it on a later frame, so we
+      // start the rAF poll after the open settles.
+      void handleSidebarFileClick(absPath).then(() => {
+        requestAnimationFrame(() => runPendingJump(target, 0));
+      });
+    },
+    [handleSidebarFileClick, runPendingJump],
+  );
+
   // --- Outline heading click ---
   const handleOutlineHeadingClick = useCallback((heading: HeadingEntry) => {
     if (sourceModeRef.current) {
@@ -3820,9 +3916,7 @@ function AppContent() {
               onSearch={(query: string, options?: SearchOptions) =>
                 platform.searchWorkspace(query, options)
               }
-              onOpenResult={(absPath) => {
-                void handleSidebarFileClick(absPath);
-              }}
+              onOpenResult={handleOpenSearchResult}
               onClose={() => setSearchActive(false)}
             />
           }

@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { EditorView } from "@milkdown/prose/view";
 import type { EditorView as CmEditorView } from "@codemirror/view";
-import { updateCmFind, cmFindField } from "./cmFindReplace";
-import { findReplacePluginKey } from "./FindReplace.plugin";
+import { updateCmFind, cmFindField, scrollToCmMatch } from "./cmFindReplace";
+import {
+  findReplacePluginKey,
+  scrollToPmMatch,
+} from "./FindReplace.plugin";
 import "./FindReplace.css";
 
 // ── FindReplace UI component ──
@@ -450,33 +453,6 @@ export function FindReplace({
       </div>
     </div>
   );
-}
-
-function scrollToPmMatch(
-  view: EditorView,
-  match: { from: number; to: number },
-) {
-  const coords = view.coordsAtPos(match.from);
-  const editorArea = view.dom.closest(".app-editor-area");
-  if (!editorArea) return;
-
-  const areaRect = editorArea.getBoundingClientRect();
-  const relativeTop = coords.top - areaRect.top;
-  const visibleHeight = areaRect.height;
-
-  if (relativeTop < 60 || relativeTop > visibleHeight - 60) {
-    editorArea.scrollTop += relativeTop - visibleHeight / 3;
-  }
-}
-
-function scrollToCmMatch(
-  view: CmEditorView,
-  match: { from: number; to: number },
-) {
-  view.dispatch({
-    selection: { anchor: match.from, head: match.to },
-    scrollIntoView: true,
-  });
 }
 
 function ChevronUpIcon() {

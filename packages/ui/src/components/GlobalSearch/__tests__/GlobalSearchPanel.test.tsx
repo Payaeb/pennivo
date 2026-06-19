@@ -198,7 +198,11 @@ describe("GlobalSearchPanel", () => {
         expect(screen.getByText("alpha.md")).toBeInTheDocument(),
       );
       fireEvent.keyDown(input, { key: "Enter" });
-      expect(onOpenResult).toHaveBeenCalledWith("/work/space/alpha.md", 3);
+      expect(onOpenResult).toHaveBeenCalledWith("/work/space/alpha.md", {
+        line: 3,
+        fileOffset: 12,
+        query: "salmon",
+      });
     });
 
     it("Arrow Down moves selection across files, then Enter opens that result", async () => {
@@ -215,7 +219,11 @@ describe("GlobalSearchPanel", () => {
       fireEvent.keyDown(input, { key: "ArrowDown" });
       fireEvent.keyDown(input, { key: "ArrowDown" });
       fireEvent.keyDown(input, { key: "Enter" });
-      expect(onOpenResult).toHaveBeenCalledWith("/work/space/notes/bravo.md", 5);
+      expect(onOpenResult).toHaveBeenCalledWith("/work/space/notes/bravo.md", {
+        line: 5,
+        fileOffset: 27,
+        query: "salmon",
+      });
     });
 
     it("Escape clears a non-empty query, then closes when empty", () => {

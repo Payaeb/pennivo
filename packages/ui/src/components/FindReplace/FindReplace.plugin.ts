@@ -4,6 +4,7 @@
 
 import { Plugin, PluginKey } from "@milkdown/prose/state";
 import { Decoration, DecorationSet } from "@milkdown/prose/view";
+import type { EditorView } from "@milkdown/prose/view";
 
 export interface FindReplaceState {
   query: string;
@@ -85,6 +86,37 @@ function buildMatches(
   }
 
   return matches;
+}
+
+// Locate the first occurrence of a plain (non-regex) query term in the doc and
+// return its ProseMirror position range, or null if absent. Used by the global
+// search jump-to-match path in WYSIWYG mode, where raw file offsets do not map
+// 1:1 to ProseMirror positions so we re-find the term in the rendered document.
+export function findFirstPmMatch(
+  doc: ProseMirrorNode,
+  query: string,
+): { from: number; to: number } | null {
+  const matches = buildMatches(doc, query, false);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+// Scroll a ProseMirror match into the editor viewport. Shared by FindReplace
+// and the global-search jump-to-match path so both use the identical technique.
+export function scrollToPmMatch(
+  view: EditorView,
+  match: { from: number; to: number },
+) {
+  const coords = view.coordsAtPos(match.from);
+  const editorArea = view.dom.closest(".app-editor-area");
+  if (!editorArea) return;
+
+  const areaRect = editorArea.getBoundingClientRect();
+  const relativeTop = coords.top - areaRect.top;
+  const visibleHeight = areaRect.height;
+
+  if (relativeTop < 60 || relativeTop > visibleHeight - 60) {
+    editorArea.scrollTop += relativeTop - visibleHeight / 3;
+  }
 }
 
 export function createFindReplacePlugin() {

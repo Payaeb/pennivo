@@ -14,6 +14,21 @@ import {
 } from "./searchPanelUtils";
 import "./GlobalSearchPanel.css";
 
+/**
+ * Where in the opened file to land the cursor / highlight after a result is
+ * clicked. Carries everything the host needs to jump in either editor mode:
+ * - `line` (1-based) for context / source-mode line targeting,
+ * - `fileOffset` (0-based absolute char offset into the raw file) which equals
+ *   the CodeMirror doc offset in source mode,
+ * - `query` so WYSIWYG mode can re-find the term (raw offsets do not map 1:1
+ *   to ProseMirror positions).
+ */
+export interface GlobalSearchJumpTarget {
+  line: number;
+  fileOffset: number;
+  query: string;
+}
+
 export interface GlobalSearchPanelProps {
   /**
    * Active workspace root (absolute). Used to display the scope and to convert
@@ -26,11 +41,11 @@ export interface GlobalSearchPanelProps {
    */
   onSearch: (query: string, options?: SearchOptions) => Promise<SearchResults>;
   /**
-   * Open a result. Receives the already-joined ABSOLUTE path plus the 1-based
-   * line (the line is passed through for the later jump-to-match phase; the
-   * host may ignore it for now).
+   * Open a result. Receives the already-joined ABSOLUTE path plus the jump
+   * target ({ line, fileOffset, query }) so the host can scroll to and
+   * highlight the exact match after the file loads.
    */
-  onOpenResult: (absPath: string, line: number) => void;
+  onOpenResult: (absPath: string, target: GlobalSearchJumpTarget) => void;
   /** Close search and return the rail to tree mode (Escape from an empty input). */
   onClose: () => void;
 }
@@ -118,9 +133,13 @@ export function GlobalSearchPanel({
     (item: FlatResultItem | undefined) => {
       if (!item || !rootPath) return;
       const absPath = joinWorkspacePath(rootPath, item.file.path);
-      onOpenResult(absPath, item.result.line);
+      onOpenResult(absPath, {
+        line: item.result.line,
+        fileOffset: item.result.fileOffset,
+        query,
+      });
     },
-    [rootPath, onOpenResult],
+    [rootPath, onOpenResult, query],
   );
 
   const handleKeyDown = useCallback(

@@ -121,3 +121,15 @@ const cmFindDecorations = EditorView.decorations.compute(
 export function cmFindExtension() {
   return [cmFindField, cmFindDecorations];
 }
+
+// Select a CodeMirror match and scroll it into view. Shared by FindReplace and
+// the global-search jump-to-match path so both use the identical technique.
+export function scrollToCmMatch(
+  view: EditorView,
+  match: { from: number; to: number },
+) {
+  view.dispatch({
+    selection: { anchor: match.from, head: match.to },
+    scrollIntoView: true,
+  });
+}

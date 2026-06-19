@@ -120,6 +120,91 @@ test("clicking a result opens that file in the editor", async () => {
   });
 });
 
+test("clicking a result jumps to and selects the match in WYSIWYG mode", async () => {
+  await window
+    .locator('.sidebar-header [aria-label="Search in workspace"]')
+    .click();
+  const input = window.locator(".global-search-input");
+  await input.fill("salmon");
+
+  // bravo.md line 5 ("Another salmon line here.") is NOT the first line of the
+  // file, so a correct jump must move past the top of the document.
+  const line5Result = window
+    .locator(".global-search-line", { hasText: "Another salmon line here." })
+    .first();
+  await expect(line5Result).toBeVisible({ timeout: 5_000 });
+  await line5Result.click();
+
+  // File opens in WYSIWYG. The jump re-finds the term and drives the same find
+  // decoration FindReplace uses, so the matched occurrence carries the
+  // find-match--current class. Asserting the highlighted text is "salmon"
+  // proves the editor landed on the match (not merely that the file opened).
+  await expect(window.locator(".ProseMirror")).toContainText(
+    "Another salmon line here.",
+    { timeout: 5_000 },
+  );
+  const current = window.locator(".ProseMirror .find-match--current");
+  await expect(current).toHaveText("salmon", { timeout: 5_000 });
+});
+
+test("clicking a result selects the match offset in source mode", async () => {
+  // Open bravo.md and switch to source mode FIRST so the jump takes the
+  // CodeMirror branch (source mode is sticky across the next file open).
+  await window.getByText("bravo.md").click();
+  await expect(window.locator(".ProseMirror")).toContainText("Bravo", {
+    timeout: 5_000,
+  });
+  await window.locator('[aria-label="Source mode"]').click();
+  await expect(window.locator(".cm-editor")).toBeVisible({ timeout: 5_000 });
+
+  // Now search and click the line-5 match. The open is a no-op (bravo is
+  // already open) but the jump must still fire.
+  await window
+    .locator('.sidebar-header [aria-label="Search in workspace"]')
+    .click();
+  const input = window.locator(".global-search-input");
+  await input.fill("salmon");
+  const line5Result = window
+    .locator(".global-search-line", { hasText: "Another salmon line here." })
+    .first();
+  await expect(line5Result).toBeVisible({ timeout: 5_000 });
+  await line5Result.click();
+
+  // fileOffset maps 1:1 to the CodeMirror doc offset in source mode, so the
+  // jump selects exactly the matched term. CodeMirror mirrors its selection to
+  // the native DOM Selection once the view is focused (applySourceJump focuses
+  // it), making the selected text the most reliable observable. We also assert
+  // the selection sits on the line-5 occurrence (offset 35), not the line-3
+  // one, by checking the character immediately before the selection is the
+  // space after "Another " rather than after "A ".
+  await expect
+    .poll(
+      () =>
+        window.evaluate(() => {
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0) return null;
+          return sel.toString();
+        }),
+      { timeout: 5_000 },
+    )
+    .toBe("salmon");
+
+  // Disambiguate line 3 vs line 5: both contain "salmon". The selection's
+  // anchor node lives inside the CodeMirror line element for line 5, whose text
+  // is "Another salmon line here." (not line 3's "A salmon dinner."). Reading
+  // the enclosing .cm-line confirms the jump targeted the correct occurrence.
+  const enclosingLineText = await window.evaluate(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    let node: Node | null = sel.anchorNode;
+    while (node && node.nodeType !== Node.ELEMENT_NODE) node = node.parentNode;
+    let el = node as HTMLElement | null;
+    while (el && !el.classList.contains("cm-line")) el = el.parentElement;
+    return el?.textContent ?? null;
+  });
+  expect(enclosingLineText).toBe("Another salmon line here.");
+});
+
 test("Ctrl+Shift+F opens search and focuses the input", async () => {
   await window.keyboard.press("Control+Shift+F");
   const input = window.locator(".global-search-input");
