@@ -8,7 +8,9 @@ import {
   Suspense,
 } from "react";
 import { MilkdownProvider, useInstance } from "@milkdown/react";
-import { editorViewCtx } from "@milkdown/core";
+import { editorViewCtx, parserCtx } from "@milkdown/core";
+import { applyStreamingUpdate } from "./components/Editor/streamingUpdate";
+import { shouldStream } from "./components/Editor/streamingGate";
 import DOMPurify from "dompurify";
 import { callCommand, replaceAll } from "@milkdown/utils";
 import { lift } from "@milkdown/prose/commands";
@@ -109,6 +111,8 @@ import {
   type WorkspacePrefs,
   type TrashEntry,
   type SearchOptions,
+  type SnapshotAuthor,
+  splitStableDeferred,
 } from "@pennivo/core";
 import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
@@ -333,6 +337,29 @@ function AppContent() {
   );
   const fileSizeRef = useRef(0);
   const [draftRecovery, setDraftRecovery] = useState<DraftData | null>(null);
+
+  // --- Phase 12d streaming render ---
+  // The markdown the WYSIWYG editor was last incrementally rendered from. This
+  // is the `prev` baseline the next incremental apply diffs against, and it must
+  // always equal what is currently in the editor. In the streaming path only the
+  // `stable` prefix is rendered (the incomplete trailing fragment is held back),
+  // so this can lag `savedMarkdownRef` by one deferred tail mid-stream. It is
+  // kept SEPARATE from savedMarkdownRef on purpose so the unsaved-changes
+  // detection (which compares the live editor markdown against savedMarkdownRef)
+  // is never corrupted. See the clean reload branch for the full rationale.
+  const streamingBaselineRef = useRef("");
+  // Per-document user override for the streaming animation, keyed by absolute
+  // path. `undefined` (absent) means "use the agent-attribution default";
+  // true/false force it on/off for that doc. Resets implicitly on file switch
+  // because each path has its own entry, and the visible toggle state is reset
+  // via streamingOverrideForDoc below.
+  const streamingOverrideRef = useRef<Map<string, boolean>>(new Map());
+  // Mirror of the override for the CURRENTLY open doc, so the Statusbar toggle
+  // re-renders when the user flips it or switches files. `undefined` = no
+  // override set for this doc yet.
+  const [streamingOverrideForDoc, setStreamingOverrideForDoc] = useState<
+    boolean | undefined
+  >(undefined);
 
   // --- Auto-update banner state (set when main fires update:available) ---
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
@@ -1237,6 +1264,15 @@ function AppContent() {
   const setFilePath = (p: string | null) => {
     filePathRef.current = p;
     setFilePathState(p);
+    // Streaming state is per-document: surface this doc's saved override (if any)
+    // for the Statusbar toggle, and clear the rendered-stable baseline so the
+    // first stream on the new doc diffs from its freshly-loaded content rather
+    // than the previous file's. The baseline is re-seeded by the load that
+    // follows; the streaming branch also falls back to savedMarkdownRef.
+    setStreamingOverrideForDoc(
+      p ? streamingOverrideRef.current.get(p) : undefined,
+    );
+    streamingBaselineRef.current = "";
     // Report the open path so the main-process watcher can live-reload this
     // file on external change (Phase 12d-pre). No-op on hosts without a watcher.
     void platform.setOpenFile(p);
@@ -1475,9 +1511,10 @@ function AppContent() {
         }
 
         // Clean → smooth silent reload, preserving scroll position. A single
-        // funnel (shared with the rename routine's shape) so Phase 12d can make
-        // this incremental later. `snap.meta` carries author/agentName for the
-        // future color-coded-attribution pass.
+        // funnel (shared with the rename routine's shape). Phase 12d can now
+        // make this INCREMENTAL when the change is agent-written (streaming).
+        // `snap.meta` carries author/agentName which drives the streaming
+        // default.
         const area =
           document.querySelector<HTMLElement>(".app-editor-area") ?? null;
         const cmScroller = cmViewRef.current?.scrollDOM ?? null;
@@ -1488,15 +1525,119 @@ function AppContent() {
         // Same large-file guard as open: if the file grew past the WYSIWYG
         // limit on disk, force source mode before loading so we never push a
         // multi-MB doc into Milkdown (which would crash). loadContent then
-        // renders the raw content into the source editor instead.
+        // renders the raw content into the source editor instead. This runs
+        // BEFORE the streaming decision so sourceMode is current for the gate.
         const sizeBytes = new TextEncoder().encode(snap.content).length;
         fileSizeRef.current = sizeBytes;
-        if (sizeBytes > FILE_SIZE_SOURCE_DEFAULT && !sourceModeRef.current) {
+        const sizeOver = sizeBytes > FILE_SIZE_SOURCE_DEFAULT;
+        if (sizeOver && !sourceModeRef.current) {
           setSourceMode(true);
           sourceModeRef.current = true;
         }
 
+        // Phase 12d gate: use the incremental streaming path only when the
+        // change is clean (this branch already is), WYSIWYG, under the size
+        // limit, AND streaming is enabled for this doc (agent-attribution
+        // default, beaten by a per-doc user override). Anything else falls
+        // through to the shipped full reload below. No regression.
+        // The platform types snapshot meta as `unknown`; the desktop store
+        // writes a SnapshotMetaFile (extends Snapshot) so author/agentName are
+        // present at runtime. Narrow defensively with a fallback to `user`
+        // (no agent attribution -> full reload) when the shape is unexpected.
+        const meta = (snap.meta ?? {}) as {
+          author?: SnapshotAuthor;
+          agentName?: string;
+        };
+        const useStreaming = shouldStream({
+          author: meta.author ?? "user",
+          agentName: meta.agentName,
+          dirty: false,
+          sourceMode: sourceModeRef.current,
+          sizeOver,
+          userOverride: streamingOverrideRef.current.get(payload.absolutePath),
+        });
+
+        // Transient ambient signal — no per-write toast, so this stays smooth
+        // under rapid (streaming-style) writes. Reverts to "saved" if the user
+        // hasn't started editing in the meantime. Shared by both paths.
+        const signalExternalReload = () => {
+          setSaveStatus("external-reload");
+          clearTimeout(externalReloadStatusTimerRef.current);
+          externalReloadStatusTimerRef.current = setTimeout(() => {
+            if (!isDirtyRef.current) setSaveStatus("saved");
+          }, 1500);
+        };
+
+        if (useStreaming) {
+          // Hold back any incomplete trailing fragment so a half-written
+          // construct does not pop/reflow; only the settled prefix renders now.
+          const { stable } = splitStableDeferred(display);
+
+          // Build a parseMarkdown bound to the LIVE editor's parserCtx so the
+          // trailing fragment is parsed with the real schema, and grab the live
+          // view, in one editor.action so we read both from the current ctx
+          // (avoids any stale-closure on the memoized getEditorView). parserCtx
+          // returns a full doc Node; applyStreamingUpdate's toReplacementContent
+          // splices in its `.content` (the top-level block Fragment).
+          const editor = getInstance();
+          let view: import("@milkdown/prose/view").EditorView | null = null;
+          let parse:
+            | ((md: string) => import("@milkdown/prose/model").Node)
+            | null = null;
+          if (editor) {
+            editor.action((ctx) => {
+              view = ctx.get(editorViewCtx);
+              const parser = ctx.get(parserCtx);
+              parse = (md: string) => parser(md);
+            });
+          }
+
+          if (view && parse) {
+            // prev MUST equal what is currently in the editor. The editor holds
+            // the previously-rendered stable prefix, tracked in
+            // streamingBaselineRef (NOT savedMarkdownRef, which is the file-
+            // content dirty baseline). On first stream after a full load they
+            // are equal, but after a deferred tail they diverge by that tail.
+            const prev =
+              streamingBaselineRef.current || savedMarkdownRef.current;
+            const { applied } = applyStreamingUpdate(view, prev, stable, parse);
+
+            if (applied) {
+              // The editor now renders `stable`. Two baselines move together:
+              //  - streamingBaselineRef = stable: the prev for the NEXT
+              //    incremental diff; must match the editor's current content.
+              //  - savedMarkdownRef = stable: the unsaved-changes baseline. The
+              //    listener re-fires markdownUpdated with the re-serialized
+              //    `stable`, so dirty-detection (live === saved) stays clean
+              //    only if saved == stable. Setting it to `display` here would
+              //    falsely mark the doc dirty by exactly the held-back tail.
+              //    When the stream settles, splitStableDeferred returns an empty
+              //    deferred, so stable === display and saved == file content
+              //    again, so dirty detection is correct at rest.
+              streamingBaselineRef.current = stable;
+              savedMarkdownRef.current = stable;
+              markdownRef.current = stable;
+              setOutlineMarkdown(stable);
+              setIsDirty(false);
+              // No scroll restore: the incremental apply does not reflow the
+              // kept prefix, so the viewport stays put. Selection is preserved
+              // inside applyStreamingUpdate; do not reset it here.
+              signalExternalReload();
+              return;
+            }
+            // applied === false: fall through to the full reload below. Never
+            // leave the document partial. This is the safety valve.
+          }
+          // No view/parser available (editor not ready) or apply bailed: fall
+          // through to the full reload.
+        }
+
+        // --- Full reload (shipped 12d-pre behavior) ---
+        // Used for normal user saves, any bail-out, source mode, and large
+        // files. savedMarkdownRef holds the full file content; the streaming
+        // baseline is reset to the same so a later stream diffs from the truth.
         savedMarkdownRef.current = display;
+        streamingBaselineRef.current = display;
         loadContent(display);
         setIsDirty(false);
 
@@ -1509,14 +1650,7 @@ function AppContent() {
           }
         });
 
-        // Transient ambient signal — no per-write toast, so this stays smooth
-        // under rapid (streaming-style) writes. Reverts to "saved" if the user
-        // hasn't started editing in the meantime.
-        setSaveStatus("external-reload");
-        clearTimeout(externalReloadStatusTimerRef.current);
-        externalReloadStatusTimerRef.current = setTimeout(() => {
-          if (!isDirtyRef.current) setSaveStatus("saved");
-        }, 1500);
+        signalExternalReload();
       })();
     };
     // platform is the project-wide stable singleton (getPlatform() returns the same instance); setIsDirty is a stable in-component helper that only touches refs + stable setters
@@ -2075,6 +2209,18 @@ function AppContent() {
   const handleDiscardDraft = useCallback(() => {
     setDraftRecovery(null);
     clearDraft();
+  }, []);
+
+  // --- Streaming-animation per-doc override toggle ---
+  // Sets (or clears) the user's explicit on/off choice for the open document.
+  // The choice is keyed by path so it resets on file switch, and it wins over
+  // the agent-attribution default in the streaming gate. Toggling never reloads
+  // the editor; it only affects how the NEXT external change is applied.
+  const handleStreamingToggle = useCallback((enabled: boolean) => {
+    const path = filePathRef.current;
+    if (!path) return;
+    streamingOverrideRef.current.set(path, enabled);
+    setStreamingOverrideForDoc(enabled);
   }, []);
 
   // --- Markdown change handler ---
@@ -3871,6 +4017,9 @@ function AppContent() {
       charCount={charCount}
       saveStatus={saveStatus}
       showWordCount={showWordCount}
+      showStreamingToggle={!!filePath && !sourceMode}
+      streamingEnabled={streamingOverrideForDoc ?? false}
+      onStreamingToggle={handleStreamingToggle}
       focusMode={focusMode}
       sourceMode={sourceMode}
       typewriterMode={typewriterMode}

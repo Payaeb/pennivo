@@ -48,3 +48,32 @@
 .status-save--external-reload .status-save-dot {
   background: var(--accent);
 }
+
+/* Pushes the streaming toggle to the right edge of the status bar. */
+.status-spacer {
+  margin-left: auto;
+}
+
+.status-streaming-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-base);
+}
+
+.status-streaming-toggle:hover {
+  color: var(--text-muted);
+}
+
+.status-streaming-toggle input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

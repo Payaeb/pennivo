@@ -20,6 +20,12 @@ interface AppShellProps {
   charCount?: number;
   saveStatus?: SaveStatus;
   showWordCount?: boolean;
+  /** Show the per-doc streaming-animation toggle in the status bar. */
+  showStreamingToggle?: boolean;
+  /** Checked state of the streaming toggle for the open doc. */
+  streamingEnabled?: boolean;
+  /** Fired when the user flips the streaming toggle. */
+  onStreamingToggle?: (enabled: boolean) => void;
   focusMode?: boolean;
   sourceMode?: boolean;
   typewriterMode?: boolean;
@@ -47,6 +53,9 @@ export function AppShell({
   charCount = 0,
   saveStatus = "saved",
   showWordCount = true,
+  showStreamingToggle = false,
+  streamingEnabled = false,
+  onStreamingToggle,
   focusMode = false,
   sourceMode = false,
   typewriterMode = false,
@@ -154,6 +163,9 @@ export function AppShell({
           charCount={charCount}
           saveStatus={saveStatus}
           showWordCount={showWordCount}
+          showStreamingToggle={showStreamingToggle}
+          streamingEnabled={streamingEnabled}
+          onStreamingToggle={onStreamingToggle}
         />
       </footer>
     </div>
