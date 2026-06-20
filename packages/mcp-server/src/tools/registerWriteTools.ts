@@ -15,6 +15,7 @@ import {
 } from "@pennivo/core";
 import type { ServerDeps } from "../deps.js";
 import { resolveInWorkspace, toWorkspaceRelative } from "../fs/pathSafety.js";
+import { writeFileAtomic } from "../fs/atomicWrite.js";
 import { isMarkdown } from "../fs/workspaceFs.js";
 import {
   findAssetFoldersForFile,
@@ -54,19 +55,6 @@ async function exists(abs: string): Promise<boolean> {
     return true;
   } catch {
     return false;
-  }
-}
-
-/** Atomic-ish write: temp file in the same dir, then rename over the target. */
-async function writeFileAtomic(abs: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(abs), { recursive: true });
-  const tmp = `${abs}.pennivo-tmp-${process.pid}`;
-  await fs.writeFile(tmp, content, "utf-8");
-  try {
-    await fs.rename(tmp, abs);
-  } catch (err) {
-    await fs.rm(tmp, { force: true }).catch(() => {});
-    throw err;
   }
 }
 

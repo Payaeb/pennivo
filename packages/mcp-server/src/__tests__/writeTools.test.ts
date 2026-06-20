@@ -25,18 +25,20 @@ describe("write tools", () => {
     cleanup(root);
   });
 
-  it("exposes all five write tools (in addition to the read tools)", async () => {
+  it("exposes the write + edit tools (in addition to the read tools)", async () => {
     const { tools } = await h.client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       "append_to_file",
       "create_file",
       "delete_file",
+      "edit_file",
       "find_backlinks",
       "get_outline",
       "list_files",
       "read_file",
       "rename_file",
+      "replace_in_file",
       "search",
       "write_file",
     ]);

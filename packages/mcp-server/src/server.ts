@@ -6,6 +6,7 @@ import type { ServerDeps } from "./deps.js";
 import { registerReadTools } from "./tools/registerReadTools.js";
 import { registerNavTools } from "./tools/registerNavTools.js";
 import { registerWriteTools } from "./tools/registerWriteTools.js";
+import { registerEditTools } from "./tools/registerEditTools.js";
 import { registerResources } from "./resources/registerResources.js";
 import { createWorkspaceWatcher } from "./watch/watcher.js";
 import { PENNIVO_MCP_VERSION } from "./version.js";
@@ -33,6 +34,7 @@ export function createPennivoMcpServer(deps: ServerDeps): McpServer {
   registerReadTools(server, deps, getAgent);
   registerNavTools(server, deps, getAgent);
   registerWriteTools(server, deps, getAgent);
+  registerEditTools(server, deps, getAgent);
   registerResources(server, deps, getAgent);
 
   // Emit resources/list_changed on workspace changes. Reuse an injected
