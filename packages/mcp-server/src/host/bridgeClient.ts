@@ -111,11 +111,13 @@ export function createBridgeHosts(descriptorPath: string): {
       );
       return out.entries ?? [];
     },
-    async restore(trashId) {
+    async restore(trashId, rootPath) {
+      // Send the workspace root so the bridge can enforce the boundary BEFORE
+      // it writes the file back to disk (pre-move confused-deputy guard).
       return bridgePost<{ newPath: string } | { error: string }>(
         descriptorPath,
         "/trash/restore",
-        { trashId },
+        { trashId, rootPath },
       );
     },
   };

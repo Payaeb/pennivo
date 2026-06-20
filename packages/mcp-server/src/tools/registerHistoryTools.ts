@@ -200,11 +200,16 @@ export function registerHistoryTools(
         deps,
         getAgent,
         "restore_from_trash",
-        () => undefined,
+        // Audit the trashId so a restore is captured in the audit log (the
+        // restored workspace-relative path isn't known until after the call).
+        (a) => a.trashId,
         async (a) => {
           let result;
           try {
-            result = await trash.restore(a.trashId);
+            // Pass the workspace root so the host enforces the boundary BEFORE
+            // materializing the file. The post-restore check below stays as
+            // belt-and-suspenders.
+            result = await trash.restore(a.trashId, deps.root);
           } catch {
             return errorResult(APP_NOT_RUNNING);
           }

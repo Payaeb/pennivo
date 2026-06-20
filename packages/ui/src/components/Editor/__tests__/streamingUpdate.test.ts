@@ -239,3 +239,135 @@ describe("applyStreamingUpdate — no-op and meta", () => {
     expect(docText(view)).toEqual(["Title", "First.", "Second."]);
   });
 });
+
+// A markdown serializer that mirrors blockToNode: it reproduces, byte-for-byte,
+// the markdown each node was built from. A fenced code_block re-emits its body
+// between ``` fences, so a code body containing a blank line serializes to text
+// that splitBlocks WOULD split into two blocks.
+function serializeNode(node: ProseMirrorNode): string {
+  if (node.type.name === "heading") {
+    return `# ${node.textContent}`;
+  }
+  if (node.type.name === "code_block") {
+    return "```\n" + node.textContent + "\n```";
+  }
+  return node.textContent;
+}
+
+function serializeDoc(doc: ProseMirrorNode): string {
+  const parts: string[] = [];
+  doc.forEach((node) => parts.push(serializeNode(node)));
+  return parts.join("\n\n");
+}
+
+describe("applyStreamingUpdate — re-serialize correctness gate", () => {
+  // A real skew: the FIRST document block is a fenced code block whose body
+  // contains an internal blank line. That single code_block node serializes to
+  // four lines that splitBlocks tears into TWO markdown blocks. So when the code
+  // block is part of the unchanged prefix and a paragraph grows after it, the
+  // naive block-count -> node mapping over-counts by one: it maps the position
+  // PAST a phantom second prefix node, slicing inside/after the wrong boundary
+  // and producing a document that does NOT serialize back to `next`. The gate
+  // must catch that and bail.
+  it("bails when the block-count mapping skews through a multi-block code node", () => {
+    // One code_block node, body "a\n\nb" -> serializes to "```\na\n\nb\n```".
+    const code = "```\na\n\nb\n```";
+    const prev = `${code}\n\nFirst.`;
+    const next = `${code}\n\nFirst. extended.`;
+
+    // Build the view directly from nodes so the doc has exactly TWO top-level
+    // children (code_block + paragraph), matching how Milkdown would hold it,
+    // even though splitBlocks sees three "blocks" in the markdown.
+    const codeNode = schema.nodes["code_block"].create(
+      null,
+      schema.text("a\n\nb"),
+    );
+    const paraNode = schema.nodes["paragraph"].create(
+      null,
+      schema.text("First."),
+    );
+    const doc = schema.nodes["doc"].create(null, [codeNode, paraNode]);
+    const state = EditorState.create({ schema, doc });
+    const mount = document.createElement("div");
+    const view = new EditorView(mount, { state });
+    const before = docText(view);
+
+    // parseMarkdown here would (wrongly) split the trailing region; the gate is
+    // what protects us. Use a parser that reproduces the test schema mapping.
+    const result = applyStreamingUpdate(
+      view,
+      prev,
+      next,
+      parseMarkdown,
+      serializeDoc,
+    );
+
+    // The naive mapping mis-slices, so the re-serialized doc != next -> bail.
+    expect(result.applied).toBe(false);
+    // Document untouched on bail (no corruption).
+    expect(docText(view)).toEqual(before);
+  });
+
+  it("applies (applied:true) when the result round-trips to the target markdown", () => {
+    const prev = "# Title\n\nFirst para.";
+    const next = "# Title\n\nFirst para.\n\nSecond para.";
+    const view = makeView(prev);
+
+    const result = applyStreamingUpdate(
+      view,
+      prev,
+      next,
+      parseMarkdown,
+      serializeDoc,
+    );
+
+    expect(result.applied).toBe(true);
+    expect(docText(view)).toEqual(["Title", "First para.", "Second para."]);
+    // The applied doc serializes back to exactly the target markdown.
+    expect(serializeDoc(view.state.doc)).toBe(next);
+  });
+
+  it("bails without dispatching when serializeDoc reports a mismatch", () => {
+    const prev = "# Title\n\nFirst.";
+    const next = "# Title\n\nFirst.\n\nSecond.";
+    const view = makeView(prev);
+    const before = docText(view);
+
+    // A serializer that never matches `next` proves the gate aborts the apply.
+    const wrongSerializer = () => "totally different output";
+
+    const result = applyStreamingUpdate(
+      view,
+      prev,
+      next,
+      parseMarkdown,
+      wrongSerializer,
+    );
+
+    expect(result.applied).toBe(false);
+    // Transaction discarded: document is untouched.
+    expect(docText(view)).toEqual(before);
+  });
+
+  it("tolerates a trailing-newline difference (normalized before compare)", () => {
+    const prev = "# Title\n\nFirst.";
+    const next = "# Title\n\nFirst.\n\nSecond.";
+    const view = makeView(prev);
+
+    // Serializer appends a trailing newline; the gate trims trailing whitespace
+    // on both sides, so this must still apply.
+    const trailingNewlineSerializer = (doc: ProseMirrorNode) =>
+      serializeDoc(doc) + "\n";
+
+    const result = applyStreamingUpdate(
+      view,
+      prev,
+      next,
+      parseMarkdown,
+      trailingNewlineSerializer,
+    );
+
+    expect(result.applied).toBe(true);
+    expect(docText(view)).toEqual(["Title", "First.", "Second."]);
+  });
+});

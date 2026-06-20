@@ -323,6 +323,18 @@ async function readTrashMeta(trashId: string): Promise<TrashEntry | null> {
 }
 
 /**
+ * Read a single trash entry's meta by id. Returns `null` when the entry is
+ * missing or its meta.json is corrupt. Exposed so callers (e.g. the MCP host
+ * bridge) can inspect an entry's original `absolutePath` and enforce a
+ * workspace boundary BEFORE any restore writes the file back to disk.
+ */
+export async function getTrashEntry(
+  trashId: string,
+): Promise<TrashEntry | null> {
+  return readTrashMeta(trashId);
+}
+
+/**
  * Read every entry in `<userData>/trash/`. Skips dirs with corrupt or missing
  * meta.json. Sorted newest-first by `deletedAtMs`.
  */

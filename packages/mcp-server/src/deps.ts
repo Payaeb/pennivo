@@ -91,7 +91,15 @@ export interface SnapshotHost {
 /** Optional host capability: the desktop soft-delete trash. Same contract. */
 export interface TrashHost {
   list(): Promise<TrashEntrySummary[]>;
-  restore(trashId: string): Promise<{ newPath: string } | { error: string }>;
+  /**
+   * Restore a trash entry. `rootPath` is the agent's workspace root; the host
+   * enforces it as a boundary BEFORE writing the file back, so an entry from
+   * another workspace is rejected without ever being materialized on disk.
+   */
+  restore(
+    trashId: string,
+    rootPath: string,
+  ): Promise<{ newPath: string } | { error: string }>;
 }
 
 export interface ServerDeps {

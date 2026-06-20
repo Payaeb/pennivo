@@ -48,9 +48,15 @@ describe("history tools", () => {
   describe("with host stubs present", () => {
     let h: Harness;
     let lastRestoreMode: string | undefined;
+    // Records the (trashId, rootPath) the tool passed to the trash host, and
+    // whether the host actually performed a restore write. The stub models the
+    // bridge's pre-move boundary: an out-of-root entry is rejected with an
+    // error and NO write, mirroring the real /trash/restore handler.
+    let trashRestoreWrites: string[];
 
     beforeEach(async () => {
       lastRestoreMode = undefined;
+      trashRestoreWrites = [];
       const snapshots: SnapshotHost = {
         async list(absPath): Promise<SnapshotSummary[]> {
           expect(path.isAbsolute(absPath)).toBe(true);
@@ -90,12 +96,24 @@ describe("history tools", () => {
             },
           ];
         },
-        async restore(trashId) {
-          if (trashId === "abc-1") {
-            return { newPath: path.join(root, "deleted.md") };
+        async restore(trashId, rootPath) {
+          // The host enforces the workspace boundary BEFORE any write. Model an
+          // out-of-root entry: reject with an error and perform NO restore.
+          const originalPath =
+            trashId === "abc-1"
+              ? path.join(root, "deleted.md")
+              : path.join(root, "..", "elsewhere", "x.md");
+          const rel = path.relative(rootPath, originalPath);
+          const inside =
+            rel !== "" &&
+            !rel.startsWith("..") &&
+            !path.isAbsolute(rel);
+          if (!inside) {
+            // No write — the file is never materialized outside the workspace.
+            return { error: "outside workspace" };
           }
-          // Restored path OUTSIDE root — the tool must reject it.
-          return { newPath: path.join(root, "..", "escape.md") };
+          trashRestoreWrites.push(originalPath);
+          return { newPath: originalPath };
         },
       };
       h = await connect(root, { config: ALL_ENABLED, snapshots, trash });
@@ -164,14 +182,18 @@ describe("history tools", () => {
       expect(res.isError).toBeFalsy();
       const data = JSON.parse(firstText(res)) as { restoredTo: string };
       expect(data.restoredTo).toBe("deleted.md");
+      // The in-root entry was actually restored.
+      expect(trashRestoreWrites).toEqual([path.join(root, "deleted.md")]);
     });
 
-    it("restore_from_trash rejects a restored path outside the root", async () => {
+    it("restore_from_trash rejects an out-of-root entry with NO write", async () => {
       const res = await callTool(h, "restore_from_trash", {
         trashId: "other-2",
       });
       expect(res.isError).toBe(true);
-      expect(firstText(res)).toMatch(/outside the workspace/i);
+      expect(firstText(res)).toMatch(/outside workspace/i);
+      // The host enforced the boundary BEFORE any write: nothing materialized.
+      expect(trashRestoreWrites).toEqual([]);
     });
   });
 

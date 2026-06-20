@@ -15,6 +15,7 @@ import type { ElectronApplication, Page } from "@playwright/test";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import http from "node:http";
 
 const REPO_PACKAGE_DIR = path.resolve(__dirname, "..");
 
@@ -85,6 +86,45 @@ async function readDescriptor(userData: string): Promise<Descriptor> {
   throw new Error("bridge descriptor never appeared");
 }
 
+/**
+ * POST to the bridge with a raw, explicit Host header using Node's http.request.
+ * fetch()/undici silently DROPS a forbidden `host` header, so it cannot exercise
+ * the DNS-rebinding guard at all; http.request CAN set Host verbatim, so this is
+ * the only way to genuinely test the 403 control. Returns the status code.
+ */
+function postWithHost(
+  host: string,
+  port: number,
+  hostHeader: string,
+  token: string,
+  body: string,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host,
+        port,
+        path: "/snapshot/list",
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          host: hostHeader,
+          "content-length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        // Drain the body so the socket closes cleanly.
+        res.on("data", () => {});
+        res.on("end", () => resolve(res.statusCode ?? 0));
+      },
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 test.describe("MCP host control bridge", () => {
   let app: ElectronApplication | undefined;
   let workspace: string;
@@ -141,17 +181,20 @@ test.describe("MCP host control bridge", () => {
 
   test("non-loopback Host header is rejected (403)", async () => {
     const desc = await readDescriptor(userData);
-    const res = await fetch(`${desc.url}/snapshot/list`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${desc.token}`,
-        // Spoof a rebound attacker domain — the bridge must reject it even with
-        // a valid token, before doing any work.
-        host: "evil.example.com",
-      },
-      body: JSON.stringify({ absPath: path.join(workspace, "alpha.md") }),
-    });
-    expect(res.status).toBe(403);
+    // fetch()/undici silently strips a forbidden `host` header, so the request
+    // would carry the real loopback Host and be (correctly) accepted, never
+    // exercising the guard. Use http.request, which sets Host verbatim, to
+    // genuinely spoof a rebound attacker domain against the real loopback port.
+    const parsed = new URL(desc.url);
+    const port = Number(parsed.port);
+    const body = JSON.stringify({ absPath: path.join(workspace, "alpha.md") });
+    const status = await postWithHost(
+      parsed.hostname,
+      port,
+      "evil.example.com",
+      desc.token,
+      body,
+    );
+    expect(status).toBe(403);
   });
 });

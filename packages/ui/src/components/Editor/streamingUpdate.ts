@@ -27,6 +27,11 @@ export interface StreamingUpdateResult {
 /** A markdown string -> ProseMirror nodes parser, bound by the caller. */
 export type ParseMarkdown = (md: string) => ProseMirrorNode | Fragment;
 
+/** A ProseMirror doc -> markdown serializer, bound by the caller. When
+ *  provided it is the correctness gate: the post-apply document is
+ *  re-serialized and compared against the target markdown. */
+export type SerializeDoc = (doc: ProseMirrorNode) => string;
+
 /**
  * Apply `nextStableMarkdown` to `view` incrementally, given the previous
  * markdown the document was last built from.
@@ -37,12 +42,24 @@ export type ParseMarkdown = (md: string) => ProseMirrorNode | Fragment;
  * `{ applied: false }` so the caller falls back to a full replaceAll. Any throw
  * inside is caught and also yields `{ applied: false }`; this function must
  * never corrupt the document — worst case it degrades to today's behavior.
+ *
+ * The block-count -> ProseMirror-node mapping assumes one markdown block maps
+ * to one top-level node. That is false for constructs spanning multiple blocks
+ * but a single node (a fenced code block with an internal blank line, a multi
+ * paragraph list item or blockquote, an HTML block). When the common prefix
+ * runs through such a construct the mapping over-counts and the trailing slice
+ * starts INSIDE the node, mangling its tail. To stay correct regardless of the
+ * mapping, when `serializeDoc` is provided the resulting document is
+ * re-serialized and compared to `nextStableMarkdown` BEFORE dispatch: on any
+ * mismatch the transaction is discarded and `{ applied: false }` is returned,
+ * so the caller falls back to a full reload with the correct content.
  */
 export function applyStreamingUpdate(
   view: EditorView,
   prevMarkdown: string,
   nextStableMarkdown: string,
   parseMarkdown: ParseMarkdown,
+  serializeDoc?: SerializeDoc,
 ): StreamingUpdateResult {
   try {
     // No-op: nothing to apply. Treat as applied (the document already matches).
@@ -113,6 +130,22 @@ export function applyStreamingUpdate(
     // key off the streaming flag to skip expensive work.
     tr.setMeta("addToHistory", false);
     tr.setMeta("pennivoStreaming", true);
+
+    // CORRECTNESS GATE: tr.doc already reflects the replace (pre-dispatch). When
+    // a serializer is provided, re-serialize the resulting document and compare
+    // it to the target markdown. This catches any block-mapping skew (a slice
+    // that started inside a multi-block construct) BEFORE it reaches the screen:
+    // on mismatch we discard the transaction and let the caller full-reload the
+    // correct content. Normalize only trailing whitespace/newlines on both sides
+    // (the serializer may add or trim a final newline); never touch interior
+    // content.
+    if (serializeDoc) {
+      const produced = trimTrailing(serializeDoc(tr.doc));
+      const expected = trimTrailing(nextStableMarkdown);
+      if (produced !== expected) {
+        return { applied: false };
+      }
+    }
 
     // Restore selection. If both endpoints were before the replaced region, the
     // user's earlier selection is preserved (mapped through the change). If the
@@ -219,4 +252,13 @@ function trySetTextSelection(
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+/**
+ * Trim trailing whitespace and newlines only. Used to normalize both sides of
+ * the re-serialize comparison so a serializer that adds or drops a final
+ * newline does not trigger a false mismatch. Interior content is untouched.
+ */
+function trimTrailing(s: string): string {
+  return s.replace(/\s+$/, "");
 }

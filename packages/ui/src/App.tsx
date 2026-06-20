@@ -8,7 +8,7 @@ import {
   Suspense,
 } from "react";
 import { MilkdownProvider, useInstance } from "@milkdown/react";
-import { editorViewCtx, parserCtx } from "@milkdown/core";
+import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import { applyStreamingUpdate } from "./components/Editor/streamingUpdate";
 import { shouldStream } from "./components/Editor/streamingGate";
 import DOMPurify from "dompurify";
@@ -1584,11 +1584,20 @@ function AppContent() {
           let parse:
             | ((md: string) => import("@milkdown/prose/model").Node)
             | null = null;
+          let serialize:
+            | ((doc: import("@milkdown/prose/model").Node) => string)
+            | null = null;
           if (editor) {
             editor.action((ctx) => {
               view = ctx.get(editorViewCtx);
               const parser = ctx.get(parserCtx);
               parse = (md: string) => parser(md);
+              // Re-serialize gate: applyStreamingUpdate verifies its result by
+              // serializing the post-apply doc and comparing to `stable`, so any
+              // block-mapping skew degrades to a full reload instead of
+              // corruption.
+              const serializer = ctx.get(serializerCtx);
+              serialize = (doc) => serializer(doc);
             });
           }
 
@@ -1600,7 +1609,13 @@ function AppContent() {
             // are equal, but after a deferred tail they diverge by that tail.
             const prev =
               streamingBaselineRef.current || savedMarkdownRef.current;
-            const { applied } = applyStreamingUpdate(view, prev, stable, parse);
+            const { applied } = applyStreamingUpdate(
+              view,
+              prev,
+              stable,
+              parse,
+              serialize ?? undefined,
+            );
 
             if (applied) {
               // The editor now renders `stable`. Two baselines move together:

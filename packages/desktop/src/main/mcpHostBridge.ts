@@ -31,7 +31,7 @@ import {
   restoreSnapshot,
   type SnapshotWithSource,
 } from "./snapshotStore";
-import { listTrash, restoreFromTrash } from "./trashStore";
+import { listTrash, restoreFromTrash, getTrashEntry } from "./trashStore";
 
 // ---------- Pure, unit-testable helpers ----------
 
@@ -80,6 +80,31 @@ export function isLoopbackHost(
 }
 
 /**
+ * True when `candidate` is the same as `root` or lives inside it. Used as the
+ * pre-restore workspace boundary for /trash/restore so a trashId belonging to
+ * another workspace can NEVER be materialized outside the agent's root, even
+ * for a moment. Case-folds on win32 (case-insensitive filesystem); a leading
+ * `..` (or an absolute relative result, which happens across Windows drive
+ * letters) means the candidate escaped the root.
+ */
+export function isInsideRoot(root: string, candidate: string): boolean {
+  if (!root || !candidate) return false;
+  let nRoot = path.resolve(root).replace(/\\/g, "/");
+  let nCandidate = path.resolve(candidate).replace(/\\/g, "/");
+  if (process.platform === "win32") {
+    nRoot = nRoot.toLowerCase();
+    nCandidate = nCandidate.toLowerCase();
+  }
+  if (nRoot === nCandidate) return true;
+  const rel = path.posix.relative(nRoot, nCandidate);
+  if (rel === "") return true;
+  if (rel === ".." || rel.startsWith("../") || path.posix.isAbsolute(rel)) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Project the desktop snapshot record down to the wire shape the server's
  * SnapshotSummary expects. Drops internal fields (contentHash, device info,
  * absolutePath) the agent has no need for.
@@ -114,6 +139,11 @@ interface BridgeState {
 }
 
 let state: BridgeState | null = null;
+// Synchronous re-entrancy guard. `state` is only assigned inside the async
+// `listen` callback, so two calls before that callback fires would both bind a
+// server. This flag flips synchronously at the top of startMcpHostBridge so a
+// second synchronous call is a no-op. Reset on stop.
+let starting = false;
 
 function descriptorPath(): string {
   return path.join(app.getPath("userData"), DESCRIPTOR_FILE);
@@ -214,7 +244,23 @@ async function handle(
       case "/trash/restore": {
         const trashId = String(body.trashId ?? "");
         if (!trashId) return sendJson(res, 400, { error: "trashId required" });
+        const rootPath = String(body.rootPath ?? "");
+        if (!rootPath) {
+          return sendJson(res, 400, { error: "rootPath required" });
+        }
+        // Workspace boundary BEFORE any write. Look up the entry's original
+        // absolutePath and refuse to restore if it falls outside the caller's
+        // workspace root. This closes the confused-deputy gap where a trashId
+        // from another workspace would otherwise be materialized on disk first
+        // and only rejected afterwards by the tool layer.
         try {
+          const entry = await getTrashEntry(trashId);
+          if (!entry) {
+            return sendJson(res, 200, { error: "trash entry not found" });
+          }
+          if (!isInsideRoot(rootPath, entry.absolutePath)) {
+            return sendJson(res, 200, { error: "outside workspace" });
+          }
           const result = await restoreFromTrash(trashId);
           return sendJson(res, 200, { newPath: result.restoredPath });
         } catch (err) {
@@ -242,7 +288,10 @@ async function handle(
  * if the bridge fails the history tools simply degrade to "app not running".
  */
 export function startMcpHostBridge(): void {
-  if (state) return;
+  if (state || starting) return;
+  // Set the synchronous guard BEFORE any async work so a second call that races
+  // in before the `listen` callback assigns `state` is a clean no-op.
+  starting = true;
 
   const token = randomBytes(32).toString("hex");
   const server = createServer((req, res) => {
@@ -261,6 +310,9 @@ export function startMcpHostBridge(): void {
 
   server.on("error", (err) => {
     console.error("[mcpHostBridge] server error:", err);
+    // A bind failure means `state` will never be assigned; clear the guard so a
+    // later call can retry rather than being wedged as a permanent no-op.
+    if (!state) starting = false;
   });
 
   // Bind EXACTLY 127.0.0.1 (never 0.0.0.0) on an ephemeral port.
@@ -280,6 +332,7 @@ export function startMcpHostBridge(): void {
       console.error("[mcpHostBridge] failed to write descriptor:", err);
     }
     state = { server, token, port, descriptorPath: dPath };
+    starting = false;
     console.log(`[mcpHostBridge] listening on 127.0.0.1:${port}`);
   });
 }
@@ -291,6 +344,7 @@ export function startMcpHostBridge(): void {
 export function stopMcpHostBridge(): void {
   const current = state;
   state = null;
+  starting = false;
   if (!current) {
     // Even if we never recorded state, try to clear any stale descriptor.
     try {
