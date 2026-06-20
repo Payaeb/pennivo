@@ -13,7 +13,7 @@ import {
   mergeAndValidate,
   staticPermissionProvider,
 } from "../config.js";
-import type { PermissionProvider } from "../deps.js";
+import type { PermissionProvider, WorkspaceEntry } from "../deps.js";
 import { JsonlAuditSink, NullAuditSink } from "../audit/auditLog.js";
 import type { AuditSink } from "../audit/auditLog.js";
 import { mtimeRecentSource } from "../resources/recent.js";
@@ -21,6 +21,7 @@ import { PENNIVO_MCP_VERSION } from "../version.js";
 
 interface ParsedArgs {
   workspace?: string;
+  workspacesFile?: string;
   auditLog?: string;
   settings?: string;
   allow: string[];
@@ -43,6 +44,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       case "--workspace":
       case "-w":
         out.workspace = argv[++i];
+        break;
+      case "--workspaces-file":
+        out.workspacesFile = argv[++i];
         break;
       case "--audit-log":
         out.auditLog = argv[++i];
@@ -95,6 +99,10 @@ function printHelp(): void {
       "                           default, e.g. --allow write_file,edit_file,create_folder.",
       "      --settings <file>    Read permissions live from a JSON file's `mcp` slice",
       "                           (re-read per call). Overrides --allow. Used by the app.",
+      "      --workspaces-file <file>",
+      "                           JSON file listing the host's open workspaces so",
+      "                           `list_workspaces` reports the real multi-workspace view",
+      "                           instead of synthesizing one from --workspace.",
       "      --http               Serve over loopback HTTP instead of stdio.",
       "      --port <n>           HTTP port (default: an ephemeral free port). Implies --http.",
       "  -h, --help               Show this help.",
@@ -102,6 +110,44 @@ function printHelp(): void {
       "",
     ].join("\n"),
   );
+}
+
+/**
+ * Read + validate the host's workspaces file. Returns the active id and the
+ * sanitized list, or `null` if the file is missing/corrupt or has no usable
+ * entries — in which case the caller leaves `deps.workspaces` undefined and the
+ * tool falls back to synthesizing a single entry from `--workspace`. Malformed
+ * entries (missing/non-string id/name/rootPath) are dropped, not fatal.
+ */
+function readWorkspacesFile(
+  filePath: string,
+): { activeWorkspaceId?: string; workspaces: WorkspaceEntry[] } | null {
+  try {
+    const raw = JSON.parse(readFileSync(filePath, "utf-8")) as unknown;
+    if (typeof raw !== "object" || raw === null) return null;
+    const obj = raw as Record<string, unknown>;
+    if (!Array.isArray(obj.workspaces)) return null;
+    const workspaces: WorkspaceEntry[] = [];
+    for (const entry of obj.workspaces) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const e = entry as Record<string, unknown>;
+      if (
+        typeof e.id === "string" &&
+        typeof e.name === "string" &&
+        typeof e.rootPath === "string"
+      ) {
+        workspaces.push({ id: e.id, name: e.name, rootPath: e.rootPath });
+      }
+    }
+    if (workspaces.length === 0) return null;
+    const activeWorkspaceId =
+      typeof obj.activeWorkspaceId === "string"
+        ? obj.activeWorkspaceId
+        : undefined;
+    return { activeWorkspaceId, workspaces };
+  } catch {
+    return null;
+  }
 }
 
 async function main(): Promise<void> {
@@ -183,12 +229,28 @@ async function main(): Promise<void> {
     ? new JsonlAuditSink(path.resolve(args.auditLog))
     : new NullAuditSink();
 
+  // Optional host workspace injection. The file is re-read per call so the app
+  // can keep it current as the user opens/closes workspaces. Read failures fall
+  // back to undefined, so `list_workspaces` synthesizes the single --workspace
+  // root instead of crashing.
+  let workspaces:
+    | (() => Promise<WorkspaceEntry[]>)
+    | undefined;
+  let activeWorkspaceId: string | undefined;
+  if (args.workspacesFile) {
+    const workspacesPath = path.resolve(args.workspacesFile);
+    workspaces = async () => readWorkspacesFile(workspacesPath)?.workspaces ?? [];
+    activeWorkspaceId = readWorkspacesFile(workspacesPath)?.activeWorkspaceId;
+  }
+
   const deps = {
     root,
     permissions,
     audit,
     now: () => Date.now(),
     recent: mtimeRecentSource(root),
+    workspaces,
+    activeWorkspaceId,
   };
 
   if (args.http || args.port !== undefined) {

@@ -37,6 +37,7 @@ describe("write tools", () => {
       "find_backlinks",
       "get_outline",
       "list_files",
+      "list_workspaces",
       "move_folder",
       "read_file",
       "rename_file",

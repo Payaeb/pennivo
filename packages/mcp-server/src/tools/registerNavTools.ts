@@ -1,7 +1,10 @@
-// Navigation tools: find_backlinks, get_outline. Both readOnlyHint and wrapped
-// in the permission/audit gate. Paths are funneled through the workspace safety
-// boundary before any fs access, and every returned path is workspace-relative.
+// Navigation tools: find_backlinks, get_outline, list_workspaces. All
+// readOnlyHint and wrapped in the permission/audit gate. find_backlinks and
+// get_outline funnel paths through the workspace safety boundary before any fs
+// access and return workspace-relative paths. list_workspaces is the one
+// deliberate exception: it returns ABSOLUTE workspace roots (see below).
 
+import path from "node:path";
 import { promises as fs } from "node:fs";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -30,6 +33,8 @@ interface FindBacklinksArgs {
 interface GetOutlineArgs {
   path: string;
 }
+// list_workspaces takes no arguments.
+type ListWorkspacesArgs = Record<string, never>;
 
 export function registerNavTools(
   server: McpServer,
@@ -119,6 +124,51 @@ export function registerNavTools(
         return jsonResult({
           path: toWorkspaceRelative(deps.root, abs),
           headings,
+        });
+      },
+    ),
+  );
+
+  server.registerTool(
+    "list_workspaces",
+    {
+      title: "List workspaces",
+      description:
+        "List the workspace roots the host has opened, plus which one is active. Each entry has a stable id, a display name, and an ABSOLUTE root path so a multi-workspace agent can pick a workspace to operate in. A standalone single-workspace server reports just its own --workspace root as id `default`.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    guardedTool<ListWorkspacesArgs>(
+      deps,
+      getAgent,
+      "list_workspaces",
+      // No path argument: this tool is workspace-scoped, not file-scoped.
+      () => undefined,
+      async () => {
+        // Host injection: the desktop provides the real multi-workspace list.
+        if (deps.workspaces) {
+          const workspaces = await deps.workspaces();
+          const active =
+            deps.activeWorkspaceId ?? workspaces[0]?.id ?? null;
+          // rootPath is intentionally ABSOLUTE here. This is the one deliberate
+          // absolute-path exposure in the server: a multi-workspace agent needs
+          // the real root to address a workspace. Standalone users only ever see
+          // their own --workspace root (the fallback branch below).
+          return jsonResult({ active, workspaces });
+        }
+
+        // Standalone fallback: synthesize a single entry from `root`. The
+        // absolute root is the same path the caller passed via --workspace, so
+        // nothing new is revealed.
+        return jsonResult({
+          active: "default",
+          workspaces: [
+            {
+              id: "default",
+              name: path.basename(deps.root),
+              rootPath: deps.root,
+            },
+          ],
         });
       },
     ),

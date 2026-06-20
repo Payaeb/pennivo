@@ -11,6 +11,7 @@
 // Settings → MCP activity view.
 
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { app, clipboard } from "electron";
 import {
   existsSync,
@@ -24,8 +25,10 @@ import {
   mergeServerIntoConfig,
   type McpServerDefinition,
 } from "@pennivo/mcp-server/embed";
+import { migrateWorkspaces } from "@pennivo/core";
 
 const SERVER_NAME = "pennivo";
+const WORKSPACES_FILE = "mcp-workspaces.json";
 
 /**
  * The Microsoft Store (MSIX) build of Claude Desktop is sandboxed and reads its
@@ -70,6 +73,49 @@ function readSidebarFolder(): string | null {
   }
 }
 
+/**
+ * Write the host's current workspace list to `mcp-workspaces.json` and return
+ * its path, so the spawned standalone server can answer `list_workspaces` with
+ * the real multi-workspace view via `--workspaces-file`. We resolve the list
+ * the same way the app does (settings.json `mcp`/workspaces slice + legacy
+ * sidebar folder, through the shared `migrateWorkspaces`), then strip it down to
+ * id/name/rootPath plus the active id. No prefs or timestamps are written. The
+ * server re-reads this file per call. Returns null on any failure so the caller
+ * simply omits the flag and the server falls back to the single --workspace.
+ */
+function writeWorkspacesFile(userData: string): string | null {
+  try {
+    let settings: unknown = {};
+    try {
+      settings = JSON.parse(
+        readFileSync(path.join(userData, "settings.json"), "utf-8"),
+      );
+    } catch {
+      settings = {};
+    }
+    const legacyFolder = readSidebarFolder();
+    const state = migrateWorkspaces(
+      settings as Record<string, unknown>,
+      legacyFolder,
+      () => randomUUID(),
+    );
+    if (state.workspaces.length === 0) return null;
+    const payload = {
+      activeWorkspaceId: state.activeWorkspaceId ?? undefined,
+      workspaces: state.workspaces.map((w) => ({
+        id: w.id,
+        name: w.name,
+        rootPath: w.rootPath,
+      })),
+    };
+    const filePath = path.join(userData, WORKSPACES_FILE);
+    writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+    return filePath;
+  } catch {
+    return null;
+  }
+}
+
 function serverScriptPath(): string {
   // dist/mcp/server.js sits under the app path in both dev (packages/desktop)
   // and prod (app.asar).
@@ -91,6 +137,13 @@ export function pennivoServerDefinition(): McpServerDefinition {
   const folder = readSidebarFolder();
   if (folder) {
     args.push("--workspace", folder);
+  }
+  // Also hand the server the full workspace list so `list_workspaces` reports
+  // every opened root, not just the active --workspace. Best-effort: when this
+  // fails the server falls back to synthesizing a single entry.
+  const workspacesFile = writeWorkspacesFile(userData);
+  if (workspacesFile) {
+    args.push("--workspaces-file", workspacesFile);
   }
   return {
     command: app.getPath("exe"),

@@ -29,6 +29,8 @@ export interface ConnectOptions {
   clientName?: string;
   deleteFile?: ServerDeps["deleteFile"];
   subscribeToChanges?: ServerDeps["subscribeToChanges"];
+  workspaces?: ServerDeps["workspaces"];
+  activeWorkspaceId?: ServerDeps["activeWorkspaceId"];
 }
 
 /** A config with every tool enabled — convenient for exercising write tools. */
@@ -71,6 +73,8 @@ export async function connect(
     recent: mtimeRecentSource(root),
     deleteFile: opts.deleteFile,
     subscribeToChanges: opts.subscribeToChanges,
+    workspaces: opts.workspaces,
+    activeWorkspaceId: opts.activeWorkspaceId,
   };
   const server = createPennivoMcpServer(deps);
 
