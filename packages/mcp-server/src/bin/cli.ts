@@ -247,7 +247,9 @@ async function runStream(
       }
       const suggested = suggestFilenameFromContent(pending);
       targetRel =
-        suggested && suggested !== "Untitled" ? `${suggested}.md` : timestampName();
+        suggested && suggested !== "Untitled"
+          ? `${suggested}.md`
+          : timestampName();
       await append(pending);
       pending = "";
       continue;
@@ -260,7 +262,9 @@ async function runStream(
   if (targetRel === null) {
     const suggested = suggestFilenameFromContent(pending);
     targetRel =
-      suggested && suggested !== "Untitled" ? `${suggested}.md` : timestampName();
+      suggested && suggested !== "Untitled"
+        ? `${suggested}.md`
+        : timestampName();
   }
   if (pending.length > 0) {
     await append(pending);

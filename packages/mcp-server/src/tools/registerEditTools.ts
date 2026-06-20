@@ -79,7 +79,9 @@ function replaceFirst(
 ): string {
   const idx = haystack.indexOf(needle);
   if (idx === -1) return haystack;
-  return haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
+  return (
+    haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length)
+  );
 }
 
 /** Replace every occurrence of `needle` with `replacement` (literal). */
@@ -112,7 +114,10 @@ function applyEdits(initial: string, edits: EditSpec[]): ApplyOk | ApplyErr {
   for (const edit of edits) {
     const count = countOccurrences(working, edit.oldText);
     if (count === 0) {
-      return { ok: false, error: `oldText not found: ${snippet(edit.oldText)}` };
+      return {
+        ok: false,
+        error: `oldText not found: ${snippet(edit.oldText)}`,
+      };
     }
     if (count > 1 && edit.replaceAll !== true) {
       return {
@@ -183,12 +188,18 @@ export function registerEditTools(
         oldText: z
           .string()
           .min(1)
-          .describe("Exact literal text to find. Add surrounding context to disambiguate."),
-        newText: z.string().describe("Literal replacement text (may be empty)."),
+          .describe(
+            "Exact literal text to find. Add surrounding context to disambiguate.",
+          ),
+        newText: z
+          .string()
+          .describe("Literal replacement text (may be empty)."),
         replaceAll: z
           .boolean()
           .optional()
-          .describe("Replace every occurrence instead of requiring a unique match."),
+          .describe(
+            "Replace every occurrence instead of requiring a unique match.",
+          ),
       },
       annotations: { readOnlyHint: false },
     },
@@ -231,7 +242,9 @@ export function registerEditTools(
               replaceAll: z
                 .boolean()
                 .optional()
-                .describe("Replace every occurrence instead of a unique match."),
+                .describe(
+                  "Replace every occurrence instead of a unique match.",
+                ),
             }),
           )
           .min(1)

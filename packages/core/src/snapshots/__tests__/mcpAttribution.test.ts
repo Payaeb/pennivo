@@ -82,9 +82,9 @@ describe("matchMcpWrite", () => {
 
   it("normalizes a leading './' on either side", () => {
     const events = [ev({ ts: NOW - 1000, path: "./notes/a.md" })];
-    expect(
-      matchMcpWrite(events, "./notes/a.md", WINDOW, NOW)?.agentName,
-    ).toBe("Claude");
+    expect(matchMcpWrite(events, "./notes/a.md", WINDOW, NOW)?.agentName).toBe(
+      "Claude",
+    );
   });
 
   it("skips events missing a path", () => {

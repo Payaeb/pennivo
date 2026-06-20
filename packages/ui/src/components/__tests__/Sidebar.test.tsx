@@ -126,9 +126,7 @@ describe("Sidebar", () => {
 
     it("renders the search button and calls onToggleSearch on click", () => {
       const onToggleSearch = vi.fn();
-      render(
-        <Sidebar {...defaultProps} onToggleSearch={onToggleSearch} />,
-      );
+      render(<Sidebar {...defaultProps} onToggleSearch={onToggleSearch} />);
       fireEvent.click(screen.getByLabelText("Search in workspace"));
       expect(onToggleSearch).toHaveBeenCalledOnce();
     });
@@ -222,7 +220,9 @@ describe("Sidebar", () => {
       fireEvent.click(screen.getByTitle("Sort files"));
       // The selected option's check column holds a rendered check SVG.
       const selected = screen.getByText("Modified (newest)").closest("button")!;
-      const selectedCheck = selected.querySelector(".sidebar-sort-option-check");
+      const selectedCheck = selected.querySelector(
+        ".sidebar-sort-option-check",
+      );
       expect(selectedCheck).not.toBeNull();
       expect(selectedCheck!.querySelector("svg")).not.toBeNull();
       // A non-selected option reserves the column but paints no glyph.
@@ -312,7 +312,9 @@ describe("Sidebar", () => {
         />,
       );
       fireEvent.click(screen.getByTitle("Sort files"));
-      const onToggle = screen.getByText("Show empty folders").closest("button")!;
+      const onToggle = screen
+        .getByText("Show empty folders")
+        .closest("button")!;
       // Distinct checkbox-style affordance: the toggle box always renders a box
       // SVG (on or off), unlike the single-select sort options.
       expect(onToggle).toHaveClass("sidebar-sort-toggle");

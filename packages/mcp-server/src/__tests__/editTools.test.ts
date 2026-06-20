@@ -267,11 +267,7 @@ describe("edit tools", () => {
             { path: "notes.md", edits: [{ oldText: "fox", newText: "cat" }] },
           ],
         ] as const) {
-          const res = await callTool(
-            ro,
-            name,
-            args as Record<string, unknown>,
-          );
+          const res = await callTool(ro, name, args as Record<string, unknown>);
           expect(res.isError, `${name} should be denied`).toBe(true);
           expect(firstText(res)).toMatch(/disabled in Pennivo settings/i);
         }

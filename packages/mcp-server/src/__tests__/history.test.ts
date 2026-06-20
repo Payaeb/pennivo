@@ -105,9 +105,7 @@ describe("history tools", () => {
               : path.join(root, "..", "elsewhere", "x.md");
           const rel = path.relative(rootPath, originalPath);
           const inside =
-            rel !== "" &&
-            !rel.startsWith("..") &&
-            !path.isAbsolute(rel);
+            rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
           if (!inside) {
             // No write — the file is never materialized outside the workspace.
             return { error: "outside workspace" };

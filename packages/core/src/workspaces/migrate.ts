@@ -139,7 +139,10 @@ export function migrateWorkspaces(
 
   // Legacy single-folder path: lift the open folder into one workspace and
   // seed its prefs from the old global settings keys.
-  if (typeof legacySidebarFolder === "string" && legacySidebarFolder.length > 0) {
+  if (
+    typeof legacySidebarFolder === "string" &&
+    legacySidebarFolder.length > 0
+  ) {
     const id = generateId();
     const workspace: Workspace = {
       id,

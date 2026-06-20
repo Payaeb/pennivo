@@ -194,9 +194,9 @@ describe("write tools", () => {
         path: "pic-stream.md",
         chunk: "![a](./pic-stream-md-images/my photo.png)\n",
       });
-      expect(
-        readFileSync(path.join(root, "pic-stream.md"), "utf-8"),
-      ).toContain("my%20photo.png");
+      expect(readFileSync(path.join(root, "pic-stream.md"), "utf-8")).toContain(
+        "my%20photo.png",
+      );
     });
 
     it("rejects a traversal path", async () => {

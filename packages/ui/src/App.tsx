@@ -678,7 +678,10 @@ function AppContent() {
       typeof prefs.sidebarWidth === "number" ? prefs.sidebarWidth : null,
     );
     const cleaned: Record<string, number> = {};
-    if (prefs.fileOpenTimestamps && typeof prefs.fileOpenTimestamps === "object") {
+    if (
+      prefs.fileOpenTimestamps &&
+      typeof prefs.fileOpenTimestamps === "object"
+    ) {
       for (const [k, v] of Object.entries(prefs.fileOpenTimestamps)) {
         if (typeof v === "number" && Number.isFinite(v)) cleaned[k] = v;
       }

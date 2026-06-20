@@ -107,7 +107,8 @@ export function applyStreamingUpdate(
     }
 
     // Parse only the trailing region into nodes/fragment.
-    const parsed = trailingMarkdown.length === 0 ? null : parseMarkdown(trailingMarkdown);
+    const parsed =
+      trailingMarkdown.length === 0 ? null : parseMarkdown(trailingMarkdown);
 
     const { state } = view;
     const docEnd = state.doc.content.size;
@@ -151,7 +152,8 @@ export function applyStreamingUpdate(
     // user's earlier selection is preserved (mapped through the change). If the
     // selection fell inside the replaced trailing region, drop the cursor at the
     // new end of the document.
-    const selectionInPrefix = selAnchor < prefixEndPos && selHead < prefixEndPos;
+    const selectionInPrefix =
+      selAnchor < prefixEndPos && selHead < prefixEndPos;
     if (selectionInPrefix) {
       const mappedAnchor = tr.mapping.map(selAnchor);
       const mappedHead = tr.mapping.map(selHead);

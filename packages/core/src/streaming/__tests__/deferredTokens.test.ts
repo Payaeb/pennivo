@@ -117,8 +117,7 @@ describe("splitStableDeferred — tables", () => {
   });
 
   it("keeps a complete table (header + delimiter) stable", () => {
-    const md =
-      "Para.\n\n| Name | Age |\n| --- | --- |\n| Ann | 30 |\n";
+    const md = "Para.\n\n| Name | Age |\n| --- | --- |\n| Ann | 30 |\n";
     const { stable, deferred } = splitStableDeferred(md);
     expect(stable).toBe(md);
     expect(deferred).toBe("");

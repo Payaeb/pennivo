@@ -5,7 +5,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readFileSync, existsSync, writeFileSync, chmodSync } from "node:fs";
 import path from "node:path";
-import { connect, callTool, firstText, ALL_ENABLED, type Harness } from "./harness.js";
+import {
+  connect,
+  callTool,
+  firstText,
+  ALL_ENABLED,
+  type Harness,
+} from "./harness.js";
 import { makeWorkspace, cleanup, writeFile, makeDir } from "./fixtures.js";
 
 function read(root: string, rel: string): string {
@@ -70,11 +76,7 @@ describe("rename_file cross-document link rewrite", () => {
 
   it("rewrites a reference-style link", async () => {
     writeFile(root, "target.md", "# Target\n");
-    writeFile(
-      root,
-      "referrer.md",
-      "Use [the doc][t].\n\n[t]: ./target.md\n",
-    );
+    writeFile(root, "referrer.md", "Use [the doc][t].\n\n[t]: ./target.md\n");
 
     const res = await callTool(h, "rename_file", {
       oldPath: "target.md",
@@ -109,11 +111,7 @@ describe("rename_file cross-document link rewrite", () => {
 
   it("heals the moved file's image SIDECAR AND inbound links in one op (compose, no clobber)", async () => {
     // Moved file owns an image folder and is also linked from a referrer.
-    writeFile(
-      root,
-      "doc.md",
-      "# Doc\n\n![a](./doc-md-images/p.png)\n",
-    );
+    writeFile(root, "doc.md", "# Doc\n\n![a](./doc-md-images/p.png)\n");
     makeDir(root, "doc-md-images");
     writeFileSync(path.join(root, "doc-md-images", "p.png"), "img");
     writeFile(root, "referrer.md", "See [doc](./doc.md).\n");

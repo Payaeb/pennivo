@@ -113,7 +113,7 @@ function collectMatches(content: string, terms: RegExp[]): RawMatch[] {
       matches.push({ start, end });
     }
   }
-  matches.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+  matches.sort((a, b) => a.start - b.start || a.end - b.end);
   return matches;
 }
 
@@ -329,7 +329,9 @@ export function searchFiles(
 
   // Rank: matchCount DESC, then path ASC (stable for equal keys).
   fileResults.sort(
-    (a, b) => b.matchCount - a.matchCount || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+    (a, b) =>
+      b.matchCount - a.matchCount ||
+      (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
   );
 
   const totalMatches = fileResults.reduce((sum, f) => sum + f.matchCount, 0);

@@ -55,16 +55,8 @@ describe("nav tools", () => {
   describe("find_backlinks", () => {
     it("finds inline and reference-style links, ignoring external/anchor", async () => {
       writeFile(root, "target.md", "# Target\n");
-      writeFile(
-        root,
-        "inline.md",
-        "See [Target](./target.md) for details.\n",
-      );
-      writeFile(
-        root,
-        "ref.md",
-        "Use [the link][t].\n\n[t]: ./target.md\n",
-      );
+      writeFile(root, "inline.md", "See [Target](./target.md) for details.\n");
+      writeFile(root, "ref.md", "Use [the link][t].\n\n[t]: ./target.md\n");
       writeFile(
         root,
         "noise.md",
@@ -85,11 +77,7 @@ describe("nav tools", () => {
 
     it("reports correct line numbers", async () => {
       writeFile(root, "target.md", "# Target\n");
-      writeFile(
-        root,
-        "src.md",
-        "# Title\n\nIntro\n\nLink: [t](./target.md)\n",
-      );
+      writeFile(root, "src.md", "# Title\n\nIntro\n\nLink: [t](./target.md)\n");
       const res = await callTool(h, "find_backlinks", { path: "target.md" });
       const data = JSON.parse(firstText(res)) as BacklinksData;
       const entry = data.backlinks.find((b) => b.path === "src.md");
@@ -129,11 +117,7 @@ describe("nav tools", () => {
 
   describe("get_outline", () => {
     it("returns heading levels and lines", async () => {
-      writeFile(
-        root,
-        "doc.md",
-        "# Title\n\n## Section\n\ntext\n\n### Sub\n",
-      );
+      writeFile(root, "doc.md", "# Title\n\n## Section\n\ntext\n\n### Sub\n");
       const res = await callTool(h, "get_outline", { path: "doc.md" });
       const data = JSON.parse(firstText(res)) as OutlineData;
       expect(data.path).toBe("doc.md");

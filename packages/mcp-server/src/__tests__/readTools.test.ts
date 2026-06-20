@@ -269,7 +269,10 @@ describe("read tools", () => {
       for (let i = 0; i < 20; i++) {
         writeFile(root, `cap/file-${i}.md`, `${block}\n`);
       }
-      const res = await callTool(h, "search", { query: "needle", scope: "cap" });
+      const res = await callTool(h, "search", {
+        query: "needle",
+        scope: "cap",
+      });
       const data = JSON.parse(firstText(res)) as SearchData;
       expect(data.capped).toBe(true);
       expect(data.matches.length).toBe(200);

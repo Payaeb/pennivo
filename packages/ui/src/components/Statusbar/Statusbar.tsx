@@ -49,7 +49,10 @@ export function Statusbar({
       {showStreamingToggle && (
         <>
           <span className="status-spacer" />
-          <label className="status-streaming-toggle" title="Animate incremental updates when this file is rewritten by an agent">
+          <label
+            className="status-streaming-toggle"
+            title="Animate incremental updates when this file is rewritten by an agent"
+          >
             <input
               type="checkbox"
               checked={streamingEnabled}

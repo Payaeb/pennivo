@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SearchResults } from "@pennivo/core";
 import { GlobalSearchPanel } from "../GlobalSearchPanel";
@@ -191,7 +197,9 @@ describe("GlobalSearchPanel", () => {
       fireEvent.change(input, { target: { value: "salmon" } });
       await waitFor(() =>
         expect(
-          screen.getByText(/Showing the first 3 results\. Refine your search\./),
+          screen.getByText(
+            /Showing the first 3 results\. Refine your search\./,
+          ),
         ).toBeInTheDocument(),
       );
     });
@@ -203,7 +211,9 @@ describe("GlobalSearchPanel", () => {
       const input = screen.getByPlaceholderText("Search in workspace...");
       fireEvent.change(input, { target: { value: "salmon" } });
       await waitFor(() =>
-        expect(screen.getByText("Showing 3 of 500 matches")).toBeInTheDocument(),
+        expect(
+          screen.getByText("Showing 3 of 500 matches"),
+        ).toBeInTheDocument(),
       );
     });
 
@@ -220,9 +230,7 @@ describe("GlobalSearchPanel", () => {
   describe("Keyboard navigation", () => {
     it("Enter opens the first result with the joined absolute path + line", async () => {
       const onOpenResult = vi.fn();
-      render(
-        <GlobalSearchPanel {...baseProps} onOpenResult={onOpenResult} />,
-      );
+      render(<GlobalSearchPanel {...baseProps} onOpenResult={onOpenResult} />);
       const input = screen.getByPlaceholderText("Search in workspace...");
       fireEvent.change(input, { target: { value: "salmon" } });
       await waitFor(() =>
@@ -238,9 +246,7 @@ describe("GlobalSearchPanel", () => {
 
     it("Arrow Down moves selection across files, then Enter opens that result", async () => {
       const onOpenResult = vi.fn();
-      render(
-        <GlobalSearchPanel {...baseProps} onOpenResult={onOpenResult} />,
-      );
+      render(<GlobalSearchPanel {...baseProps} onOpenResult={onOpenResult} />);
       const input = screen.getByPlaceholderText("Search in workspace...");
       fireEvent.change(input, { target: { value: "salmon" } });
       await waitFor(() =>

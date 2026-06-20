@@ -157,9 +157,9 @@ describe("trashEntryInWorkspace", () => {
 
   it("normalizes path separators and case", () => {
     const ws = workspaces(["a", "C:\\Users\\Paya\\Notes"]);
-    expect(
-      trashEntryInWorkspace(ws, "a", "c:/users/paya/notes/todo.md"),
-    ).toBe(true);
+    expect(trashEntryInWorkspace(ws, "a", "c:/users/paya/notes/todo.md")).toBe(
+      true,
+    );
   });
 });
 

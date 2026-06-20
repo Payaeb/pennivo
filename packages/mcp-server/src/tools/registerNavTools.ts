@@ -105,7 +105,9 @@ export function registerNavTools(
       inputSchema: {
         path: z
           .string()
-          .describe("Workspace-relative path to a .md / .markdown / .txt file."),
+          .describe(
+            "Workspace-relative path to a .md / .markdown / .txt file.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
@@ -148,8 +150,7 @@ export function registerNavTools(
         // Host injection: the desktop provides the real multi-workspace list.
         if (deps.workspaces) {
           const workspaces = await deps.workspaces();
-          const active =
-            deps.activeWorkspaceId ?? workspaces[0]?.id ?? null;
+          const active = deps.activeWorkspaceId ?? workspaces[0]?.id ?? null;
           // rootPath is intentionally ABSOLUTE here. This is the one deliberate
           // absolute-path exposure in the server: a multi-workspace agent needs
           // the real root to address a workspace. Standalone users only ever see

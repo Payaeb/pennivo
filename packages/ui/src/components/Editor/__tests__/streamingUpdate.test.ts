@@ -61,9 +61,10 @@ function docFromMarkdown(md: string): ProseMirrorNode {
     .replace(/\s+$/, "")
     .split(/\n[ \t]*\n+/)
     .filter((b) => b.length > 0);
-  const nodes = blocks.length > 0 ? blocks.map(blockToNode) : [
-    schema.nodes["paragraph"].create(),
-  ];
+  const nodes =
+    blocks.length > 0
+      ? blocks.map(blockToNode)
+      : [schema.nodes["paragraph"].create()];
   return schema.nodes["doc"].create(null, nodes);
 }
 
@@ -202,9 +203,7 @@ describe("applyStreamingUpdate — selection preservation", () => {
     // Cursor at the very end of the doc (inside the trailing block).
     const end = view.state.doc.content.size;
     view.dispatch(
-      view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, end),
-      ),
+      view.state.tr.setSelection(TextSelection.create(view.state.doc, end)),
     );
 
     const result = applyStreamingUpdate(view, prev, next, parseMarkdown);

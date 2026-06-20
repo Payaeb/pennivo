@@ -2,10 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { EditorView } from "@milkdown/prose/view";
 import type { EditorView as CmEditorView } from "@codemirror/view";
 import { updateCmFind, cmFindField, scrollToCmMatch } from "./cmFindReplace";
-import {
-  findReplacePluginKey,
-  scrollToPmMatch,
-} from "./FindReplace.plugin";
+import { findReplacePluginKey, scrollToPmMatch } from "./FindReplace.plugin";
 import "./FindReplace.css";
 
 // ── FindReplace UI component ──

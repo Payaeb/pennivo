@@ -237,7 +237,10 @@ export function Sidebar({
   // numbers so omitting the prop keeps the current width untouched.
   const lastInitialWidthRef = useRef<number | undefined>(initialWidth);
   useEffect(() => {
-    if (typeof initialWidth === "number" && initialWidth !== lastInitialWidthRef.current) {
+    if (
+      typeof initialWidth === "number" &&
+      initialWidth !== lastInitialWidthRef.current
+    ) {
       lastInitialWidthRef.current = initialWidth;
       setWidth(clampWidth(initialWidth));
     }
@@ -396,8 +399,7 @@ export function Sidebar({
       const trimmed = name.trim();
       // Empty name cancels silently (matches rename + the spec).
       if (!trimmed) return;
-      const handler =
-        target.kind === "file" ? onCreateFile : onCreateFolder;
+      const handler = target.kind === "file" ? onCreateFile : onCreateFolder;
       if (!handler) return;
       const created = await handler(target.parentDir, trimmed);
       if (created === null) {
@@ -571,8 +573,7 @@ export function Sidebar({
         items.push({
           type: "item",
           label: "New File",
-          onClick: () =>
-            setCreatingIn({ parentDir: entry.path, kind: "file" }),
+          onClick: () => setCreatingIn({ parentDir: entry.path, kind: "file" }),
         });
       }
       if (onCreateFolder) {
@@ -642,16 +643,14 @@ export function Sidebar({
       items.push({
         type: "item",
         label: "New File",
-        onClick: () =>
-          setCreatingIn({ parentDir: folderPath, kind: "file" }),
+        onClick: () => setCreatingIn({ parentDir: folderPath, kind: "file" }),
       });
     }
     if (onCreateFolder) {
       items.push({
         type: "item",
         label: "New Folder",
-        onClick: () =>
-          setCreatingIn({ parentDir: folderPath, kind: "folder" }),
+        onClick: () => setCreatingIn({ parentDir: folderPath, kind: "folder" }),
       });
     }
     return items;
@@ -757,131 +756,140 @@ export function Sidebar({
         searchPanel
       ) : (
         <>
-      {trashCount > 0 && onShowTrash && (
-        <button
-          type="button"
-          className="sidebar-trash-entry"
-          onClick={onShowTrash}
-          title={`${trashCount} file${trashCount === 1 ? "" : "s"} in trash`}
-        >
-          <span className="sidebar-trash-icon" aria-hidden="true">
-            <TrashIcon />
-          </span>
-          <span className="sidebar-trash-label">Trash</span>
-          <span className="sidebar-trash-sep" aria-hidden="true">
-            ·
-          </span>
-          <span className="sidebar-trash-count">{trashCount}</span>
-        </button>
-      )}
-
-      {folderPath && tree.length > 0 ? (
-        <TreeContainer
-          tree={tree}
-          currentFilePath={currentFilePath}
-          rootDir={folderPath}
-          onFileClick={onFileClick}
-          onContextMenuOpen={handleContextMenuOpen}
-          onRootContextMenuOpen={handleRootContextMenuOpen}
-          renamingPath={renamingPath}
-          onRenameSubmit={handleRenameSubmit}
-          onRenameCancel={() => setRenamingPath(null)}
-          creatingIn={creatingIn}
-          onCreateSubmit={handleCreateSubmit}
-          onCreateCancel={() => setCreatingIn(null)}
-          draggingPath={draggingPath}
-          dragOverPath={dragOverPath}
-          dragEnabled={!!onMoveFile}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOverTarget={handleDragOverTarget}
-          onDragLeaveTarget={handleDragLeaveTarget}
-          onDropOnTarget={handleDropOnTarget}
-        />
-      ) : (
-        (() => {
-          // When a workspace IS selected but its tree is empty, surface inline
-          // "New File" / "New Folder" affordances so the user can start a
-          // structure from scratch. Without these, an empty workspace is a dead
-          // end: the create entries otherwise live only on the tree/folder
-          // context menu, which isn't rendered when there is no tree. The
-          // create flow reuses the same `creatingIn` state + `CreateInput`
-          // component as the context menu, targeting the workspace root
-          // (`folderPath`), so naming / validation / collision behavior is
-          // identical.
-          const canCreate = !!folderPath && (!!onCreateFile || !!onCreateFolder);
-          const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
-          const isCreatingAtRoot =
-            canCreate &&
-            !!creatingIn &&
-            !!folderPath &&
-            norm(creatingIn.parentDir) === norm(folderPath);
-          return (
-            <div
-              className="sidebar-empty"
-              onContextMenu={canCreate ? handleRootContextMenuOpen : undefined}
+          {trashCount > 0 && onShowTrash && (
+            <button
+              type="button"
+              className="sidebar-trash-entry"
+              onClick={onShowTrash}
+              title={`${trashCount} file${trashCount === 1 ? "" : "s"} in trash`}
             >
-              <FolderIllustrationIcon />
-              <span className="sidebar-empty-text">
-                {folderPath
-                  ? "No markdown files yet"
-                  : "Open a folder to browse files"}
+              <span className="sidebar-trash-icon" aria-hidden="true">
+                <TrashIcon />
               </span>
-              {isCreatingAtRoot && creatingIn ? (
-                <div className="sidebar-empty-create">
-                  <CreateInput
-                    kind={creatingIn.kind}
-                    indent={10}
-                    onSubmit={handleCreateSubmit}
-                    onCancel={() => setCreatingIn(null)}
-                  />
-                </div>
-              ) : canCreate && folderPath ? (
-                <div className="sidebar-empty-actions">
-                  {onCreateFile && (
-                    <button
-                      type="button"
-                      className="sidebar-empty-create-btn"
-                      onClick={() =>
-                        setCreatingIn({ parentDir: folderPath, kind: "file" })
-                      }
-                    >
-                      <MarkdownFileIcon />
-                      <span>New File</span>
-                    </button>
-                  )}
-                  {onCreateFolder && (
-                    <button
-                      type="button"
-                      className="sidebar-empty-create-btn"
-                      onClick={() =>
-                        setCreatingIn({ parentDir: folderPath, kind: "folder" })
-                      }
-                    >
-                      <FolderClosedIcon />
-                      <span>New Folder</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  className="sidebar-open-folder-btn"
-                  onClick={onChooseFolder}
+              <span className="sidebar-trash-label">Trash</span>
+              <span className="sidebar-trash-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="sidebar-trash-count">{trashCount}</span>
+            </button>
+          )}
+
+          {folderPath && tree.length > 0 ? (
+            <TreeContainer
+              tree={tree}
+              currentFilePath={currentFilePath}
+              rootDir={folderPath}
+              onFileClick={onFileClick}
+              onContextMenuOpen={handleContextMenuOpen}
+              onRootContextMenuOpen={handleRootContextMenuOpen}
+              renamingPath={renamingPath}
+              onRenameSubmit={handleRenameSubmit}
+              onRenameCancel={() => setRenamingPath(null)}
+              creatingIn={creatingIn}
+              onCreateSubmit={handleCreateSubmit}
+              onCreateCancel={() => setCreatingIn(null)}
+              draggingPath={draggingPath}
+              dragOverPath={dragOverPath}
+              dragEnabled={!!onMoveFile}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOverTarget={handleDragOverTarget}
+              onDragLeaveTarget={handleDragLeaveTarget}
+              onDropOnTarget={handleDropOnTarget}
+            />
+          ) : (
+            (() => {
+              // When a workspace IS selected but its tree is empty, surface inline
+              // "New File" / "New Folder" affordances so the user can start a
+              // structure from scratch. Without these, an empty workspace is a dead
+              // end: the create entries otherwise live only on the tree/folder
+              // context menu, which isn't rendered when there is no tree. The
+              // create flow reuses the same `creatingIn` state + `CreateInput`
+              // component as the context menu, targeting the workspace root
+              // (`folderPath`), so naming / validation / collision behavior is
+              // identical.
+              const canCreate =
+                !!folderPath && (!!onCreateFile || !!onCreateFolder);
+              const norm = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+              const isCreatingAtRoot =
+                canCreate &&
+                !!creatingIn &&
+                !!folderPath &&
+                norm(creatingIn.parentDir) === norm(folderPath);
+              return (
+                <div
+                  className="sidebar-empty"
+                  onContextMenu={
+                    canCreate ? handleRootContextMenuOpen : undefined
+                  }
                 >
-                  {folderPath ? "Change Folder" : "Open Folder"}
-                </button>
-              )}
-              <span className="sidebar-empty-hint">
-                {folderPath
-                  ? canCreate
-                    ? "Create your first file or folder, or right-click here"
-                    : "Try a different folder"
-                  : "Drag a folder here or click to browse"}
-              </span>
-            </div>
-          );
-        })()
-      )}
+                  <FolderIllustrationIcon />
+                  <span className="sidebar-empty-text">
+                    {folderPath
+                      ? "No markdown files yet"
+                      : "Open a folder to browse files"}
+                  </span>
+                  {isCreatingAtRoot && creatingIn ? (
+                    <div className="sidebar-empty-create">
+                      <CreateInput
+                        kind={creatingIn.kind}
+                        indent={10}
+                        onSubmit={handleCreateSubmit}
+                        onCancel={() => setCreatingIn(null)}
+                      />
+                    </div>
+                  ) : canCreate && folderPath ? (
+                    <div className="sidebar-empty-actions">
+                      {onCreateFile && (
+                        <button
+                          type="button"
+                          className="sidebar-empty-create-btn"
+                          onClick={() =>
+                            setCreatingIn({
+                              parentDir: folderPath,
+                              kind: "file",
+                            })
+                          }
+                        >
+                          <MarkdownFileIcon />
+                          <span>New File</span>
+                        </button>
+                      )}
+                      {onCreateFolder && (
+                        <button
+                          type="button"
+                          className="sidebar-empty-create-btn"
+                          onClick={() =>
+                            setCreatingIn({
+                              parentDir: folderPath,
+                              kind: "folder",
+                            })
+                          }
+                        >
+                          <FolderClosedIcon />
+                          <span>New Folder</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      className="sidebar-open-folder-btn"
+                      onClick={onChooseFolder}
+                    >
+                      {folderPath ? "Change Folder" : "Open Folder"}
+                    </button>
+                  )}
+                  <span className="sidebar-empty-hint">
+                    {folderPath
+                      ? canCreate
+                        ? "Create your first file or folder, or right-click here"
+                        : "Try a different folder"
+                      : "Drag a folder here or click to browse"}
+                  </span>
+                </div>
+              );
+            })()
+          )}
         </>
       )}
 

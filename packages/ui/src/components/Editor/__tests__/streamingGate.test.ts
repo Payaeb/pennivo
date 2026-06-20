@@ -54,15 +54,15 @@ describe("shouldStream — attribution defaults", () => {
 
 describe("shouldStream — user override wins over attribution default", () => {
   it("override true forces streaming on a normal user save", () => {
-    expect(
-      shouldStream({ ...clean, author: "user", userOverride: true }),
-    ).toBe(true);
+    expect(shouldStream({ ...clean, author: "user", userOverride: true })).toBe(
+      true,
+    );
   });
 
   it("override false forces full reload on an agent write", () => {
-    expect(
-      shouldStream({ ...clean, author: "mcp", userOverride: false }),
-    ).toBe(false);
+    expect(shouldStream({ ...clean, author: "mcp", userOverride: false })).toBe(
+      false,
+    );
   });
 
   it("undefined override falls back to the attribution default", () => {
@@ -89,7 +89,12 @@ describe("shouldStream — hard gates override everything", () => {
 
   it("never streams when the doc is dirty", () => {
     expect(
-      shouldStream({ ...clean, author: "mcp", dirty: true, userOverride: true }),
+      shouldStream({
+        ...clean,
+        author: "mcp",
+        dirty: true,
+        userOverride: true,
+      }),
     ).toBe(false);
   });
 

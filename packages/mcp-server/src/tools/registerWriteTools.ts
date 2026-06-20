@@ -209,7 +209,9 @@ export function registerWriteTools(
       inputSchema: {
         path: z
           .string()
-          .describe("Workspace-relative path to a .md / .markdown / .txt file."),
+          .describe(
+            "Workspace-relative path to a .md / .markdown / .txt file.",
+          ),
         chunk: z.string().describe("Content to append to the end of the file."),
         done: z
           .boolean()
@@ -238,8 +240,7 @@ export function registerWriteTools(
             done: !!a.done,
           });
         } catch (err) {
-          if (err instanceof AppendChunkError)
-            return errorResult(err.message);
+          if (err instanceof AppendChunkError) return errorResult(err.message);
           throw err;
         }
       },

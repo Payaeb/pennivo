@@ -172,8 +172,7 @@ describe("planLinkRewrite — folder move", () => {
     const files: WorkspaceFile[] = [
       {
         path: "index.md",
-        content:
-          "[a](./docs/a.md) and [b](./docs-archive/b.md)\n",
+        content: "[a](./docs/a.md) and [b](./docs-archive/b.md)\n",
       },
       { path: "docs/a.md", content: "# A\n" },
       { path: "docs-archive/b.md", content: "# B\n" },

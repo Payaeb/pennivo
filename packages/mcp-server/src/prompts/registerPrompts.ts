@@ -32,7 +32,10 @@ function errorMessage(text: string): GetPromptResult {
  * inside the workspace, require a markdown extension, read as UTF-8, and decode
  * image URL spaces. Throws `WorkspacePathError` on a traversal/escape.
  */
-async function readWorkspaceFile(deps: ServerDeps, rel: string): Promise<string> {
+async function readWorkspaceFile(
+  deps: ServerDeps,
+  rel: string,
+): Promise<string> {
   const abs = resolveInWorkspace(deps.root, rel);
   if (!isMarkdown(abs)) {
     throw new Error(`Not a markdown file: ${rel}`);
@@ -81,7 +84,11 @@ export function registerPrompts(
     });
   };
 
-  const auditError = (name: string, detail: string, auditPath?: string): void => {
+  const auditError = (
+    name: string,
+    detail: string,
+    auditPath?: string,
+  ): void => {
     deps.audit.record({
       ts: deps.now(),
       agent: getAgent(),
@@ -104,10 +111,8 @@ export function registerPrompts(
   };
 
   // A single-file prompt: gate, read through path safety, audit, build message.
-  const singleFilePrompt = (
-    name: string,
-    template: (content: string) => string,
-  ) =>
+  const singleFilePrompt =
+    (name: string, template: (content: string) => string) =>
     async (args: { path: string }): Promise<GetPromptResult> => {
       const auditPath = auditPathFor(args.path);
       if (!gate(name, auditPath)) {
@@ -147,8 +152,7 @@ export function registerPrompts(
     "make_outline",
     {
       title: "Make outline",
-      description:
-        "Produce a hierarchical outline of a workspace note.",
+      description: "Produce a hierarchical outline of a workspace note.",
       argsSchema: {
         path: z
           .string()
@@ -201,7 +205,10 @@ export function registerPrompts(
           ),
       },
     },
-    async (args: { path: string; selection?: string }): Promise<GetPromptResult> => {
+    async (args: {
+      path: string;
+      selection?: string;
+    }): Promise<GetPromptResult> => {
       const auditPath = auditPathFor(args.path);
       if (!gate("rewrite_concise", auditPath)) {
         return errorMessage("Pennivo MCP access is disabled in settings.");

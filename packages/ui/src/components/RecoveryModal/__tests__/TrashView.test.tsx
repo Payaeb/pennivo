@@ -129,9 +129,7 @@ describe("TrashView", () => {
       expect(screen.getAllByRole("option").length).toBeGreaterThanOrEqual(3),
     );
     // No active workspace → global wording (button label, dialog title + body).
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Empty trash…$/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /^Empty trash…$/i }));
     expect(
       await screen.findByRole("alertdialog", { name: /^Empty trash\?$/i }),
     ).toBeInTheDocument();

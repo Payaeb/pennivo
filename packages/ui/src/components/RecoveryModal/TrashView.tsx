@@ -166,7 +166,8 @@ export function TrashView({
   const hasEntriesInOtherWorkspaces = useMemo(() => {
     if (!allEntries || !hasActiveWorkspace) return false;
     return allEntries.some(
-      (r) => !trashEntryInWorkspace(workspaces, activeWorkspaceId, r.absolutePath),
+      (r) =>
+        !trashEntryInWorkspace(workspaces, activeWorkspaceId, r.absolutePath),
     );
   }, [allEntries, hasActiveWorkspace, workspaces, activeWorkspaceId]);
 
@@ -513,7 +514,9 @@ export function TrashView({
           onClick={handleEmptyTrash}
           disabled={!hasEntries}
         >
-          {filterToWorkspace ? "Empty trash for this workspace…" : "Empty trash…"}
+          {filterToWorkspace
+            ? "Empty trash for this workspace…"
+            : "Empty trash…"}
         </button>
       </div>
 

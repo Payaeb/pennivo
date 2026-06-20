@@ -54,11 +54,7 @@ export {
   splitFragment,
 } from "./linkSyntax";
 
-export {
-  type ScanFile,
-  type InboundLink,
-  findInboundLinks,
-} from "./linkScan";
+export { type ScanFile, type InboundLink, findInboundLinks } from "./linkScan";
 
 export { type OutlineHeading, extractOutline } from "./outline";
 
@@ -163,7 +159,4 @@ export {
   groupByLocalDay,
 } from "./diff/formatTimelineDate";
 
-export {
-  type StableDeferredSplit,
-  splitStableDeferred,
-} from "./streaming";
+export { type StableDeferredSplit, splitStableDeferred } from "./streaming";

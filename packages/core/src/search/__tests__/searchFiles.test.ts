@@ -3,10 +3,7 @@ import { searchFiles } from "../searchFiles";
 import type { SearchInputFile } from "../types";
 
 /** Find a file result by path, or undefined. */
-function fileFor(
-  result: ReturnType<typeof searchFiles>,
-  path: string,
-) {
+function fileFor(result: ReturnType<typeof searchFiles>, path: string) {
   return result.files.find((f) => f.path === path);
 }
 
@@ -134,7 +131,9 @@ describe("searchFiles — regex mode", () => {
     const result = searchFiles("id-\\d+", files, { regex: true });
     const f = fileFor(result, "a.md")!;
     expect(f.matchCount).toBe(2);
-    const texts = f.lines[0].ranges.map((r) => rangeText(f.lines[0].snippet, r));
+    const texts = f.lines[0].ranges.map((r) =>
+      rangeText(f.lines[0].snippet, r),
+    );
     expect(texts).toEqual(["id-12", "id-345"]);
   });
 
@@ -287,7 +286,9 @@ describe("searchFiles — per-file cap", () => {
   it("caps lines per file but matchCount reflects the true total", () => {
     const lines: string[] = [];
     for (let i = 0; i < 10; i++) lines.push(`line ${i} hit`);
-    const files: SearchInputFile[] = [{ path: "a.md", content: lines.join("\n") }];
+    const files: SearchInputFile[] = [
+      { path: "a.md", content: lines.join("\n") },
+    ];
     const result = searchFiles("hit", files, { maxResultsPerFile: 3 });
     const f = fileFor(result, "a.md")!;
     expect(f.lines).toHaveLength(3);
@@ -312,9 +313,7 @@ describe("searchFiles — global cap", () => {
   });
 
   it("does not set capped when everything fits", () => {
-    const files: SearchInputFile[] = [
-      { path: "a.md", content: "hit\nhit\n" },
-    ];
+    const files: SearchInputFile[] = [{ path: "a.md", content: "hit\nhit\n" }];
     const result = searchFiles("hit", files, { maxTotalResults: 500 });
     expect(result.capped).toBe(false);
   });
