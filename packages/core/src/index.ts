@@ -162,3 +162,8 @@ export {
   formatRowTime,
   groupByLocalDay,
 } from "./diff/formatTimelineDate";
+
+export {
+  type StableDeferredSplit,
+  splitStableDeferred,
+} from "./streaming";
