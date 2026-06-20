@@ -63,6 +63,7 @@ import {
   setTrashMainWindow,
   sweepExpired as sweepExpiredTrash,
 } from "./trashStore";
+import { startMcpHostBridge, stopMcpHostBridge } from "./mcpHostBridge";
 import {
   readFileSync,
   writeFileSync,
@@ -757,7 +758,11 @@ function applySidebarFolderToWorkspaces(
     // Repoint the active workspace at the new root, refreshing its name.
     const workspaces = state.workspaces.map((w) =>
       w.id === active.id
-        ? { ...w, rootPath: folderPath, name: workspaceNameFromPath(folderPath) }
+        ? {
+            ...w,
+            rootPath: folderPath,
+            name: workspaceNameFromPath(folderPath),
+          }
         : w,
     );
     return { ...state, workspaces };
@@ -2369,7 +2374,10 @@ function registerIpcHandlers() {
           const srcWithSep = resolvedSrc.endsWith(path.sep)
             ? resolvedSrc
             : resolvedSrc + path.sep;
-          if (resolvedNew === resolvedSrc || resolvedNew.startsWith(srcWithSep)) {
+          if (
+            resolvedNew === resolvedSrc ||
+            resolvedNew.startsWith(srcWithSep)
+          ) {
             return { ok: false, reason: "error" };
           }
         }
@@ -2435,10 +2443,7 @@ function registerIpcHandlers() {
         // already carried their inner asset folders via the recursive move.)
         for (const name of assetFolderNames) {
           try {
-            await moveEntry(
-              path.join(srcDir, name),
-              path.join(destDir, name),
-            );
+            await moveEntry(path.join(srcDir, name), path.join(destDir, name));
           } catch (imgErr) {
             // Best-effort: the .md file is at its new location. If an asset
             // folder failed to move (rare — usually disk/permission), log and
@@ -3131,6 +3136,16 @@ app.whenReady().then(() => {
     console.error("[main] refreshSnapshotEnvironment failed:", err);
   });
 
+  // MCP host control bridge: a loopback HTTP endpoint the spawned MCP server
+  // calls to reach the snapshot/trash stores (which live only in this process).
+  // Wrapped so a bridge failure can NEVER abort app startup — the history tools
+  // simply degrade to "app not running" if it doesn't come up.
+  try {
+    startMcpHostBridge();
+  } catch (err) {
+    console.error("[main] failed to start MCP host bridge:", err);
+  }
+
   // Trash sweep: prune expired entries on launch (fire-and-log; never blocks
   // the window) and schedule a daily sweep for long-running sessions.
   sweepExpiredTrash()
@@ -3181,6 +3196,16 @@ app.whenReady().then(() => {
       },
       24 * 60 * 60 * 1000,
     );
+  }
+});
+
+app.on("before-quit", () => {
+  // Tear down the loopback control bridge and remove its descriptor so a
+  // standalone server spawned after we exit finds no stale bridge.
+  try {
+    stopMcpHostBridge();
+  } catch (err) {
+    console.error("[main] failed to stop MCP host bridge:", err);
   }
 });
 

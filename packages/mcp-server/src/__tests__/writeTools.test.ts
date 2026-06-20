@@ -26,6 +26,10 @@ describe("write tools", () => {
   });
 
   it("exposes the write + edit tools (in addition to the read tools)", async () => {
+    // The history tools (list_snapshots / restore_snapshot / list_trash /
+    // restore_from_trash) are deliberately ABSENT here: they register only when
+    // the host injects `deps.snapshots` / `deps.trash` (the desktop bridge),
+    // which this harness does not. Their presence is asserted in history.test.ts.
     const { tools } = await h.client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([

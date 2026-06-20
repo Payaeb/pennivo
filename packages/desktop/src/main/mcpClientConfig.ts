@@ -133,6 +133,12 @@ export function pennivoServerDefinition(): McpServerDefinition {
     path.join(userData, "settings.json"),
     "--audit-log",
     path.join(userData, "mcp-audit.jsonl"),
+    // Point the spawned server at the app's loopback control bridge descriptor
+    // so it can expose the snapshot/trash history tools. Passed always: the
+    // server tolerates a missing/stale descriptor (the app may not be running)
+    // and simply omits the history tools, or reports "app not running".
+    "--host-bridge-file",
+    path.join(userData, "mcp-host-bridge.json"),
   ];
   const folder = readSidebarFolder();
   if (folder) {

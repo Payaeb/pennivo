@@ -7,6 +7,7 @@ import { registerReadTools } from "./tools/registerReadTools.js";
 import { registerNavTools } from "./tools/registerNavTools.js";
 import { registerWriteTools } from "./tools/registerWriteTools.js";
 import { registerEditTools } from "./tools/registerEditTools.js";
+import { registerHistoryTools } from "./tools/registerHistoryTools.js";
 import { registerResources } from "./resources/registerResources.js";
 import { registerPrompts } from "./prompts/registerPrompts.js";
 import { createWorkspaceWatcher } from "./watch/watcher.js";
@@ -36,6 +37,7 @@ export function createPennivoMcpServer(deps: ServerDeps): McpServer {
   registerNavTools(server, deps, getAgent);
   registerWriteTools(server, deps, getAgent);
   registerEditTools(server, deps, getAgent);
+  registerHistoryTools(server, deps, getAgent);
   registerResources(server, deps, getAgent);
   registerPrompts(server, deps, getAgent);
 

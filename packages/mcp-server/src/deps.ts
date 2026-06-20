@@ -47,6 +47,53 @@ export interface DeleteRequest {
   assetFolderNames: string[];
 }
 
+/**
+ * One snapshot as the history tools report it. A trimmed projection of the
+ * desktop store's record: only the fields an agent needs to choose a snapshot
+ * to restore. `source` is "local" or "archive"; `author` is the capture origin
+ * (e.g. "user", "agent", "external").
+ */
+export interface SnapshotSummary {
+  id: string;
+  ts: number;
+  sizeBytes: number;
+  author: string;
+  agentName?: string;
+  source: string;
+}
+
+/** One trash entry as `list_trash` reports it (host-side projection). */
+export interface TrashEntrySummary {
+  trashId: string;
+  /** Absolute path the file lived at when deleted (filtered by the tool). */
+  originalPath: string;
+  deletedAtMs: number;
+  expiresAtMs: number | null;
+}
+
+/**
+ * Optional host capability: snapshot history for a file. Backed by the desktop
+ * app's snapshot store, reached over the loopback control bridge. Present only
+ * when the spawned server was handed a live bridge descriptor; absent for a
+ * standalone `npx @pennivo/mcp-server` run (so the snapshot tools are omitted).
+ * Methods THROW on transport failure (app not running / stale descriptor); the
+ * tool layer converts that into a clean "app is not running" result.
+ */
+export interface SnapshotHost {
+  list(absPath: string): Promise<SnapshotSummary[]>;
+  restore(
+    absPath: string,
+    snapshotId: string,
+    mode: "overwrite" | "as-new-file",
+  ): Promise<{ newPath: string } | { error: string }>;
+}
+
+/** Optional host capability: the desktop soft-delete trash. Same contract. */
+export interface TrashHost {
+  list(): Promise<TrashEntrySummary[]>;
+  restore(trashId: string): Promise<{ newPath: string } | { error: string }>;
+}
+
 export interface ServerDeps {
   /** Absolute workspace root. All tool paths resolve relative to this. */
   root: string;
@@ -79,6 +126,17 @@ export interface ServerDeps {
   workspaces?: () => Promise<WorkspaceEntry[]>;
   /** Id of the active workspace, when the host provides `workspaces`. */
   activeWorkspaceId?: string;
+  /**
+   * Optional snapshot-history capability (the desktop bridge). When present,
+   * `list_snapshots` + `restore_snapshot` are registered; when absent (e.g. the
+   * standalone server with no bridge), those tools are omitted entirely.
+   */
+  snapshots?: SnapshotHost;
+  /**
+   * Optional trash capability (the desktop bridge). When present, `list_trash`
+   * + `restore_from_trash` are registered; when absent, they are omitted.
+   */
+  trash?: TrashHost;
 }
 
 export type { PermissionConfig };

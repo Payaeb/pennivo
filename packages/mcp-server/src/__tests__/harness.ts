@@ -31,6 +31,8 @@ export interface ConnectOptions {
   subscribeToChanges?: ServerDeps["subscribeToChanges"];
   workspaces?: ServerDeps["workspaces"];
   activeWorkspaceId?: ServerDeps["activeWorkspaceId"];
+  snapshots?: ServerDeps["snapshots"];
+  trash?: ServerDeps["trash"];
 }
 
 /** A config with every tool enabled — convenient for exercising write tools. */
@@ -75,6 +77,8 @@ export async function connect(
     subscribeToChanges: opts.subscribeToChanges,
     workspaces: opts.workspaces,
     activeWorkspaceId: opts.activeWorkspaceId,
+    snapshots: opts.snapshots,
+    trash: opts.trash,
   };
   const server = createPennivoMcpServer(deps);
 

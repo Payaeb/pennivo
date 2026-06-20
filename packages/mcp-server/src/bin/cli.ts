@@ -13,15 +13,24 @@ import {
   mergeAndValidate,
   staticPermissionProvider,
 } from "../config.js";
-import type { PermissionProvider, WorkspaceEntry } from "../deps.js";
+import type {
+  PermissionProvider,
+  WorkspaceEntry,
+  ServerDeps,
+} from "../deps.js";
 import { JsonlAuditSink, NullAuditSink } from "../audit/auditLog.js";
 import type { AuditSink } from "../audit/auditLog.js";
 import { mtimeRecentSource } from "../resources/recent.js";
+import {
+  readBridgeDescriptor,
+  createBridgeHosts,
+} from "../host/bridgeClient.js";
 import { PENNIVO_MCP_VERSION } from "../version.js";
 
 interface ParsedArgs {
   workspace?: string;
   workspacesFile?: string;
+  hostBridgeFile?: string;
   auditLog?: string;
   settings?: string;
   allow: string[];
@@ -47,6 +56,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         break;
       case "--workspaces-file":
         out.workspacesFile = argv[++i];
+        break;
+      case "--host-bridge-file":
+        out.hostBridgeFile = argv[++i];
         break;
       case "--audit-log":
         out.auditLog = argv[++i];
@@ -103,6 +115,10 @@ function printHelp(): void {
       "                           JSON file listing the host's open workspaces so",
       "                           `list_workspaces` reports the real multi-workspace view",
       "                           instead of synthesizing one from --workspace.",
+      "      --host-bridge-file <file>",
+      "                           Descriptor for the Pennivo app's loopback control",
+      "                           bridge. When present, snapshot/trash history tools",
+      "                           are enabled and call back into the running app.",
       "      --http               Serve over loopback HTTP instead of stdio.",
       "      --port <n>           HTTP port (default: an ephemeral free port). Implies --http.",
       "  -h, --help               Show this help.",
@@ -233,17 +249,33 @@ async function main(): Promise<void> {
   // can keep it current as the user opens/closes workspaces. Read failures fall
   // back to undefined, so `list_workspaces` synthesizes the single --workspace
   // root instead of crashing.
-  let workspaces:
-    | (() => Promise<WorkspaceEntry[]>)
-    | undefined;
+  let workspaces: (() => Promise<WorkspaceEntry[]>) | undefined;
   let activeWorkspaceId: string | undefined;
   if (args.workspacesFile) {
     const workspacesPath = path.resolve(args.workspacesFile);
-    workspaces = async () => readWorkspacesFile(workspacesPath)?.workspaces ?? [];
+    workspaces = async () =>
+      readWorkspacesFile(workspacesPath)?.workspaces ?? [];
     activeWorkspaceId = readWorkspacesFile(workspacesPath)?.activeWorkspaceId;
   }
 
-  const deps = {
+  // Optional desktop host bridge. Only when the descriptor reads + parses at
+  // startup do we wire the snapshot/trash capabilities (and thus register the
+  // history tools). A missing/corrupt descriptor leaves both undefined so a
+  // standalone server never advertises those tools. The fetch clients re-read
+  // the descriptor per call, so they tolerate a later restart of the app, and
+  // they throw on any transport error so the tool reports "app not running".
+  let snapshots: ServerDeps["snapshots"];
+  let trash: ServerDeps["trash"];
+  if (args.hostBridgeFile) {
+    const bridgePath = path.resolve(args.hostBridgeFile);
+    if (readBridgeDescriptor(bridgePath)) {
+      const hosts = createBridgeHosts(bridgePath);
+      snapshots = hosts.snapshots;
+      trash = hosts.trash;
+    }
+  }
+
+  const deps: ServerDeps = {
     root,
     permissions,
     audit,
@@ -251,6 +283,8 @@ async function main(): Promise<void> {
     recent: mtimeRecentSource(root),
     workspaces,
     activeWorkspaceId,
+    snapshots,
+    trash,
   };
 
   if (args.http || args.port !== undefined) {
