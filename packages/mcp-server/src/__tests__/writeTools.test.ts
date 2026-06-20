@@ -32,6 +32,8 @@ describe("write tools", () => {
       "append_to_file",
       "create_file",
       "delete_file",
+      "find_backlinks",
+      "get_outline",
       "list_files",
       "read_file",
       "rename_file",

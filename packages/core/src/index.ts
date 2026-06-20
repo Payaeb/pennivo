@@ -42,6 +42,26 @@ export {
   planLinkRewrite,
 } from "./linkRewriter";
 
+export {
+  REF_DEF_RE,
+  INLINE_URL_RE,
+  segments,
+  normalizePosix,
+  dirname,
+  joinPosix,
+  relativeFromDir,
+  isRelativeLink,
+  splitFragment,
+} from "./linkSyntax";
+
+export {
+  type ScanFile,
+  type InboundLink,
+  findInboundLinks,
+} from "./linkScan";
+
+export { type OutlineHeading, extractOutline } from "./outline";
+
 export { suggestFilenameFromContent } from "./filenameSuggest";
 
 export {
