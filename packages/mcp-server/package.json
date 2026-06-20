@@ -58,10 +58,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@pennivo/core": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@pennivo/core": "workspace:*",
     "@types/node": "^22.19.0",
     "esbuild": "^0.25.12",
     "typescript": "^5.7.0",
