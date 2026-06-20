@@ -8,6 +8,7 @@ import { registerNavTools } from "./tools/registerNavTools.js";
 import { registerWriteTools } from "./tools/registerWriteTools.js";
 import { registerEditTools } from "./tools/registerEditTools.js";
 import { registerResources } from "./resources/registerResources.js";
+import { registerPrompts } from "./prompts/registerPrompts.js";
 import { createWorkspaceWatcher } from "./watch/watcher.js";
 import { PENNIVO_MCP_VERSION } from "./version.js";
 
@@ -36,6 +37,7 @@ export function createPennivoMcpServer(deps: ServerDeps): McpServer {
   registerWriteTools(server, deps, getAgent);
   registerEditTools(server, deps, getAgent);
   registerResources(server, deps, getAgent);
+  registerPrompts(server, deps, getAgent);
 
   // Emit resources/list_changed on workspace changes. Reuse an injected
   // watcher (desktop) or fall back to watching `root` directly (standalone).
