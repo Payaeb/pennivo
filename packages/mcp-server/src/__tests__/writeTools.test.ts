@@ -31,11 +31,13 @@ describe("write tools", () => {
     expect(names).toEqual([
       "append_to_file",
       "create_file",
+      "create_folder",
       "delete_file",
       "edit_file",
       "find_backlinks",
       "get_outline",
       "list_files",
+      "move_folder",
       "read_file",
       "rename_file",
       "replace_in_file",

@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   encodeImageUrlSpaces,
+  planLinkRewrite,
   suggestFilenameFromContent,
 } from "@pennivo/core";
 import type { ServerDeps } from "../deps.js";
@@ -21,6 +22,11 @@ import {
   findAssetFoldersForFile,
   normalizeAssetsForFile,
 } from "../fs/assetCoherence.js";
+import {
+  enumerateMarkdownFilesAbs,
+  applyLinkRewriteMcp,
+  toPosix,
+} from "../fs/linkRewrite.js";
 import {
   guardedTool,
   jsonResult,
@@ -45,6 +51,13 @@ interface DeleteFileArgs {
   includeAssets?: boolean;
 }
 interface RenameFileArgs {
+  oldPath: string;
+  newPath: string;
+}
+interface CreateFolderArgs {
+  path: string;
+}
+interface MoveFolderArgs {
   oldPath: string;
   newPath: string;
 }
@@ -250,7 +263,7 @@ export function registerWriteTools(
     {
       title: "Rename / move file",
       description:
-        "Rename or move a markdown file within the workspace. The file's per-file image folder follows it and content references stay coherent.",
+        "Rename or move a markdown file within the workspace. The file's per-file image folder follows it, inbound and outbound relative links across every document are rewritten, and content references stay coherent.",
       inputSchema: {
         oldPath: z.string().describe("Current workspace-relative path."),
         newPath: z.string().describe("New workspace-relative path."),
@@ -278,15 +291,168 @@ export function registerWriteTools(
             `Target already exists: ${toWorkspaceRelative(deps.root, newAbs)}`,
           );
         }
+
+        // 1. PRE-MOVE snapshot of every markdown doc so the planner computes
+        //    rewrites against the pre-move world.
+        const files = await enumerateMarkdownFilesAbs(deps.root);
+        const oldRel = toPosix(toWorkspaceRelative(deps.root, oldAbs));
+        const newRel = toPosix(toWorkspaceRelative(deps.root, newAbs));
+
+        // 2. Apply the physical move.
         await fs.mkdir(path.dirname(newAbs), { recursive: true });
         await fs.rename(oldAbs, newAbs);
-        const { healed } = await normalizeAssetsForFile(newAbs);
+
+        // 3. Run asset-coherence FIRST so the moved file's `*-md-images` sidecar
+        //    is promoted to its canonical name and its sidecar refs rewritten.
+        //    Then patch the snapshot's entry for the moved file (keyed by its
+        //    PRE-move path) with this normalized content BEFORE planning, so the
+        //    pure planner sees already-canonical sidecar refs (and leaves them
+        //    alone) and only recomputes inter-document / outbound links. This is
+        //    how the two passes compose without clobbering: asset-coherence owns
+        //    the sidecar, the planner owns inter-doc links. (Mirrors the desktop
+        //    rename handler's documented order.)
+        const { healed, newContent: movedFileNormalizedContent } =
+          await normalizeAssetsForFile(newAbs);
+        const snapshot =
+          movedFileNormalizedContent === undefined
+            ? files
+            : files.map((f) =>
+                f.path === oldRel
+                  ? { path: f.path, content: movedFileNormalizedContent }
+                  : f,
+              );
+
+        // 4. Rewrite cross-document links workspace-wide. This writes the moved
+        //    file's own outbound-link rewrite too (to its new path).
+        const { linksRewritten, error: linkRewriteError } =
+          await applyLinkRewriteMcp({
+            root: deps.root,
+            files: snapshot,
+            oldPath: oldRel,
+            newPath: newRel,
+            isDirectory: false,
+          });
+
         return jsonResult({
           renamed: {
-            from: toWorkspaceRelative(deps.root, oldAbs),
-            to: toWorkspaceRelative(deps.root, newAbs),
+            from: oldRel,
+            to: newRel,
           },
           assetsHealed: healed,
+          linksRewritten,
+          ...(linkRewriteError ? { linkRewriteError } : {}),
+        });
+      },
+    ),
+  );
+
+  server.registerTool(
+    "create_folder",
+    {
+      title: "Create folder",
+      description:
+        "Create a new folder (and any missing parents) within the workspace. Fails if the path already exists.",
+      inputSchema: {
+        path: z
+          .string()
+          .describe("Workspace-relative path of the folder to create."),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    guardedTool<CreateFolderArgs>(
+      deps,
+      getAgent,
+      "create_folder",
+      (a) => a.path,
+      async (a): Promise<ToolResult> => {
+        const abs = resolveInWorkspace(deps.root, a.path, {
+          followSymlinks: true,
+        });
+        if (await exists(abs)) {
+          return errorResult(
+            `Already exists: ${toWorkspaceRelative(deps.root, abs)}`,
+          );
+        }
+        await fs.mkdir(abs, { recursive: true });
+        return jsonResult({ created: toWorkspaceRelative(deps.root, abs) });
+      },
+    ),
+  );
+
+  server.registerTool(
+    "move_folder",
+    {
+      title: "Move / rename folder",
+      description:
+        "Move or rename a folder within the workspace. Relative links across every document that point into or out of the folder are rewritten. A folder cannot be moved into itself or one of its own descendants.",
+      inputSchema: {
+        oldPath: z.string().describe("Current workspace-relative folder path."),
+        newPath: z.string().describe("New workspace-relative folder path."),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    guardedTool<MoveFolderArgs>(
+      deps,
+      getAgent,
+      "move_folder",
+      (a) => a.oldPath,
+      async (a): Promise<ToolResult> => {
+        const oldAbs = resolveInWorkspace(deps.root, a.oldPath);
+        const newAbs = resolveInWorkspace(deps.root, a.newPath, {
+          followSymlinks: true,
+        });
+
+        let stat;
+        try {
+          stat = await fs.stat(oldAbs);
+        } catch {
+          return errorResult(`Folder does not exist: ${a.oldPath}`);
+        }
+        if (!stat.isDirectory())
+          return errorResult(`Not a folder: ${a.oldPath}`);
+        if (await exists(newAbs)) {
+          return errorResult(
+            `Target already exists: ${toWorkspaceRelative(deps.root, newAbs)}`,
+          );
+        }
+
+        // PRE-MOVE snapshot, used both for the self/descendant guard and the
+        // post-move link rewrite.
+        const files = await enumerateMarkdownFilesAbs(deps.root);
+        const oldRel = toPosix(toWorkspaceRelative(deps.root, oldAbs));
+        const newRel = toPosix(toWorkspaceRelative(deps.root, newAbs));
+
+        // SELF/DESCENDANT GUARD: run the planner once on the pre-move snapshot
+        // purely to read its `.error`, BEFORE touching the filesystem. A folder
+        // moved into itself or a descendant is rejected with no fs change.
+        const guard = planLinkRewrite({
+          files,
+          oldPath: oldRel,
+          newPath: newRel,
+          isDirectory: true,
+        });
+        if (guard.error === "self-into-descendant") {
+          return errorResult(
+            "Cannot move a folder into itself or one of its descendants.",
+          );
+        }
+
+        await fs.mkdir(path.dirname(newAbs), { recursive: true });
+        await fs.rename(oldAbs, newAbs);
+
+        const { linksRewritten, error: linkRewriteError } =
+          await applyLinkRewriteMcp({
+            root: deps.root,
+            files,
+            oldPath: oldRel,
+            newPath: newRel,
+            isDirectory: true,
+          });
+
+        return jsonResult({
+          moved: { from: oldRel, to: newRel },
+          linksRewritten,
+          ...(linkRewriteError ? { linkRewriteError } : {}),
         });
       },
     ),
