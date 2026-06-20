@@ -53,3 +53,11 @@ export {
 } from "./retentionEditor";
 
 export { shouldShowCapBanner } from "./capBanner";
+
+export {
+  type McpAuditEvent,
+  type McpWriteMatch,
+  MCP_WRITE_TOOLS,
+  matchMcpWrite,
+  parseAuditLines,
+} from "./mcpAttribution";

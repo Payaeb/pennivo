@@ -51,6 +51,7 @@ import {
   restoreSnapshot,
   setSnapshotEnvironment,
   setSnapshotMainWindow,
+  setWorkspaceRootResolver,
   sha256Hex,
   writeSnapshot,
 } from "./snapshotStore";
@@ -490,6 +491,9 @@ async function refreshSnapshotEnvironment(): Promise<void> {
   const settings = readSettingsWithRecovery();
   const device = await getDeviceRecord(app.getPath("userData"));
   setSnapshotEnvironment(settings.recovery, device.deviceId);
+  // Let the snapshot store attribute MCP-driven writes by resolving a file's
+  // workspace root on open (reuses the link-rewrite root resolver). Idempotent.
+  setWorkspaceRootResolver(resolveWorkspaceRootFor);
   // Drain any queued archive writes — the archive may have just become
   // reachable (drive plugged in, settings updated).
   await drainArchiveQueue();

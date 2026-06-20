@@ -111,6 +111,11 @@ export {
   removeTier,
   setTierGranularity,
   shouldShowCapBanner,
+  type McpAuditEvent,
+  type McpWriteMatch,
+  MCP_WRITE_TOOLS,
+  matchMcpWrite,
+  parseAuditLines,
 } from "./snapshots";
 
 export {

@@ -31,6 +31,9 @@ import {
   type StorageDestination,
   dedupeArchiveQueue,
   detectExternalChange,
+  matchMcpWrite,
+  normalizeAbsolutePath,
+  parseAuditLines,
   prune,
   routeSnapshot,
   shouldDedupe,
@@ -92,6 +95,15 @@ function localStoreRoot(): string {
 
 function archiveQueuePath(): string {
   return path.join(userDataPath(), "snapshot-archive-queue.json");
+}
+
+/**
+ * The MCP server's audit log. The desktop configures the spawned server to
+ * write here via `--audit-log` (see mcpClientConfig.pennivoServerDefinition).
+ * We read the same file to attribute MCP-driven writes back to their agent.
+ */
+function mcpAuditLogPath(): string {
+  return path.join(userDataPath(), "mcp-audit.jsonl");
 }
 
 function dirForFileInStore(rootDir: string, absolutePath: string): string {
@@ -610,6 +622,106 @@ async function pruneFile(
   }
 }
 
+// ---------- MCP write attribution ----------
+//
+// When an MCP agent writes a file out-of-process, Pennivo only notices on the
+// next open as an `external` change. The MCP server records every write to
+// mcp-audit.jsonl (workspace-relative path). On open we correlate: if a recent
+// successful MCP write targeted this file, we tag the snapshot `mcp` + the
+// writing agent instead of `external`.
+
+/** How far back an MCP write may be to still own the open we are reconciling. */
+const MCP_ATTRIBUTION_WINDOW_MS = 5 * 60 * 1000;
+
+/** Bound on how much of the audit log tail we read. Plenty for a 5-min window. */
+const MCP_AUDIT_TAIL_BYTES = 64 * 1024;
+
+/**
+ * Resolver from an absolute file path to the absolute workspace root that
+ * contains it (forward-slash agnostic; returns null when no known root holds
+ * the path). Injected by the host at startup so this module stays decoupled
+ * from the workspace-state readers in main.ts. When unset (or returning null)
+ * MCP attribution is simply skipped and the open falls back to `external`.
+ */
+type WorkspaceRootResolver = (absolutePath: string) => Promise<string | null>;
+let workspaceRootResolver: WorkspaceRootResolver | null = null;
+export function setWorkspaceRootResolver(
+  resolver: WorkspaceRootResolver | null,
+): void {
+  workspaceRootResolver = resolver;
+}
+
+/**
+ * Express `absolute` relative to `root` the SAME way the MCP server records
+ * audit paths (`toWorkspaceRelative`): forward slashes, drive letter folded,
+ * `.` for the root itself. The pure matcher folds case for the compare, so we
+ * need only match the slash/relativization here.
+ */
+function workspaceRelPath(root: string, absolute: string): string {
+  const rel = path.posix.relative(
+    normalizeAbsolutePath(root),
+    normalizeAbsolutePath(absolute),
+  );
+  return rel === "" ? "." : rel;
+}
+
+/**
+ * Read a bounded tail of the MCP audit log and parse it into events. Reads at
+ * most `MCP_AUDIT_TAIL_BYTES` from the end of the file so a long-lived log
+ * never gets read whole. Missing / unreadable file -> empty list (no match).
+ * The pure parser drops any line truncated by the tail offset.
+ */
+async function readRecentMcpAuditEvents(): Promise<
+  ReturnType<typeof parseAuditLines>
+> {
+  const filePath = mcpAuditLogPath();
+  let handle: Awaited<ReturnType<typeof fs.open>> | null = null;
+  try {
+    handle = await fs.open(filePath, "r");
+    const { size } = await handle.stat();
+    const start = size > MCP_AUDIT_TAIL_BYTES ? size - MCP_AUDIT_TAIL_BYTES : 0;
+    const length = size - start;
+    if (length <= 0) return [];
+    const buf = Buffer.alloc(length);
+    await handle.read(buf, 0, length, start);
+    return parseAuditLines(buf.toString("utf-8"));
+  } catch {
+    // No audit log yet, or transient read error: no events -> no match.
+    return [];
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+  }
+}
+
+/**
+ * Resolve the MCP write attribution for a just-opened file, if any. Returns
+ * the writing agent name when a recent successful MCP write targeted this
+ * path, else null. Fully guarded: any missing dependency (no resolver, no
+ * workspace root, no audit log, no match) yields null so the caller keeps the
+ * existing `external` behavior.
+ */
+async function resolveMcpAttribution(
+  absolutePath: string,
+): Promise<{ agentName: string } | null> {
+  try {
+    if (!workspaceRootResolver) return null;
+    const root = await workspaceRootResolver(absolutePath);
+    if (!root) return null;
+    const relPath = workspaceRelPath(root, absolutePath);
+    const events = await readRecentMcpAuditEvents();
+    if (events.length === 0) return null;
+    return matchMcpWrite(
+      events,
+      relPath,
+      MCP_ATTRIBUTION_WINDOW_MS,
+      Date.now(),
+    );
+  } catch (err) {
+    console.error("[snapshotStore] MCP attribution failed:", err);
+    return null;
+  }
+}
+
 // ---------- External-change detection on file open ----------
 
 /**
@@ -636,19 +748,36 @@ export async function reconcileOnOpen(
 
   if (status === "unchanged") return { status, snapshot: null };
 
-  // For first-seen, take a `user` baseline. For external, take an `external`
-  // snapshot and emit the toast event.
-  const author: SnapshotAuthor = status === "external" ? "external" : "user";
+  // For first-seen, take a `user` baseline. For external, the change came from
+  // off-app: it could be a faulty sync / another editor (-> `external`) OR an
+  // MCP agent that wrote out-of-process. If a recent successful MCP write
+  // targeted this file, attribute the snapshot to that agent (`mcp`); else keep
+  // the existing `external` behavior. Attribution is fully guarded: no
+  // resolver / no audit log / no match all leave `author` as `external`.
+  let author: SnapshotAuthor = status === "external" ? "external" : "user";
+  let agentName: string | undefined;
+  if (status === "external") {
+    const attribution = await resolveMcpAttribution(absolutePath);
+    if (attribution) {
+      author = "mcp";
+      agentName = attribution.agentName;
+    }
+  }
+
   const snap = await writeSnapshot({
     absolutePath,
     content: diskContent,
     author,
+    agentName,
     settings,
     deviceId: cachedDeviceId,
     deviceName: settings.deviceName,
   });
 
-  if (status === "external" && snap) {
+  // The external-change toast fires for genuinely-unattributed off-app edits.
+  // An MCP-attributed write is expected agent activity, not a "changed outside
+  // Pennivo" surprise, so we don't toast it (History still shows the agent).
+  if (status === "external" && author === "external" && snap) {
     emit("recovery:external-change-detected", {
       absolutePath,
       snapshotId: snap.id,
