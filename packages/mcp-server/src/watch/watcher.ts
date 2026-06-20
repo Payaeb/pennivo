@@ -58,6 +58,26 @@ export function createWorkspaceWatcher(
         debounced.call();
       }
     });
+    watcher.on("error", () => {
+      // A recursive watch error (subdir removed/renamed, EPERM, inotify limit)
+      // must not crash the server. On Linux/macOS recursive watching is
+      // emulated and the FSWatcher emits 'error' on these conditions; with no
+      // listener Node rethrows it as an uncaught exception. Stop the broken
+      // watcher and degrade to no live notifications — reads still work. Log to
+      // STDERR only (stdout is the MCP JSON-RPC channel and must stay clean).
+      try {
+        debounced.cancel();
+      } catch {
+        // ignore
+      }
+      try {
+        watcher?.close();
+      } catch {
+        // ignore
+      }
+      watcher = null;
+      console.error("[pennivo-mcp] workspace watcher stopped after error");
+    });
   } catch {
     // Watching may be unsupported on some filesystems; degrade silently.
   }
