@@ -47,6 +47,7 @@ describe("write tools", () => {
       "rename_file",
       "replace_in_file",
       "search",
+      "stream_into_file",
       "write_file",
     ]);
   });
@@ -134,6 +135,82 @@ describe("write tools", () => {
       const res = await callTool(h, "append_to_file", {
         path: "missing.md",
         content: "x",
+      });
+      expect(res.isError).toBe(true);
+    });
+  });
+
+  describe("stream_into_file", () => {
+    it("creates the file when absent, then appends the chunk", async () => {
+      const res = await callTool(h, "stream_into_file", {
+        path: "stream.md",
+        chunk: "# Streamed\n\nfirst chunk\n",
+      });
+      expect(res.isError).toBeFalsy();
+      const data = JSON.parse(firstText(res)) as {
+        path: string;
+        bytesAppended: number;
+        done: boolean;
+      };
+      expect(data.path).toBe("stream.md");
+      expect(data.done).toBe(false);
+      expect(data.bytesAppended).toBeGreaterThan(0);
+      expect(readFileSync(path.join(root, "stream.md"), "utf-8")).toContain(
+        "first chunk",
+      );
+    });
+
+    it("appends to an existing file", async () => {
+      await callTool(h, "stream_into_file", {
+        path: "notes.md",
+        chunk: "\nstreamed onto notes\n",
+      });
+      expect(readFileSync(path.join(root, "notes.md"), "utf-8")).toContain(
+        "streamed onto notes",
+      );
+    });
+
+    it("accumulates across multiple sequential calls", async () => {
+      await callTool(h, "stream_into_file", { path: "acc.md", chunk: "one " });
+      await callTool(h, "stream_into_file", { path: "acc.md", chunk: "two " });
+      await callTool(h, "stream_into_file", { path: "acc.md", chunk: "three" });
+      expect(readFileSync(path.join(root, "acc.md"), "utf-8")).toBe(
+        "one two three",
+      );
+    });
+
+    it("reflects the done flag in the output", async () => {
+      const res = await callTool(h, "stream_into_file", {
+        path: "fin.md",
+        chunk: "last\n",
+        done: true,
+      });
+      const data = JSON.parse(firstText(res)) as { done: boolean };
+      expect(data.done).toBe(true);
+    });
+
+    it("encodes spaces in image URLs to the on-disk %20 form", async () => {
+      await callTool(h, "stream_into_file", {
+        path: "pic-stream.md",
+        chunk: "![a](./pic-stream-md-images/my photo.png)\n",
+      });
+      expect(
+        readFileSync(path.join(root, "pic-stream.md"), "utf-8"),
+      ).toContain("my%20photo.png");
+    });
+
+    it("rejects a traversal path", async () => {
+      const res = await callTool(h, "stream_into_file", {
+        path: "../escape.md",
+        chunk: "x",
+      });
+      expect(res.isError).toBe(true);
+    });
+
+    it("rejects a non-markdown target", async () => {
+      const res = await callTool(h, "stream_into_file", {
+        path: "image.png",
+        chunk: "x",
       });
       expect(res.isError).toBe(true);
     });
@@ -246,6 +323,7 @@ describe("write tools", () => {
         ["write_file", { path: "notes.md", content: "x" }],
         ["create_file", { path: "x.md", content: "x" }],
         ["append_to_file", { path: "notes.md", content: "x" }],
+        ["stream_into_file", { path: "notes.md", chunk: "x" }],
         ["delete_file", { path: "notes.md" }],
         ["rename_file", { oldPath: "notes.md", newPath: "y.md" }],
       ] as const) {

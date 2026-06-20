@@ -316,6 +316,103 @@ describe("CLI over stdio (real process)", () => {
   });
 });
 
+describe("CLI --stream (real process)", () => {
+  let workspace: string;
+  let userData: string;
+
+  beforeEach(() => {
+    ({ workspace, userData } = seed());
+  });
+  afterEach(() => {
+    rmSync(workspace, { recursive: true, force: true });
+    rmSync(userData, { recursive: true, force: true });
+  });
+
+  // Spawn the CLI in stream mode, feed stdin in two writes with a small gap so
+  // the file grows progressively, close stdin, and resolve on exit.
+  function streamInto(
+    into: string | undefined,
+    chunks: string[],
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      const args = [CLI, "--workspace", workspace, "--stream"];
+      if (into) args.push("--into", into);
+      const child = spawn(process.execPath, args, {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout!.on("data", (d) => (stdout += d.toString()));
+      child.stderr!.on("data", (d) => (stderr += d.toString()));
+      child.on("error", reject);
+      child.on("exit", (code) =>
+        resolve({ status: code ?? -1, stdout, stderr }),
+      );
+
+      // Write chunks with a brief delay between them, then end stdin.
+      let i = 0;
+      const writeNext = (): void => {
+        if (i < chunks.length) {
+          child.stdin!.write(chunks[i++]);
+          setTimeout(writeNext, 60);
+        } else {
+          child.stdin!.end();
+        }
+      };
+      writeNext();
+    });
+  }
+
+  it("appends piped stdin into --into and exits 0", async () => {
+    const r = await streamInto("note.md", [
+      "# Streamed note\n\n",
+      "line one\n",
+      "line two\n",
+    ]);
+    expect(r.status).toBe(0);
+    const target = path.join(workspace, "note.md");
+    expect(existsSync(target)).toBe(true);
+    const content = readFileSync(target, "utf8");
+    expect(content).toContain("# Streamed note");
+    expect(content).toContain("line one");
+    expect(content).toContain("line two");
+  });
+
+  it("encodes image-url spaces in streamed content", async () => {
+    const r = await streamInto("img.md", [
+      "![a](./img-md-images/my photo.png)\n",
+    ]);
+    expect(r.status).toBe(0);
+    expect(readFileSync(path.join(workspace, "img.md"), "utf8")).toContain(
+      "my%20photo.png",
+    );
+  });
+
+  it("derives a filename from content when --into is omitted", async () => {
+    const r = await streamInto(undefined, [
+      "# Derived Title\n\n",
+      "body content here\n",
+    ]);
+    expect(r.status).toBe(0);
+    // The chosen filename is printed to stdout and the file exists on disk.
+    const chosen = r.stdout.trim();
+    expect(chosen).toBe("Derived Title.md");
+    expect(existsSync(path.join(workspace, "Derived Title.md"))).toBe(true);
+    expect(
+      readFileSync(path.join(workspace, "Derived Title.md"), "utf8"),
+    ).toContain("body content here");
+  });
+
+  it("rejects an --into target outside the workspace (exit 2)", async () => {
+    const r = await streamInto("../escape.md", ["malicious\n"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/outside the workspace/i);
+    expect(existsSync(path.join(path.dirname(workspace), "escape.md"))).toBe(
+      false,
+    );
+  });
+});
+
 describe("CLI over loopback HTTP (real process)", () => {
   let workspace: string;
   let userData: string;

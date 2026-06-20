@@ -4,6 +4,9 @@
 
 import path from "node:path";
 import { statSync, readFileSync } from "node:fs";
+import { suggestFilenameFromContent } from "@pennivo/core";
+import { appendChunk } from "../fs/streamAppend.js";
+import { WorkspacePathError } from "../fs/pathSafety.js";
 import { createPennivoMcpServer } from "../server.js";
 import { runStdio } from "../transports/stdio.js";
 import { runHttp } from "../transports/http.js";
@@ -36,6 +39,8 @@ interface ParsedArgs {
   allow: string[];
   http: boolean;
   port?: number;
+  stream: boolean;
+  into?: string;
   help: boolean;
   version: boolean;
 }
@@ -44,6 +49,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const out: ParsedArgs = {
     allow: [],
     http: false,
+    stream: false,
     help: false,
     version: false,
   };
@@ -74,6 +80,12 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         break;
       case "--http":
         out.http = true;
+        break;
+      case "--stream":
+        out.stream = true;
+        break;
+      case "--into":
+        out.into = argv[++i];
         break;
       case "--port": {
         const n = Number(argv[++i]);
@@ -121,6 +133,14 @@ function printHelp(): void {
       "                           are enabled and call back into the running app.",
       "      --http               Serve over loopback HTTP instead of stdio.",
       "      --port <n>           HTTP port (default: an ephemeral free port). Implies --http.",
+      "      --stream             Read stdin and append it incrementally to a file inside",
+      "                           the workspace, so a running Pennivo watching that",
+      "                           workspace renders it live. The target should be inside",
+      "                           the open workspace (ideally the currently-open doc) for",
+      "                           the live render to show. Requires --workspace.",
+      "      --into <relpath>     Stream target (with --stream). Workspace-relative .md",
+      "                           path. If omitted, a filename is derived from the streamed",
+      "                           content (or a timestamped fallback).",
       "  -h, --help               Show this help.",
       "  -v, --version            Print version.",
       "",
@@ -166,6 +186,96 @@ function readWorkspacesFile(
   }
 }
 
+/**
+ * `pennivo --stream` mode. Reads process.stdin and appends each chunk to a
+ * target markdown file inside `root` as the chunks arrive (NOT buffered to the
+ * end), so a Pennivo window watching the workspace renders the progressive
+ * growth via its file watcher. The transport is intentionally the file watcher,
+ * not a direct process-to-process channel (v1 is append-only).
+ *
+ * Target selection:
+ *   --into <relpath>  explicit workspace-relative file.
+ *   omitted           derive a filename from the streamed content once enough
+ *                     has arrived (suggestFilenameFromContent), else a
+ *                     timestamped fallback. The target is fixed before the first
+ *                     append so every chunk lands in the same file.
+ */
+async function runStream(
+  root: string,
+  into: string | undefined,
+): Promise<void> {
+  const stdin = process.stdin;
+  stdin.setEncoding("utf-8");
+
+  // Resolve the target lazily: with --into we know it immediately; without, we
+  // wait for enough content to derive a name, falling back to a timestamp.
+  let targetRel: string | null = into ?? null;
+  let pending = "";
+  let appended = false;
+
+  const timestampName = (): string => {
+    const iso = new Date().toISOString().replace(/[:.]/g, "-");
+    return `Stream ${iso}.md`;
+  };
+
+  const append = async (chunk: string): Promise<void> => {
+    try {
+      await appendChunk(root, targetRel as string, chunk);
+      appended = true;
+    } catch (err) {
+      if (err instanceof WorkspacePathError) {
+        process.stderr.write(`Error: ${err.message}\n`);
+      } else {
+        process.stderr.write(
+          `Error: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      }
+      process.exit(2);
+    }
+  };
+
+  // Enough content to derive a meaningful name from the first line/heading.
+  const NAME_TRIGGER_BYTES = 80;
+
+  for await (const data of stdin) {
+    const chunk = data as string;
+    if (targetRel === null) {
+      pending += chunk;
+      if (pending.length < NAME_TRIGGER_BYTES && !pending.includes("\n")) {
+        // Hold until we have a line or enough characters to name the file.
+        continue;
+      }
+      const suggested = suggestFilenameFromContent(pending);
+      targetRel =
+        suggested && suggested !== "Untitled" ? `${suggested}.md` : timestampName();
+      await append(pending);
+      pending = "";
+      continue;
+    }
+    await append(chunk);
+  }
+
+  // Stream ended. Flush anything still pending (short input that never tripped
+  // the naming trigger): derive a name now, falling back to a timestamp.
+  if (targetRel === null) {
+    const suggested = suggestFilenameFromContent(pending);
+    targetRel =
+      suggested && suggested !== "Untitled" ? `${suggested}.md` : timestampName();
+  }
+  if (pending.length > 0) {
+    await append(pending);
+  }
+
+  // With an explicit --into and empty input, still materialize the target
+  // (empty) so the watched file exists. Without --into, empty input creates
+  // nothing.
+  if (!appended && into) {
+    await append("");
+  }
+
+  process.stdout.write(`${targetRel}\n`);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -196,6 +306,15 @@ async function main(): Promise<void> {
       `Error: workspace is not an accessible directory: ${root}\n`,
     );
     process.exit(2);
+  }
+
+  // `--stream` mode: this is a one-shot stdin->file pump, not an MCP server. It
+  // shares the tool's appendChunk path safety, so a `--into` outside the
+  // workspace is rejected. The live render is delivered by the app's file
+  // watcher, so the target must be inside the open workspace.
+  if (args.stream) {
+    await runStream(root, args.into);
+    return;
   }
 
   // Permissions. With --settings, read the host's settings file's `mcp` slice

@@ -17,6 +17,7 @@ import {
 import type { ServerDeps } from "../deps.js";
 import { resolveInWorkspace, toWorkspaceRelative } from "../fs/pathSafety.js";
 import { writeFileAtomic } from "../fs/atomicWrite.js";
+import { appendChunk, AppendChunkError } from "../fs/streamAppend.js";
 import { isMarkdown } from "../fs/workspaceFs.js";
 import {
   findAssetFoldersForFile,
@@ -45,6 +46,11 @@ interface CreateFileArgs {
 interface AppendFileArgs {
   path: string;
   content: string;
+}
+interface StreamIntoFileArgs {
+  path: string;
+  chunk: string;
+  done?: boolean;
 }
 interface DeleteFileArgs {
   path: string;
@@ -190,6 +196,52 @@ export function registerWriteTools(
           appended: toWorkspaceRelative(deps.root, abs),
           bytes: Buffer.byteLength(a.content),
         });
+      },
+    ),
+  );
+
+  server.registerTool(
+    "stream_into_file",
+    {
+      title: "Stream into file",
+      description:
+        "Append a chunk to the end of a markdown file, creating the file if it does not yet exist. Intended for incremental/streamed writes: call repeatedly with successive chunks and a final call with `done: true`. A Pennivo window watching this workspace renders the growth live. Image URLs with spaces are stored in the %20-encoded form.",
+      inputSchema: {
+        path: z
+          .string()
+          .describe("Workspace-relative path to a .md / .markdown / .txt file."),
+        chunk: z.string().describe("Content to append to the end of the file."),
+        done: z
+          .boolean()
+          .optional()
+          .describe(
+            "Advisory stream-end signal. Reflected in the output; v1 takes no special action besides reporting it.",
+          ),
+      },
+      annotations: { readOnlyHint: false },
+    },
+    guardedTool<StreamIntoFileArgs>(
+      deps,
+      getAgent,
+      "stream_into_file",
+      (a) => a.path,
+      async (a) => {
+        try {
+          const { path: rel, bytesAppended } = await appendChunk(
+            deps.root,
+            a.path,
+            a.chunk,
+          );
+          return jsonResult({
+            path: rel,
+            bytesAppended,
+            done: !!a.done,
+          });
+        } catch (err) {
+          if (err instanceof AppendChunkError)
+            return errorResult(err.message);
+          throw err;
+        }
       },
     ),
   );
