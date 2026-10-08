@@ -13,8 +13,6 @@ import {
   toggleStrongCommand,
   toggleEmphasisCommand,
   wrapInHeadingCommand,
-  wrapInBulletListCommand,
-  wrapInOrderedListCommand,
   wrapInBlockquoteCommand,
   createCodeBlockCommand,
   toggleInlineCodeCommand,
@@ -37,6 +35,7 @@ import {
   getPlatform,
   COLOR_SCHEMES,
   LinkActionSheet,
+  applyListConversion,
 } from "@pennivo/ui";
 import type { ColorScheme, ThemeMode } from "@pennivo/ui";
 import {
@@ -532,104 +531,17 @@ function MobileEditorContent({
           break;
         case "bulletList":
           editor.action((ctx) => {
-            const view = ctx.get(editorViewCtx);
-            const { $from } = view.state.selection;
-            let inBullet = false;
-            let inOtherList = false;
-            for (let d = $from.depth; d >= 0; d--) {
-              const n = $from.node(d);
-              if (n.type.name === "bullet_list") {
-                const li = d + 1 <= $from.depth ? $from.node(d + 1) : null;
-                if (li && li.attrs["checked"] != null) {
-                  inOtherList = true;
-                } else {
-                  inBullet = true;
-                }
-                break;
-              }
-              if (n.type.name === "ordered_list") {
-                inOtherList = true;
-                break;
-              }
-            }
-            if (inBullet) {
-              callCommand(liftListItemCommand.key)(ctx);
-            } else {
-              if (inOtherList) callCommand(liftListItemCommand.key)(ctx);
-              callCommand(wrapInBulletListCommand.key)(ctx);
-            }
+            applyListConversion(ctx.get(editorViewCtx), "bulletList");
           });
           break;
         case "orderedList":
           editor.action((ctx) => {
-            const view = ctx.get(editorViewCtx);
-            const { $from } = view.state.selection;
-            let inOrdered = false;
-            let inOtherList = false;
-            for (let d = $from.depth; d >= 0; d--) {
-              const n = $from.node(d);
-              if (n.type.name === "ordered_list") {
-                inOrdered = true;
-                break;
-              }
-              if (n.type.name === "bullet_list") {
-                inOtherList = true;
-                break;
-              }
-            }
-            if (inOrdered) {
-              callCommand(liftListItemCommand.key)(ctx);
-            } else {
-              if (inOtherList) callCommand(liftListItemCommand.key)(ctx);
-              callCommand(wrapInOrderedListCommand.key)(ctx);
-            }
+            applyListConversion(ctx.get(editorViewCtx), "orderedList");
           });
           break;
         case "taskList":
           editor.action((ctx) => {
-            const view = ctx.get(editorViewCtx);
-            const { $from } = view.state.selection;
-            let inTask = false;
-            let inOtherList = false;
-            for (let d = $from.depth; d >= 0; d--) {
-              const n = $from.node(d);
-              if (n.type.name === "bullet_list") {
-                const li = d + 1 <= $from.depth ? $from.node(d + 1) : null;
-                if (li && li.attrs["checked"] != null) {
-                  inTask = true;
-                } else {
-                  inOtherList = true;
-                }
-                break;
-              }
-              if (n.type.name === "ordered_list") {
-                inOtherList = true;
-                break;
-              }
-            }
-            if (inTask) {
-              callCommand(liftListItemCommand.key)(ctx);
-            } else {
-              if (inOtherList) callCommand(liftListItemCommand.key)(ctx);
-              callCommand(wrapInBulletListCommand.key)(ctx);
-              queueMicrotask(() => {
-                const { state, dispatch } = view;
-                const { $from: f } = state.selection;
-                for (let d = f.depth; d >= 0; d--) {
-                  const node = f.node(d);
-                  if (node.type.name === "list_item") {
-                    const pos = f.before(d);
-                    dispatch(
-                      state.tr.setNodeMarkup(pos, undefined, {
-                        ...node.attrs,
-                        checked: false,
-                      }),
-                    );
-                    break;
-                  }
-                }
-              });
-            }
+            applyListConversion(ctx.get(editorViewCtx), "taskList");
           });
           break;
         case "indent":
