@@ -166,9 +166,12 @@ export {
   type TaskIndex,
   type AgendaBucketKey,
   type AgendaBuckets,
+  type MetaToken,
+  type MetaTokenDatePart,
   AGENDA_BUCKET_ORDER,
   extractTaskItems,
   buildTaskIndex,
   groupTasksByAgenda,
   addIsoDays,
+  scanMetaTokens,
 } from "./tasks";

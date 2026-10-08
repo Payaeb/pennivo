@@ -21,6 +21,7 @@ import {
 } from "./syntaxHighlight";
 import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
+import { taskMetaChipsPlugin } from "./taskMetaChipsPlugin";
 import { tablePlugin } from "./tablePlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
 import { getPlatform } from "../../platform";
@@ -596,6 +597,7 @@ export function Editor({
       .use(highlightViewTrackerPlugin)
       .use(mermaidPlugin)
       .use(collapsibleListPlugin)
+      .use(taskMetaChipsPlugin)
       .use(tablePlugin)
       .use(findReplacePlugin)
       .config((ctx) => {

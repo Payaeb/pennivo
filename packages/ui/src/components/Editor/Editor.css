@@ -407,6 +407,45 @@
   text-underline-offset: 3px;
 }
 
+/* ── Task metadata chips (inline decorations, list items only) ──
+   Pure render-only styling over the existing text — see
+   taskMetaChipsPlugin.ts. Sized/padded like the inline `code` style above
+   (already proven not to disrupt line-height or text selection in this
+   editor), so no display:inline-block and no extra line-height rules here. */
+.meta-chip {
+  display: inline;
+  padding: 1px 5px;
+  font-size: 0.88em;
+  white-space: nowrap;
+}
+
+/* Label (#tag) — tinted with the accent, rounder "pill" radius. */
+.meta-chip--label {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+}
+
+/* Due ([due:: date]) — neutral box, closer to the inline-code treatment. */
+.meta-chip--due {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-mid);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+
+/* Syntax portions of a due chip ("[due::" and "]") — dimmed. */
+.meta-chip__syntax {
+  color: var(--text-faint);
+}
+
+/* The date itself inside a due chip — emphasized. */
+.meta-chip__date {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 /* ── Collapsible lists ── */
 .collapse-toggle {
   display: inline-flex;

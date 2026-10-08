@@ -54,6 +54,32 @@ export type AgendaBucketKey =
   | "later"
   | "noDate";
 
+/**
+ * A char range, relative to whatever string was scanned, of just the date
+ * digits within a `due` MetaToken (excluding the `[due::`/`]` syntax and any
+ * inner whitespace).
+ */
+export interface MetaTokenDatePart {
+  start: number;
+  end: number;
+}
+
+/**
+ * One inline task-metadata token found by scanMetaTokens: a `#tag` label or
+ * a valid `[due:: YYYY-MM-DD]` field. `start`/`end` are char offsets into
+ * the scanned string, covering the token's full text (for `label`, the `#`
+ * plus the tag name; for `due`, the whole `[due:: ...]` bracket). `value` is
+ * the tag name (no `#`) for a label, or the validated ISO date string for a
+ * due field. `datePart` is present only on `due` tokens.
+ */
+export interface MetaToken {
+  kind: "label" | "due";
+  start: number;
+  end: number;
+  value: string;
+  datePart?: MetaTokenDatePart;
+}
+
 /** Deterministic bucket order for the UI to iterate. */
 export const AGENDA_BUCKET_ORDER: AgendaBucketKey[] = [
   "overdue",

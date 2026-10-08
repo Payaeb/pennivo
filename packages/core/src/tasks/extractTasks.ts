@@ -22,6 +22,7 @@
 //    are ignored (but still stripped for display).
 
 import type { TaskItem } from "./types";
+import { DUE_FIELD_RE, parseIsoDateStrict, scanMetaTokens } from "./metaTokens";
 
 // A fence opener/closer, same convention as outline.ts: any ``` or ~~~ line
 // toggles fence state, regardless of whether open/close markers match.
@@ -37,46 +38,6 @@ const TASK_LINE_RE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\](?: (.*))?$/;
 // code-span text before label scanning; an unclosed backtick is left alone.
 const CODE_SPAN_RE = /`[^`\n]*`/g;
 
-// A `#tag` token, unicode-aware. Not a match when immediately preceded by a
-// word character (letter/digit/underscore, any script) or `/` (so URL
-// fragments like `https://x.com/#frag` are excluded).
-const TAG_RE = /(?<![\p{L}\p{N}_/])#([\p{L}\p{N}_-]+)/gu;
-
-// A tag made of digits only is not a tag (Obsidian rule: `#2026` is a year,
-// not a label).
-const ALL_DIGITS_RE = /^[0-9]+$/;
-
-// A `[due:: value]` field, tolerant of extra spaces around `due`, `::`, and
-// the value. Captures the raw (untrimmed) value up to the closing `]`.
-const DUE_FIELD_RE = /\[\s*due\s*::\s*([^\]]*)\]/g;
-
-// Strict ISO `YYYY-MM-DD` shape.
-const ISO_DATE_SHAPE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/**
- * Validate `value` as a real calendar date in strict `YYYY-MM-DD` shape.
- * Returns the value unchanged (no timezone math — it is never reparsed into
- * a different representation) or null when the shape or the calendar date
- * itself (e.g. month 13, Feb 30) is invalid.
- */
-function parseIsoDateStrict(value: string): string | null {
-  const m = ISO_DATE_SHAPE_RE.exec(value);
-  if (!m) return null;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const d = new Date(Date.UTC(year, month - 1, day));
-  if (
-    d.getUTCFullYear() !== year ||
-    d.getUTCMonth() !== month - 1 ||
-    d.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  return value;
-}
-
 interface ParsedItemText {
   labels: string[];
   due: string | null;
@@ -89,16 +50,18 @@ function parseItemText(rawText: string): ParsedItemText {
   // before scanning for tags, so `#tag`-looking text inside `...` is ignored.
   const scanText = rawText.replace(CODE_SPAN_RE, (m) => " ".repeat(m.length));
 
+  // scanMetaTokens is the single source of truth for what counts as a tag
+  // (char classes, the foo#bar/URL-fragment exclusion, the all-digits
+  // rejection) — shared verbatim with the WYSIWYG chip renderer. Dedupe by
+  // first appearance is this extractor's own business rule (a TaskItem's
+  // `labels` is a set), not part of the token semantics, so it stays here.
   const labels: string[] = [];
   const seen = new Set<string>();
-  TAG_RE.lastIndex = 0;
-  let tagMatch: RegExpExecArray | null;
-  while ((tagMatch = TAG_RE.exec(scanText)) !== null) {
-    const candidate = tagMatch[1];
-    if (ALL_DIGITS_RE.test(candidate)) continue;
-    if (!seen.has(candidate)) {
-      seen.add(candidate);
-      labels.push(candidate);
+  for (const token of scanMetaTokens(scanText)) {
+    if (token.kind !== "label") continue;
+    if (!seen.has(token.value)) {
+      seen.add(token.value);
+      labels.push(token.value);
     }
   }
 
