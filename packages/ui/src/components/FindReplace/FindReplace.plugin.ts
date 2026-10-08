@@ -5,6 +5,11 @@
 import { Plugin, PluginKey } from "@milkdown/prose/state";
 import { Decoration, DecorationSet } from "@milkdown/prose/view";
 import type { EditorView } from "@milkdown/prose/view";
+import {
+  bulletZoomKey,
+  exitBulletZoom,
+  isPosInsideSubtree,
+} from "../Editor/bulletZoomPlugin";
 
 export interface FindReplaceState {
   query: string;
@@ -106,6 +111,19 @@ export function scrollToPmMatch(
   view: EditorView,
   match: { from: number; to: number },
 ) {
+  // In-document search stays whole-document regardless of zoom (Phase
+  // 18a) — but a match outside the currently zoomed subtree is hidden by
+  // the zoom decorations, so landing the cursor there with no visual
+  // change is exactly the Workflowy "lost items" complaint the design doc
+  // calls out. Exit zoom first so the match is always immediately visible.
+  const zoomState = bulletZoomKey.getState(view.state);
+  if (
+    zoomState?.zoomRootPos != null &&
+    !isPosInsideSubtree(view.state.doc, zoomState.zoomRootPos, match.from)
+  ) {
+    exitBulletZoom(view);
+  }
+
   const coords = view.coordsAtPos(match.from);
   const editorArea = view.dom.closest(".app-editor-area");
   if (!editorArea) return;

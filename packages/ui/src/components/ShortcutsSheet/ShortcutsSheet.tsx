@@ -48,6 +48,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { action: "Focus Mode", keys: "Ctrl+Shift+F" },
       { action: "Shortcuts", keys: "Ctrl+/" },
+      { action: "Zoom Into Bullet", keys: "Ctrl+." },
+      { action: "Zoom Out One Level", keys: "Ctrl+Shift+." },
     ],
   },
   {

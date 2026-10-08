@@ -21,6 +21,7 @@ import {
 } from "./syntaxHighlight";
 import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
+import { bulletZoomPlugin } from "./bulletZoomPlugin";
 import { taskMetaChipsPlugin } from "./taskMetaChipsPlugin";
 import { tablePlugin } from "./tablePlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
@@ -597,6 +598,7 @@ export function Editor({
       .use(highlightViewTrackerPlugin)
       .use(mermaidPlugin)
       .use(collapsibleListPlugin)
+      .use(bulletZoomPlugin)
       .use(taskMetaChipsPlugin)
       .use(tablePlugin)
       .use(findReplacePlugin)

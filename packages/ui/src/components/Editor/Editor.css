@@ -502,6 +502,76 @@
   display: none !important;
 }
 
+/* ── Bullet zoom (Phase 18a) — see bulletZoomPlugin.ts ──
+   Pure view-layer decoration classes; the document is never touched. */
+
+/* Everything outside the zoomed subtree. */
+.bullet-zoom-hidden {
+  display: none !important;
+}
+
+/* Ancestor containers (ul/ol) on the path to the zoom root must stay
+   visible even if collapsibleListPlugin separately marked an ancestor
+   list_item `.list-item--collapsed` — that plugin's own rule above
+   (`.list-item--collapsed ul, .list-item--collapsed ol`) would otherwise
+   hide these too. Two classes beat that rule's one-class-plus-element
+   specificity regardless of stylesheet order, so this is safe without
+   depending on rule placement. */
+.app-shell--bullet-zoom .bullet-zoom-path {
+  display: block !important;
+}
+
+/* Ancestor list_items on the path: only the breadcrumb shows their text
+   while zoomed, so suppress their own marker glyph and the vertical gap
+   their (now-hidden) own paragraph would otherwise leave behind. */
+li.bullet-zoom-path-item::marker {
+  content: none;
+}
+li.bullet-zoom-path-item {
+  margin-bottom: 0;
+}
+
+/* The zoomed item itself: no bullet marker — it is promoted to a
+   title-style display via .bullet-zoom-title below, render-only (the
+   underlying markdown never gains heading syntax). */
+li.bullet-zoom-root::marker {
+  content: none;
+}
+li.bullet-zoom-root {
+  margin-bottom: 4px;
+}
+
+.bullet-zoom-title {
+  font-size: 1.6em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin-bottom: 8px !important;
+}
+
+/* Discoverable hover affordance at the bullet glyph — a separate control
+   from the collapse chevron (which keeps its own look/behavior above).
+   Purely decorative (pointer-events: none); the actual zoom-in click is
+   handled by bulletZoomPlugin's handleClick via coordinate hit-testing
+   against the same gutter, exactly like the taskListClick checkbox
+   handler already does for its own gutter. */
+.ProseMirror li {
+  position: relative;
+}
+
+.ProseMirror li:hover::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* ── Mermaid diagram preview (decoration widget) ── */
 .mermaid-preview-widget {
   display: flex;

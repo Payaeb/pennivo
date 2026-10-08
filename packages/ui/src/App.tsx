@@ -17,6 +17,16 @@ import { lift } from "@milkdown/prose/commands";
 import type { EditorView } from "@milkdown/prose/view";
 import { applyListConversion } from "./components/Editor/listConversion";
 import {
+  bulletZoomKey,
+  computeZoomPath,
+  exitBulletZoom,
+  zoomIntoListItemAtCursor,
+  zoomOutOneLevel,
+  zoomToPosition,
+  type BulletZoomInfo,
+} from "./components/Editor/bulletZoomPlugin";
+import { ZoomBreadcrumb } from "./components/Editor/ZoomBreadcrumb";
+import {
   toggleStrongCommand,
   toggleEmphasisCommand,
   wrapInHeadingCommand,
@@ -246,6 +256,16 @@ function AppContent() {
     new Set(),
   );
   const [focusMode, setFocusMode] = useState(false);
+  // --- Bullet zoom (Phase 18a) ---
+  // Session-only, per-editor-instance view state mirrored from
+  // bulletZoomKey's plugin state (read in handleViewUpdate on every view
+  // update, including the one that fires synchronously from our own
+  // dispatch when zooming). Never persisted; reset on file switch.
+  const [bulletZoomInfo, setBulletZoomInfo] = useState<BulletZoomInfo | null>(
+    null,
+  );
+  const bulletZoomActiveRef = useRef(false);
+  const bulletZoomScrollRef = useRef<number | null>(null);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
   const [sourceMode, setSourceModeRaw] = useState(false);
   const [sourceEverActivated, setSourceEverActivated] = useState(false); // defer CodeMirror mount until first use
@@ -2555,9 +2575,14 @@ function AppContent() {
     }
   }, [loading, getInstance]);
 
-  // Escape exits focus mode — but not if a popover, menu, or find bar is open
+  // Escape exits zoom (Phase 18a) or focus mode — but not if a popover,
+  // menu, or find bar is open. Zoom-exit takes precedence over
+  // focus-mode-exit: a single Esc only ever does ONE of the two, and zoom
+  // wins when both happen to be active, consistent with the existing
+  // Esc-stack behavior (a second Esc is needed for the next thing).
+  const bulletZoomActive = bulletZoomInfo != null;
   useEffect(() => {
-    if (!focusMode) return;
+    if (!focusMode && !bulletZoomActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       // Let the link popover, titlebar menu, find bar, or command palette handle Escape first
@@ -2571,6 +2596,10 @@ function AppContent() {
       if (shortcutsOpen) return;
       if (settingsOpen) return;
       if (document.querySelector(".titlebar-menu-dropdown")) return;
+      if (bulletZoomActive) {
+        exitZoomFully();
+        return;
+      }
       setFocusMode(false);
       platform.setFullScreen(false);
     };
@@ -2580,6 +2609,7 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     focusMode,
+    bulletZoomActive,
     linkPopover,
     ganttEditor,
     findReplaceOpen,
@@ -2939,6 +2969,38 @@ function AppContent() {
   // --- Editor view update (toolbar sync) ---
   const handleViewUpdate = useCallback((view: EditorView) => {
     setActiveFormats(getActiveFormats(view));
+
+    // Bullet zoom (Phase 18a): mirror the plugin's zoom-root position into
+    // React state for the breadcrumb bar. Capture the editor area's scroll
+    // position the moment zoom activates (from fully unzoomed), and restore
+    // it the moment zoom fully exits — never on a partial zoom-out to an
+    // ancestor, per the locked design.
+    const zoomState = bulletZoomKey.getState(view.state);
+    const zoomRootPos = zoomState?.zoomRootPos ?? null;
+    const isZoomed = zoomRootPos != null;
+    if (isZoomed && !bulletZoomActiveRef.current) {
+      const area = document.querySelector(
+        ".app-editor-area",
+      ) as HTMLElement | null;
+      bulletZoomScrollRef.current = area?.scrollTop ?? null;
+    } else if (!isZoomed && bulletZoomActiveRef.current) {
+      const restore = bulletZoomScrollRef.current;
+      if (restore != null) {
+        const area = document.querySelector(
+          ".app-editor-area",
+        ) as HTMLElement | null;
+        if (area) {
+          requestAnimationFrame(() => {
+            area.scrollTop = restore;
+          });
+        }
+      }
+      bulletZoomScrollRef.current = null;
+    }
+    bulletZoomActiveRef.current = isZoomed;
+    setBulletZoomInfo(
+      isZoomed ? computeZoomPath(view.state.doc, zoomRootPos) : null,
+    );
 
     // Typewriter mode: scroll cursor to vertical center of the editor area
     if (typewriterModeRef.current) {
@@ -3308,6 +3370,53 @@ function AppContent() {
     return view;
   }, [loading, getInstance]);
 
+  // --- Bullet zoom (Phase 18a) entry/exit points ---
+  const exitZoomFully = useCallback(() => {
+    const view = getEditorView();
+    if (!view) return;
+    exitBulletZoom(view);
+  }, [getEditorView]);
+
+  const bulletZoomIn = useCallback(() => {
+    const view = getEditorView();
+    if (!view) return;
+    zoomIntoListItemAtCursor(view);
+  }, [getEditorView]);
+
+  const bulletZoomOut = useCallback(() => {
+    const view = getEditorView();
+    if (!view) return;
+    zoomOutOneLevel(view);
+  }, [getEditorView]);
+
+  const handleZoomAncestorClick = useCallback(
+    (pos: number) => {
+      const view = getEditorView();
+      if (!view) return;
+      zoomToPosition(view, pos);
+      view.focus();
+    },
+    [getEditorView],
+  );
+
+  // Switching to source mode exits zoom — source mode always shows the full
+  // file, and the zoom decorations are a WYSIWYG-only rendering concept.
+  useEffect(() => {
+    if (!sourceMode) return;
+    exitZoomFully();
+  }, [sourceMode, exitZoomFully]);
+
+  // Opening a different file resets zoom (session-only, per-editor-instance
+  // — never persisted, never carried from one file to the next).
+  useEffect(() => {
+    exitZoomFully();
+    bulletZoomActiveRef.current = false;
+    bulletZoomScrollRef.current = null;
+    // exitZoomFully is stable aside from getEditorView's own deps, already
+    // covered by its own effect re-run; filePath is the signal we care about.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath]);
+
   // --- Global-search jump-to-match ---
   //
   // After a search result opens a file we land the cursor on the exact match.
@@ -3473,6 +3582,11 @@ function AppContent() {
           e.preventDefault();
           setSidebarVisible(true);
           setSearchActive(true);
+        } else if (e.key === ">") {
+          // Ctrl+Shift+. — on a US layout, Shift turns "." into ">", so this
+          // (not "Shift-.") is the key that actually arrives here.
+          e.preventDefault();
+          bulletZoomOut();
         }
       } else {
         if (e.key === "f") {
@@ -3484,12 +3598,17 @@ function AppContent() {
         } else if (e.key === ",") {
           e.preventDefault();
           setSettingsOpen((v) => !v);
+        } else if (e.key === ".") {
+          // Ctrl+. — zoom into the list item at the cursor. No-op if the
+          // cursor isn't inside a list item (bulletZoomIn handles that).
+          e.preventDefault();
+          bulletZoomIn();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [bulletZoomIn, bulletZoomOut]);
 
   // --- Command palette commands ---
   const paletteCommands = useMemo<CommandItem[]>(
@@ -3651,6 +3770,20 @@ function AppContent() {
       { id: "zoomIn", label: "Zoom In", category: "View" },
       { id: "zoomOut", label: "Zoom Out", category: "View" },
       { id: "resetZoom", label: "Reset Zoom", category: "View" },
+      {
+        id: "bulletZoomIn",
+        label: "Zoom Into Bullet",
+        shortcut: "Ctrl+.",
+        category: "View",
+        keywords: "hoist focus narrow outliner",
+      },
+      {
+        id: "bulletZoomOut",
+        label: "Zoom Out One Level",
+        shortcut: "Ctrl+Shift+.",
+        category: "View",
+        keywords: "hoist unfocus outliner",
+      },
       // Themes
       {
         id: "cycleTheme",
@@ -3913,6 +4046,17 @@ function AppContent() {
         return;
       }
 
+      // Bullet zoom (Phase 18a) — distinct from the OS display-zoom ids
+      // ("zoomIn"/"zoomOut"/"resetZoom") handled via handleMenuAction below.
+      if (id === "bulletZoomIn") {
+        bulletZoomIn();
+        return;
+      }
+      if (id === "bulletZoomOut") {
+        bulletZoomOut();
+        return;
+      }
+
       const toolbarActions: Set<string> = new Set([
         "bold",
         "italic",
@@ -3941,7 +4085,14 @@ function AppContent() {
         handleMenuAction(id as MenuAction);
       }
     },
-    [handleAction, handleMenuAction, loading, getInstance],
+    [
+      handleAction,
+      handleMenuAction,
+      loading,
+      getInstance,
+      bulletZoomIn,
+      bulletZoomOut,
+    ],
   );
 
   const toolbarFormats = (() => {
@@ -3966,6 +4117,7 @@ function AppContent() {
       focusMode={focusMode}
       sourceMode={sourceMode}
       typewriterMode={typewriterMode}
+      bulletZoomActive={bulletZoomActive}
       onMenuAction={handleMenuAction}
       recentFiles={recentFiles}
       onOpenRecentFile={openRecentFile}
@@ -4054,6 +4206,14 @@ function AppContent() {
         />
       }
     >
+      {bulletZoomInfo && !sourceMode && (
+        <ZoomBreadcrumb
+          ancestors={bulletZoomInfo.ancestors}
+          current={bulletZoomInfo.current.text}
+          onHome={exitZoomFully}
+          onAncestorClick={handleZoomAncestorClick}
+        />
+      )}
       <div
         className={
           sourceMode ? "editor-pane editor-pane--hidden" : "editor-pane"

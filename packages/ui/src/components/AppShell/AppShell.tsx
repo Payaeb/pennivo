@@ -29,6 +29,9 @@ interface AppShellProps {
   focusMode?: boolean;
   sourceMode?: boolean;
   typewriterMode?: boolean;
+  /** True while zoomed into a bullet (Phase 18a) — lets CSS force ancestor
+   *  containers on the zoom path visible even under a collapsed item. */
+  bulletZoomActive?: boolean;
   onMenuAction?: (action: MenuAction) => void;
   recentFiles?: RecentFileEntry[];
   onOpenRecentFile?: (filePath: string) => void;
@@ -59,6 +62,7 @@ export function AppShell({
   focusMode = false,
   sourceMode = false,
   typewriterMode = false,
+  bulletZoomActive = false,
   onMenuAction,
   recentFiles,
   onOpenRecentFile,
@@ -123,6 +127,7 @@ export function AppShell({
     focusMode && !chromeVisible ? "app-shell--chrome-hidden" : "",
     sourceMode ? "app-shell--source" : "",
     typewriterMode ? "app-shell--typewriter" : "",
+    bulletZoomActive ? "app-shell--bullet-zoom" : "",
   ]
     .filter(Boolean)
     .join(" ");

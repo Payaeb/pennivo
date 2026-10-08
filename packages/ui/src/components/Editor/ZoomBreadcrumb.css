@@ -1,0 +1,72 @@
+/* ─── Zoom breadcrumb bar (Phase 18a) ─── */
+
+.zoom-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 2px;
+  padding: 8px 20px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border-mid);
+  background: var(--bg-overlay);
+  -webkit-app-region: no-drag;
+}
+
+.zoom-breadcrumb__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zoom-breadcrumb__sep {
+  color: var(--text-faint);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.zoom-breadcrumb__ellipsis {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+.zoom-breadcrumb__crumb {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-muted);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.zoom-breadcrumb__crumb:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.zoom-breadcrumb__home {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.zoom-breadcrumb__current {
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: default;
+}
+
+.zoom-breadcrumb__current:hover {
+  background: none;
+}
