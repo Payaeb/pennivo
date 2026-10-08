@@ -160,3 +160,15 @@ export {
 } from "./diff/formatTimelineDate";
 
 export { type StableDeferredSplit, splitStableDeferred } from "./streaming";
+
+export {
+  type TaskItem,
+  type TaskIndex,
+  type AgendaBucketKey,
+  type AgendaBuckets,
+  AGENDA_BUCKET_ORDER,
+  extractTaskItems,
+  buildTaskIndex,
+  groupTasksByAgenda,
+  addIsoDays,
+} from "./tasks";
