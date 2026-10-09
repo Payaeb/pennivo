@@ -427,12 +427,56 @@
   border-radius: var(--radius-md);
 }
 
-/* Due ([due:: date]) — neutral box, closer to the inline-code treatment. */
+/* Due ([due:: date]) — neutral box, closer to the inline-code treatment.
+ *
+ * taskMetaChipsPlugin.ts decorates a due token with ONE whole-token
+ * Decoration (.meta-chip--due) plus narrower sub-decorations for the
+ * "[due::"/"]" syntax and the date — but ProseMirror never actually nests
+ * overlapping inline decorations in the DOM. prosemirror-view's iterDeco
+ * splits the token's text at every decoration boundary and gives each
+ * resulting run the UNION of classes active over it, so this renders as
+ * THREE SIBLING spans ("[due:: " / "2026-10-15" / "]"), each independently
+ * carrying `.meta-chip--due` alongside whichever of `__syntax`/`__date`
+ * applies to that run — not one span wrapping two children. Giving
+ * `.meta-chip--due` its own border/radius/horizontal-padding (as if it
+ * were always a single box) therefore drew three separate boxes with
+ * visible seams between them.
+ *
+ * Fix: `.meta-chip--due` only contributes the shared background + the
+ * top/bottom border here (safe to repeat identically across all three
+ * runs — no seam). The side borders, corner radius, and horizontal
+ * padding that make the whole token read as ONE continuous pill are
+ * added only to the actual first/last run via the sibling rules below
+ * (the only two runs that can ever be an "edge" — a due token always has
+ * a `[due::` syntax run immediately before the date and a `]` syntax run
+ * immediately after it), overriding `.meta-chip`'s symmetric padding for
+ * this chip only.
+ */
 .meta-chip--due {
   background: var(--bg-overlay);
-  border: 1px solid var(--border-mid);
+  border-top: 1px solid var(--border-mid);
+  border-bottom: 1px solid var(--border-mid);
   color: var(--text-muted);
-  border-radius: var(--radius-sm);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The "[due::" run — always the syntax run immediately followed by the
+   date run. The pill's left edge. */
+.meta-chip--due.meta-chip__syntax:has(+ .meta-chip--due.meta-chip__date) {
+  border-left: 1px solid var(--border-mid);
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+  padding-left: 5px;
+}
+
+/* The "]" run — always the syntax run immediately preceded by the date
+   run. The pill's right edge. */
+.meta-chip--due.meta-chip__date + .meta-chip--due.meta-chip__syntax {
+  border-right: 1px solid var(--border-mid);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  padding-right: 5px;
 }
 
 /* Syntax portions of a due chip ("[due::" and "]") — dimmed. */
@@ -454,7 +498,7 @@
   width: 18px;
   height: 18px;
   position: absolute;
-  left: -26px;
+  left: -28px;
   top: 4px;
   cursor: pointer;
   color: var(--text-faint);
@@ -531,6 +575,22 @@ li.bullet-zoom-path-item {
   margin-bottom: 0;
 }
 
+/* An ancestor-on-path item's own collapse chevron is orphaned while
+   zoomed: collapsibleListPlugin renders it as a Decoration.widget at the
+   list_item's content-start position, i.e. a DIRECT CHILD of the <li>
+   itself (a sibling placed just before its first paragraph — the node has
+   no custom nodeView, so its contentDOM IS the <li> element). That
+   paragraph is exactly what buildHideDecorations hides for a path item
+   (only the breadcrumb shows its text), so the chevron ends up floating
+   with nothing left to toggle next to. Scoped to the direct-child
+   relationship so it never touches a collapse-toggle belonging to an
+   item actually inside the zoomed subtree (those carry no
+   bullet-zoom-path-item class and must stay fully functional) or the
+   zoom root's own toggle (class bullet-zoom-root, not -path-item). */
+.bullet-zoom-path-item > .collapse-toggle {
+  display: none;
+}
+
 /* The zoomed item itself: no bullet marker — it is promoted to a
    title-style display via .bullet-zoom-title below, render-only (the
    underlying markdown never gains heading syntax). */
@@ -554,7 +614,13 @@ li.bullet-zoom-root {
    Purely decorative (pointer-events: none); the actual zoom-in click is
    handled by bulletZoomPlugin's handleClick via coordinate hit-testing
    against the same gutter, exactly like the taskListClick checkbox
-   handler already does for its own gutter. */
+   handler already does for its own gutter.
+   Sized/positioned to sit snugly against the text edge, to the RIGHT of
+   the collapse chevron's box (chevron: left:-28px, width:18px, i.e. up to
+   -10px) with a clear 4px gap — the two used to overlap almost entirely
+   (chevron -26..-8 vs. this dot's old -20..-6) on any collapsible item's
+   hover. Since this dot has no pointer-events, shrinking it costs nothing
+   functionally — the real zoom-click target is still the whole gutter. */
 .ProseMirror li {
   position: relative;
 }
@@ -562,10 +628,10 @@ li.bullet-zoom-root {
 .ProseMirror li:hover::before {
   content: "";
   position: absolute;
-  left: -20px;
-  top: 5px;
-  width: 14px;
-  height: 14px;
+  left: -6px;
+  top: 10px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--accent-soft);
   pointer-events: none;

@@ -110,8 +110,8 @@ async function clickBulletGlyph(word: string): Promise<void> {
     throw new Error(`no bounding box for the <li> containing "${word}"`);
   // 6px inside the li's own left edge — within the marker gutter
   // (bulletZoomPlugin's hit zone is [rect.left-28, rect.left)) but clear of
-  // the collapse chevron's own box when one is present (left:-26px,
-  // width:18px, i.e. up to 8px from the li's edge).
+  // the collapse chevron's own box when one is present (left:-28px,
+  // width:18px, i.e. up to 10px from the li's edge).
   await window.mouse.click(box.x - 6, box.y + Math.min(10, box.height / 2));
 }
 

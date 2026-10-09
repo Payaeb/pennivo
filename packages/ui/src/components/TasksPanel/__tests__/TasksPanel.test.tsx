@@ -114,7 +114,7 @@ describe("TasksPanel", () => {
     it("renders bucket headers in AGENDA_BUCKET_ORDER, one item per bucket, with counts", async () => {
       render(<TasksPanel {...baseProps} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
 
       const headerEls = screen.getAllByText(
@@ -137,10 +137,10 @@ describe("TasksPanel", () => {
       });
 
       expect(screen.getByText("Call dentist")).toBeInTheDocument();
-      expect(screen.getByText("Buy groceries #home")).toBeInTheDocument();
-      expect(screen.getByText("Review PR #urgent")).toBeInTheDocument();
+      expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+      expect(screen.getByText("Review PR")).toBeInTheDocument();
       expect(screen.getByText("Plan trip")).toBeInTheDocument();
-      expect(screen.getByText("Clean garage #home")).toBeInTheDocument();
+      expect(screen.getByText("Clean garage")).toBeInTheDocument();
       // The checked item never enters a bucket.
       expect(screen.queryByText("Old done task")).not.toBeInTheDocument();
     });
@@ -193,20 +193,20 @@ describe("TasksPanel", () => {
     it("narrows the list to items carrying the selected label (click toggles on)", async () => {
       render(<TasksPanel {...baseProps} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
 
       fireEvent.click(screen.getByRole("button", { name: /^#urgent/ }));
-      expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument();
-      expect(screen.getByText("Review PR #urgent")).toBeInTheDocument();
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
+      expect(screen.getByText("Review PR")).toBeInTheDocument();
       expect(screen.queryByText("Call dentist")).not.toBeInTheDocument();
-      expect(screen.queryByText("Buy groceries #home")).not.toBeInTheDocument();
+      expect(screen.queryByText("Buy groceries")).not.toBeInTheDocument();
     });
 
     it('clicking "All" resets the label filter', async () => {
       render(<TasksPanel {...baseProps} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
       fireEvent.click(screen.getByRole("button", { name: /^#urgent/ }));
       expect(screen.queryByText("Call dentist")).not.toBeInTheDocument();
@@ -218,15 +218,15 @@ describe("TasksPanel", () => {
     it("multiple selected labels combine with OR, not AND", async () => {
       render(<TasksPanel {...baseProps} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
       fireEvent.click(screen.getByRole("button", { name: /^#urgent/ }));
       fireEvent.click(screen.getByRole("button", { name: /^#home/ }));
 
-      expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument();
-      expect(screen.getByText("Review PR #urgent")).toBeInTheDocument();
-      expect(screen.getByText("Buy groceries #home")).toBeInTheDocument();
-      expect(screen.getByText("Clean garage #home")).toBeInTheDocument();
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
+      expect(screen.getByText("Review PR")).toBeInTheDocument();
+      expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+      expect(screen.getByText("Clean garage")).toBeInTheDocument();
       // "Call dentist" carries neither label.
       expect(screen.queryByText("Call dentist")).not.toBeInTheDocument();
     });
@@ -244,7 +244,7 @@ describe("TasksPanel", () => {
       render(<TasksPanel {...baseProps} />);
       // Flush the mount-time onLoad microtask under fake timers.
       await act(async () => {});
-      expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument();
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
 
       const input = screen.getByPlaceholderText("Filter tasks...");
       fireEvent.change(input, { target: { value: "GROCERIES" } });
@@ -254,9 +254,9 @@ describe("TasksPanel", () => {
       await act(async () => {
         vi.advanceTimersByTime(200);
       });
-      expect(screen.getByText("Buy groceries #home")).toBeInTheDocument();
+      expect(screen.getByText("Buy groceries")).toBeInTheDocument();
       expect(screen.queryByText("Call dentist")).not.toBeInTheDocument();
-      expect(screen.queryByText("Pay rent #urgent")).not.toBeInTheDocument();
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
     });
   });
 
@@ -265,10 +265,10 @@ describe("TasksPanel", () => {
       const onOpenTask = vi.fn();
       render(<TasksPanel {...baseProps} onOpenTask={onOpenTask} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
 
-      fireEvent.click(screen.getByText("Pay rent #urgent"));
+      fireEvent.click(screen.getByText("Pay rent"));
       expect(onOpenTask).toHaveBeenCalledWith("/work/space/alpha.md", {
         line: 1, // TaskItem.line (0) + 1, matching GlobalSearchJumpTarget's 1-based convention
         fileOffset: 10,
@@ -276,13 +276,44 @@ describe("TasksPanel", () => {
       });
     });
 
-    it("Enter opens the selected task", async () => {
+    it("no row is highlighted on open; ArrowDown selects the first row", async () => {
+      render(<TasksPanel {...baseProps} />);
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      // Mirrors GlobalSearchPanel's own keyboard-nav model: the list
+      // populates with zero user interaction, so nothing should read as
+      // selected until an explicit Arrow key moves into it.
+      expect(
+        document.querySelector(".tasks-panel-item--selected"),
+      ).not.toBeInTheDocument();
+
+      const region = screen.getByRole("region", { name: "Tasks" });
+      fireEvent.keyDown(region, { key: "ArrowDown" });
+      expect(screen.getByText("Pay rent").closest(".tasks-panel-item")).toBe(
+        document.querySelector(".tasks-panel-item--selected"),
+      );
+    });
+
+    it("Enter is a no-op before any Arrow key has selected a row", async () => {
       const onOpenTask = vi.fn();
       render(<TasksPanel {...baseProps} onOpenTask={onOpenTask} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
       const region = screen.getByRole("region", { name: "Tasks" });
+      fireEvent.keyDown(region, { key: "Enter" });
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it("ArrowDown then Enter opens the now-selected task", async () => {
+      const onOpenTask = vi.fn();
+      render(<TasksPanel {...baseProps} onOpenTask={onOpenTask} />);
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      const region = screen.getByRole("region", { name: "Tasks" });
+      fireEvent.keyDown(region, { key: "ArrowDown" });
       fireEvent.keyDown(region, { key: "Enter" });
       expect(onOpenTask).toHaveBeenCalledWith("/work/space/alpha.md", {
         line: 1,
@@ -291,11 +322,29 @@ describe("TasksPanel", () => {
       });
     });
 
+    it("ArrowUp before any selection jumps to the last row", async () => {
+      const onOpenTask = vi.fn();
+      render(<TasksPanel {...baseProps} onOpenTask={onOpenTask} />);
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      const region = screen.getByRole("region", { name: "Tasks" });
+      fireEvent.keyDown(region, { key: "ArrowUp" });
+      fireEvent.keyDown(region, { key: "Enter" });
+      // "Clean garage" is the last row (Later bucket's "Plan trip" is
+      // followed by the No date bucket's "Clean garage", the final flat item).
+      expect(onOpenTask).toHaveBeenCalledWith("/work/space/charlie.md", {
+        line: 3,
+        fileOffset: 25,
+        query: "Clean garage #home",
+      });
+    });
+
     it("Escape clears an active filter, then closes on the next Escape", async () => {
       const onClose = vi.fn();
       render(<TasksPanel {...baseProps} onClose={onClose} />);
       await waitFor(() =>
-        expect(screen.getByText("Pay rent #urgent")).toBeInTheDocument(),
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
       const region = screen.getByRole("region", { name: "Tasks" });
 

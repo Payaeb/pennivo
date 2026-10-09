@@ -7,7 +7,11 @@ import {
   Fragment,
 } from "react";
 import type { AgendaBucketKey, AgendaBuckets, TaskItem } from "@pennivo/core";
-import { AGENDA_BUCKET_ORDER, groupTasksByAgenda } from "@pennivo/core";
+import {
+  AGENDA_BUCKET_ORDER,
+  groupTasksByAgenda,
+  scanMetaTokens,
+} from "@pennivo/core";
 import { joinWorkspacePath } from "../GlobalSearch/searchPanelUtils";
 import type { GlobalSearchJumpTarget } from "../GlobalSearch/GlobalSearchPanel";
 import "./TasksPanel.css";
@@ -62,6 +66,34 @@ const BUCKET_LABELS: Record<AgendaBucketKey, string> = {
   noDate: "No date",
 };
 
+/**
+ * `TaskItem.displayText` deliberately keeps `#label` tokens (core's own
+ * doc comment: "Labels stay in displayText") — extractTaskItems only
+ * strips the `[due:: ...]` field. The row already renders each label as
+ * its own chip below the text, so showing it a second time inline would
+ * duplicate it. Scan with scanMetaTokens (the same tokenizer the WYSIWYG
+ * chip renderer and extractTaskItems both use, so this can never
+ * disagree with them on what counts as a label) and excise every
+ * `label`-kind token's range, then collapse the whitespace left behind —
+ * never an ad-hoc regex, so `#2026`-style all-digit non-tags and tags
+ * inside code spans (already absent from displayText / never present to
+ * begin with) can't be mishandled differently here than anywhere else.
+ */
+function stripLabelTokensForDisplay(text: string): string {
+  const labelTokens = scanMetaTokens(text).filter((t) => t.kind === "label");
+  if (labelTokens.length === 0) return text;
+
+  let result = "";
+  let cursor = 0;
+  for (const token of labelTokens) {
+    result += text.slice(cursor, token.start);
+    cursor = token.end;
+  }
+  result += text.slice(cursor);
+
+  return result.replace(/\s+/g, " ").trim();
+}
+
 export function TasksPanel({
   rootPath,
   onLoad,
@@ -77,7 +109,15 @@ export function TasksPanel({
   const [textFilter, setTextFilter] = useState("");
   const [debouncedTextFilter, setDebouncedTextFilter] = useState("");
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  // Mirrors GlobalSearchPanel's own keyboard-nav model, with one
+  // deliberate difference: GlobalSearchPanel only ever shows rows after
+  // the user has typed a query (an action), so pre-selecting its first
+  // result on arrival is a reasonable "jump to top hit" affordance. This
+  // panel populates itself on mount with zero user interaction, so
+  // starting from `null` (nothing selected) and only entering the list on
+  // an explicit ArrowDown/ArrowUp avoids highlighting a row the user never
+  // asked about.
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -175,9 +215,10 @@ export function TasksPanel({
     [visibleBucketKeys, buckets],
   );
 
-  // Clamp the selection when the filtered set shrinks.
+  // Clamp the selection when the filtered set shrinks. A `null` selection
+  // (nothing chosen yet) is left alone — there's nothing to clamp.
   useEffect(() => {
-    if (selectedIndex >= flatItems.length) {
+    if (selectedIndex !== null && selectedIndex >= flatItems.length) {
       setSelectedIndex(Math.max(0, flatItems.length - 1));
     }
   }, [flatItems.length, selectedIndex]);
@@ -220,15 +261,19 @@ export function TasksPanel({
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((i) => Math.min(i + 1, flatItems.length - 1));
+          setSelectedIndex((i) =>
+            i === null ? 0 : Math.min(i + 1, flatItems.length - 1),
+          );
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((i) => Math.max(i - 1, 0));
+          setSelectedIndex((i) =>
+            i === null ? flatItems.length - 1 : Math.max(i - 1, 0),
+          );
           break;
         case "Enter":
           e.preventDefault();
-          openItem(flatItems[selectedIndex]);
+          if (selectedIndex !== null) openItem(flatItems[selectedIndex]);
           break;
         case "Escape":
           e.preventDefault();
@@ -385,7 +430,7 @@ export function TasksPanel({
                     </span>
                     <span className="tasks-panel-item-body">
                       <span className="tasks-panel-item-text">
-                        {item.displayText}
+                        {stripLabelTokensForDisplay(item.displayText)}
                       </span>
                       {(item.labels.length > 0 || item.due) && (
                         <span className="tasks-panel-item-meta">
