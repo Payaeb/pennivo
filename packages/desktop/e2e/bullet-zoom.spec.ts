@@ -253,3 +253,87 @@ test("switching to source mode exits zoom", async () => {
 
   await expect(window.locator(".zoom-breadcrumb")).toHaveCount(0);
 });
+
+// Bug fix regression coverage — see bulletZoomPlugin.ts's handleKeyDown
+// comment. Shift+Tab on a DIRECT CHILD of the zoom root used to lift it to
+// become a SIBLING of the zoom root itself — outside the zoomed subtree —
+// so it silently vanished from the zoomed view even though the root never
+// moved. "Task Alpha"/"Task Beta" are direct children of "Phase One" in
+// FIXTURE; "Phase One" is the zoom root here.
+test("Shift+Tab on a direct child of the zoom root is blocked — item stays in the zoomed view and nested on disk", async () => {
+  await launchWithContent(FIXTURE);
+  await clickBulletGlyph("Phase One");
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Phase One",
+  );
+
+  await clickWord("Task Alpha");
+  await window.keyboard.press("Shift+Tab");
+
+  // Still visible in the zoomed view — a successful (buggy) outdent would
+  // have moved it to be a sibling of "Phase One", which the zoom's hide
+  // decorations would then remove from the content pane entirely.
+  await expect(
+    window.locator(".ProseMirror").getByText("Task Alpha", { exact: true }),
+  ).toBeVisible();
+  // Its sibling "Task Beta" and the zoom root itself are undisturbed.
+  await expect(
+    window.locator(".ProseMirror").getByText("Task Beta", { exact: true }),
+  ).toBeVisible();
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Phase One",
+  );
+
+  // Autosave debounce (3s) + buffer, then confirm on disk: "Task Alpha"
+  // is still 4-space indented (nested under "Phase One"), not promoted to
+  // "Phase One"'s own 2-space level. (Milkdown's markdown serializer emits
+  // `*` bullets regardless of the `-` used in FIXTURE's source markdown.)
+  await window.waitForTimeout(4_000);
+  const onDisk = await readFile(filePath, "utf-8");
+  expect(onDisk).toContain("    * Task Alpha");
+  // Not promoted to 2-space (sibling of "Phase One") — anchor the regex so
+  // the real 4-space line (which CONTAINS "  * Task Alpha" as a trailing
+  // substring) doesn't also match.
+  expect(onDisk).not.toMatch(/^ {2}\* Task Alpha$/m);
+});
+
+// Bug fix regression coverage — see Editor.css's "Bullet-zoom hover
+// affordance" comment. The zoom hover dot used to be `::before`, the same
+// pseudo-element the task checkbox uses — on hover, the dot's properties
+// won the CSS cascade and the checkbox visually turned into a small round
+// dot, then reverted on hover-out. Assert the checkbox's actual computed
+// `::before` box (size + shape) is unchanged while hovering, for both an
+// unchecked and a checked task item.
+test("a task-item checkbox stays visible (not replaced by the zoom dot) while hovering", async () => {
+  await launchWithContent("- [ ] Buy milk\n- [x] Walk the dog\n");
+
+  async function checkboxBoxOnHover(selector: string) {
+    const li = window.locator(selector).first();
+    await li.hover();
+    return li.evaluate((el) => {
+      const cs = getComputedStyle(el, "::before");
+      return {
+        display: cs.display,
+        width: cs.width,
+        height: cs.height,
+        borderRadius: cs.borderRadius,
+        backgroundImage: cs.backgroundImage,
+      };
+    });
+  }
+
+  const unchecked = await checkboxBoxOnHover('li[data-checked="false"]');
+  expect(unchecked.display).not.toBe("none");
+  expect(unchecked.width).toBe("16px");
+  expect(unchecked.height).toBe("16px");
+  // The checkbox is a rounded square (radius 3px) — if the zoom dot's
+  // `::before` had won the cascade here, this would read "50%" (a circle).
+  expect(unchecked.borderRadius).not.toBe("50%");
+
+  const checked = await checkboxBoxOnHover('li[data-checked="true"]');
+  expect(checked.width).toBe("16px");
+  expect(checked.height).toBe("16px");
+  expect(checked.borderRadius).not.toBe("50%");
+  // The checkmark SVG background-image must still be present.
+  expect(checked.backgroundImage).not.toBe("none");
+});

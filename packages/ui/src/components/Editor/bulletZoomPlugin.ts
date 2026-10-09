@@ -85,20 +85,28 @@ const AFFORDANCE_DISABLED_CLASS = "bullet-zoom-affordance-disabled";
 let affordanceOverrideInjected = false;
 
 /**
- * Editor.css's discoverability affordance (`.ProseMirror li:hover::before`,
- * the hover dot over the bullet glyph) is unconditional CSS — it predates
+ * Editor.css's discoverability affordance (`.ProseMirror li:hover::after`,
+ * the hover dot near the bullet glyph) is unconditional CSS — it predates
  * this opt-out and has no gating class to key off. Rather than leave that
  * affordance inviting a tap that silently does nothing once click entry is
  * disabled, inject one small override rule — scoped to a class this plugin
  * toggles on the editor's own DOM root — that beats it on specificity. This
  * keeps the fix entirely within this file instead of editing Editor.css.
+ *
+ * Pseudo-element is `::after` (not `::before`) — see Editor.css's "Bullet
+ * zoom hover affordance" comment for why: `::before` is already owned by
+ * the task-checkbox rule (`li[data-checked]::before`), and reusing it here
+ * caused the checkbox to visually turn into this dot on hover (same
+ * pseudo-element, cascade picks one winner per property). Keep this
+ * selector in sync with Editor.css's `:hover::after` rules if either ever
+ * changes.
  */
 function ensureAffordanceOverrideStyle(): void {
   if (affordanceOverrideInjected || typeof document === "undefined") return;
   affordanceOverrideInjected = true;
   const style = document.createElement("style");
   style.setAttribute("data-pennivo-style", "bullet-zoom-affordance-override");
-  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:hover::before { display: none !important; }`;
+  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:hover::after { display: none !important; }`;
   document.head.appendChild(style);
 }
 
@@ -350,11 +358,21 @@ export const bulletZoomPlugin = $prose(
           return bulletZoomKey.getState(state)?.decorations ?? null;
         },
 
-        // Guardrail: Shift+Tab (outdent) must not move the zoom root itself
-        // past the zoom boundary — that would move it outside its own
-        // zoomed subtree, which is incoherent while zoomed. Descendants
-        // within the subtree outdent normally (this only blocks when the
-        // selection's innermost list_item IS the zoom root).
+        // Guardrail: Shift+Tab (outdent) must never move an item PAST the
+        // zoom root — i.e. the lift must not land outside the zoomed
+        // subtree. `liftListItem` only ever moves an item up exactly ONE
+        // level (to become a sibling of its current parent list_item), so
+        // the lift escapes the subtree in exactly two cases:
+        //   1. The selected item itself IS the zoom root (lifting it would
+        //      move the root out of its own subtree — incoherent).
+        //   2. The selected item is a DIRECT CHILD of the zoom root
+        //      (lifting it would make it a sibling of the zoom root, i.e.
+        //      one level above "inside the subtree" — it would vanish from
+        //      the zoomed view even though the root itself never moved).
+        // A grandchild (or deeper) lifts to become a child of the zoom
+        // root's child — still inside the subtree — so that case is left
+        // alone and outdents normally, same for Tab (indent), untouched
+        // here entirely.
         handleKeyDown(view, event) {
           if (
             event.key !== "Tab" ||
@@ -367,10 +385,31 @@ export const bulletZoomPlugin = $prose(
           }
           const st = bulletZoomKey.getState(view.state);
           if (!st || st.zoomRootPos == null) return false;
-          const itemPos = findEnclosingListItemPos(view.state.selection.$from);
-          if (itemPos !== st.zoomRootPos) return false;
-          event.preventDefault();
-          return true;
+
+          const $from = view.state.selection.$from;
+          const listItemDepths: number[] = [];
+          for (let d = $from.depth; d >= 0; d--) {
+            if ($from.node(d).type.name === "list_item") {
+              listItemDepths.push(d);
+            }
+          }
+          if (listItemDepths.length === 0) return false;
+
+          const itemPos = $from.before(listItemDepths[0]!);
+          if (itemPos === st.zoomRootPos) {
+            event.preventDefault();
+            return true;
+          }
+
+          if (listItemDepths.length > 1) {
+            const parentItemPos = $from.before(listItemDepths[1]!);
+            if (parentItemPos === st.zoomRootPos) {
+              event.preventDefault();
+              return true;
+            }
+          }
+
+          return false;
         },
 
         // Bullet-glyph click zooms in. Scoped to the marker "gutter" to the

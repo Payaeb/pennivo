@@ -609,31 +609,79 @@ li.bullet-zoom-root {
   margin-bottom: 8px !important;
 }
 
-/* Discoverable hover affordance at the bullet glyph — a separate control
-   from the collapse chevron (which keeps its own look/behavior above).
-   Purely decorative (pointer-events: none); the actual zoom-in click is
-   handled by bulletZoomPlugin's handleClick via coordinate hit-testing
-   against the same gutter, exactly like the taskListClick checkbox
-   handler already does for its own gutter.
-   Sized/positioned to sit snugly against the text edge, to the RIGHT of
-   the collapse chevron's box (chevron: left:-28px, width:18px, i.e. up to
-   -10px) with a clear 4px gap — the two used to overlap almost entirely
-   (chevron -26..-8 vs. this dot's old -20..-6) on any collapsible item's
-   hover. Since this dot has no pointer-events, shrinking it costs nothing
-   functionally — the real zoom-click target is still the whole gutter. */
+/* ── Bullet-zoom hover affordance ──
+   Discoverable hint that hovering this item's gutter zooms in — a separate
+   control from the collapse chevron (which keeps its own look/behavior
+   above). Purely decorative (pointer-events: none); the actual zoom-in
+   click is handled by bulletZoomPlugin's handleClick via coordinate
+   hit-testing against the same gutter, exactly like the taskListClick
+   checkbox handler already does for its own gutter.
+
+   Two things this rule must never do, both regressions found in real-world
+   testing of v1.5.0:
+
+   1. MUST NOT use `::before`. The task-checkbox is also `::before` on the
+      same <li> (`li[data-checked]::before` above) — CSS only renders ONE
+      `::before` box per element, cascading every rule that targets it
+      PROPERTY BY PROPERTY. The original affordance (`li:hover::before`,
+      landed in 8af2ef0) had equal selector specificity to the checkbox
+      rule and sat later in this file, so on hover it won every competing
+      property (position/size/color) and the checkbox visually turned into
+      this dot — reported as "the checkbox disappears on hover and a
+      bullet shows instead." `::after` is a completely independent
+      pseudo-element, so this can never happen regardless of position or
+      future edits. (bulletZoomPlugin.ts's ensureAffordanceOverrideStyle
+      mobile opt-out targets the same `::after` selector — keep both in
+      sync.)
+   2. MUST NOT render on task items at all (`:not([data-checked])` below).
+      bulletZoomPlugin's own handleClick already excludes checked items
+      from gutter-click zoom (`if (node.attrs["checked"] != null) return
+      false;` — the checkbox owns that gutter for toggling), so showing a
+      "click to zoom" hint there was always misleading on top of being the
+      collision in (1).
+
+   Sizing/position (non-task items only, from here down):
+   The gutter is only 28px wide (.ProseMirror ul/ol padding-left) and
+   already hosts the native list marker (measured ~-8px..-2px from the
+   text edge, both bullet and ordered) plus, on any item with children, the
+   collapse chevron (-28px..-10px, 18px wide — see .collapse-toggle above).
+
+   No chevron (the common case: leaf items, or any item without nested
+   children) — the dot gets the wide -22px..-10px slot: 12px across, a
+   clear 2px gap from the native marker's left-most measured extent (-8px)
+   on one side and from the ul's own edge (-28px) on the other.
+
+   Has a chevron (.list-item--collapsible / .list-item--collapsed) — the
+   chevron already occupies -28px..-10px, leaving only a ~10px scrap
+   between it and the text edge, and that scrap is where the native marker
+   itself renders (~-8px..-2px) — there is no sub-position left in there
+   that's simultaneously clear of the chevron, the marker, AND big enough
+   to read as "noticeably visible" (confirmed empirically: a dot sized to
+   fit that scrap sits close enough to the marker that the marker paints
+   over most of it, making it functionally invisible on hover — worse than
+   not having one). Rather than ship a decoration nobody can actually see,
+   suppress it there entirely: the chevron itself is a permanent, bold,
+   always-visible (not hover-gated) widget that already answers "this row
+   has gutter controls," so this item type doesn't need a second one.
+   Gutter-click zoom itself is unaffected either way — bulletZoomPlugin's
+   handleClick hit-tests the whole 28px gutter by coordinate, independent
+   of this purely-decorative CSS. */
 .ProseMirror li {
   position: relative;
 }
 
-.ProseMirror li:hover::before {
+.ProseMirror
+  li:not([data-checked]):not(.list-item--collapsible):not(
+    .list-item--collapsed
+  ):hover::after {
   content: "";
   position: absolute;
-  left: -6px;
-  top: 10px;
-  width: 6px;
-  height: 6px;
+  left: -22px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--accent-soft);
+  background: var(--accent);
   pointer-events: none;
   z-index: 0;
 }

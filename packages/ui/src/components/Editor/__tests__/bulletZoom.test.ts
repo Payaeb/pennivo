@@ -284,6 +284,89 @@ describe("zoomIntoListItemAtCursor / zoomOutOneLevel / exitBulletZoom", () => {
   });
 });
 
+describe("Shift+Tab outdent guardrail (zoom subtree boundary)", () => {
+  // Simulates a real Shift+Tab keydown through the FULL plugin chain (not
+  // just bulletZoomPlugin's own handler in isolation) — `someProp` is the
+  // same mechanism prosemirror-view's own native keydown listener uses
+  // internally, so this exercises bulletZoomPlugin's guard AND, when it
+  // doesn't block, @milkdown/preset-commonmark's real listItemKeymap
+  // (Shift-Tab → liftListItem) exactly as production does. w3c-keyname
+  // (which prosemirror-keymap's matching sits on) reads `event.key`
+  // directly, so a plain object with the right shape is enough — no jsdom
+  // DOM event dispatch required.
+  function pressShiftTab(view: EditorView): void {
+    const event = {
+      key: "Tab",
+      shiftKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      preventDefault() {},
+    } as unknown as KeyboardEvent;
+    view.someProp("handleKeyDown", (f) => f(view, event));
+  }
+
+  // a > b > c > d (each the sole child of the one before it) — zoom root is
+  // always "b" across these tests, so "c" is a DIRECT CHILD of the root
+  // (one lift away from escaping the subtree) and "d" is a GRANDCHILD
+  // (one lift away from "c", still two levels inside the root either way).
+  const NESTED_FIXTURE = "- a\n  - b\n    - c\n      - d\n";
+
+  it("blocks Shift+Tab on the zoom root itself — doc unchanged", async () => {
+    const editor = await makeEditor(NESTED_FIXTURE);
+    withView(editor, (view) => {
+      zoomToPosition(view, listItemPosForWord(view, "b"));
+    });
+    withView(editor, (view) => {
+      placeCursorInWord(view, "b");
+      const before = view.state.doc.toJSON();
+      pressShiftTab(view);
+      expect(view.state.doc.toJSON()).toEqual(before);
+      // still the zoom root — zoom wasn't knocked out either
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).not.toBeNull();
+    });
+  });
+
+  it("blocks Shift+Tab on a DIRECT CHILD of the zoom root — doc unchanged (regression: this used to lift the child OUT of the zoomed subtree)", async () => {
+    const editor = await makeEditor(NESTED_FIXTURE);
+    withView(editor, (view) => {
+      zoomToPosition(view, listItemPosForWord(view, "b"));
+    });
+    withView(editor, (view) => {
+      placeCursorInWord(view, "c");
+      const before = view.state.doc.toJSON();
+      pressShiftTab(view);
+      expect(view.state.doc.toJSON()).toEqual(before);
+    });
+  });
+
+  it("allows Shift+Tab on a grandchild — outdents one level and stays inside the zoomed subtree", async () => {
+    const editor = await makeEditor(NESTED_FIXTURE);
+    withView(editor, (view) => {
+      zoomToPosition(view, listItemPosForWord(view, "b"));
+    });
+    withView(editor, (view) => {
+      const depthBefore = view.state.doc.resolve(wordPos(view, "d")).depth;
+      pressShiftTab(view);
+      const dPosAfter = wordPos(view, "d");
+      const depthAfter = view.state.doc.resolve(dPosAfter).depth;
+      // actually lifted by one level — this plugin didn't swallow the event
+      expect(depthAfter).toBeLessThan(depthBefore);
+
+      const st = bulletZoomKey.getState(view.state)!;
+      expect(st.zoomRootPos).not.toBeNull();
+      expect(
+        isPosInsideSubtree(view.state.doc, st.zoomRootPos!, dPosAfter),
+      ).toBe(true);
+      // "c" (the direct child, now d's sibling) is still visible too — the
+      // lift didn't collapse/merge anything unexpected.
+      expect(
+        isPosInsideSubtree(view.state.doc, st.zoomRootPos!, wordPos(view, "c")),
+      ).toBe(true);
+    });
+  });
+});
+
 describe("setBulletZoomClickEnabled (mobile opt-out)", () => {
   // Module-level flag, like collapsibleListPlugin's collapsedIndices — reset
   // it after every test in this block so other tests/files see the default.
