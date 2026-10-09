@@ -61,6 +61,51 @@ export const bulletZoomKey = new PluginKey<BulletZoomPluginState>(
 
 const ZOOM_CONTAINER_TYPES = new Set(["bullet_list", "ordered_list"]);
 
+// --- Click-to-zoom opt-out --------------------------------------------
+//
+// Mirrors collapsibleListPlugin.ts's module-level state pattern. Platforms
+// that render the shared <Editor> but have no way to exit a zoomed view
+// (no breadcrumb bar, no Esc key, no command palette — i.e. mobile) disable
+// the bullet-glyph click entry point via Editor's `enableBulletZoom` prop,
+// so a tap can never trap the user in a zoomed subtree.
+//
+// Keyboard (Ctrl+. / Ctrl+Shift+.) and command-palette zoom commands are
+// NOT gated by this flag — those entry points are only wired up in the
+// desktop shell (packages/ui/src/App.tsx), which always has an exit path.
+let bulletZoomClickEnabled = true;
+
+/** Enable/disable the bullet-glyph click (and its hover affordance) that
+ *  zooms in. See the comment above for why this doesn't touch the keyboard/
+ *  palette entry points. */
+export function setBulletZoomClickEnabled(enabled: boolean): void {
+  bulletZoomClickEnabled = enabled;
+}
+
+const AFFORDANCE_DISABLED_CLASS = "bullet-zoom-affordance-disabled";
+let affordanceOverrideInjected = false;
+
+/**
+ * Editor.css's discoverability affordance (`.ProseMirror li:hover::before`,
+ * the hover dot over the bullet glyph) is unconditional CSS — it predates
+ * this opt-out and has no gating class to key off. Rather than leave that
+ * affordance inviting a tap that silently does nothing once click entry is
+ * disabled, inject one small override rule — scoped to a class this plugin
+ * toggles on the editor's own DOM root — that beats it on specificity. This
+ * keeps the fix entirely within this file instead of editing Editor.css.
+ */
+function ensureAffordanceOverrideStyle(): void {
+  if (affordanceOverrideInjected || typeof document === "undefined") return;
+  affordanceOverrideInjected = true;
+  const style = document.createElement("style");
+  style.setAttribute("data-pennivo-style", "bullet-zoom-affordance-override");
+  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:hover::before { display: none !important; }`;
+  document.head.appendChild(style);
+}
+
+function syncAffordanceClass(view: EditorView): void {
+  view.dom.classList.toggle(AFFORDANCE_DISABLED_CLASS, !bulletZoomClickEnabled);
+}
+
 /** First child block that's a paragraph, or null. The "title" / breadcrumb
  *  text source for a list_item. */
 function firstParagraph(node: ProseMirrorNode): ProseMirrorNode | null {
@@ -290,6 +335,16 @@ export const bulletZoomPlugin = $prose(
         },
       },
 
+      view(view) {
+        ensureAffordanceOverrideStyle();
+        syncAffordanceClass(view);
+        return {
+          update(updatedView) {
+            syncAffordanceClass(updatedView);
+          },
+        };
+      },
+
       props: {
         decorations(state) {
           return bulletZoomKey.getState(state)?.decorations ?? null;
@@ -338,6 +393,8 @@ export const bulletZoomPlugin = $prose(
         // ancestors when pos resolves properly inside text content (a
         // plain click elsewhere, which is unambiguous).
         handleClick(view, pos, event) {
+          if (!bulletZoomClickEnabled) return false;
+
           const { doc } = view.state;
           const atPos = doc.nodeAt(pos);
 

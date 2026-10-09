@@ -21,7 +21,10 @@ import {
 } from "./syntaxHighlight";
 import { mermaidPlugin } from "./mermaidPlugin";
 import { collapsibleListPlugin } from "./collapsibleListPlugin";
-import { bulletZoomPlugin } from "./bulletZoomPlugin";
+import {
+  bulletZoomPlugin,
+  setBulletZoomClickEnabled,
+} from "./bulletZoomPlugin";
 import { taskMetaChipsPlugin } from "./taskMetaChipsPlugin";
 import { tablePlugin } from "./tablePlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
@@ -35,6 +38,10 @@ interface EditorProps {
   onMarkdownChange?: (markdown: string) => void;
   onViewUpdate?: (view: EditorView) => void;
   onImagePaste?: (file: File) => Promise<string | null>;
+  /** Mobile has no breadcrumb bar, no Esc key, and no command palette to
+   *  zoom back out — pass false there so a tap can't trap the user in a
+   *  zoomed subtree. Default true (desktop behavior is unchanged). */
+  enableBulletZoom?: boolean;
 }
 
 export function Editor({
@@ -44,10 +51,17 @@ export function Editor({
   onMarkdownChange,
   onViewUpdate,
   onImagePaste,
+  enableBulletZoom = true,
 }: EditorProps) {
   // Ref so the paste plugin always sees the latest callback without re-creating the editor
   const onImagePasteRef = useRef(onImagePaste);
   onImagePasteRef.current = onImagePaste;
+
+  // Module-level flag on bulletZoomPlugin — set it before useEditor's
+  // factory builds the plugin list below, so the zoom plugin's view()
+  // lifecycle picks up the correct value the moment the ProseMirror view
+  // is created.
+  setBulletZoomClickEnabled(enableBulletZoom);
 
   useEditor((root) => {
     // ProseMirror plugin that fires on every state update — most reliable timing

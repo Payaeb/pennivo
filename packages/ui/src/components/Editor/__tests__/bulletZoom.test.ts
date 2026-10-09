@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   Editor,
   rootCtx,
@@ -16,6 +16,7 @@ import {
   exitBulletZoom,
   findEnclosingListItemPos,
   isPosInsideSubtree,
+  setBulletZoomClickEnabled,
   zoomIntoListItemAtCursor,
   zoomOutOneLevel,
   zoomToPosition,
@@ -279,6 +280,68 @@ describe("zoomIntoListItemAtCursor / zoomOutOneLevel / exitBulletZoom", () => {
     });
     withView(editor, (view) => {
       expect(exitBulletZoom(view)).toBe(false); // already inactive — no-op
+    });
+  });
+});
+
+describe("setBulletZoomClickEnabled (mobile opt-out)", () => {
+  // Module-level flag, like collapsibleListPlugin's collapsedIndices — reset
+  // it after every test in this block so other tests/files see the default.
+  afterEach(() => {
+    setBulletZoomClickEnabled(true);
+  });
+
+  it("gates the bullet-glyph click handler without affecting zoomToPosition/keyboard entry", async () => {
+    const editor = await makeEditor("- a\n  - b\n");
+    withView(editor, (view) => {
+      const itemPos = listItemPosForWord(view, "b");
+      // jsdom's getBoundingClientRect() is all-zero by default, so the
+      // click handler's "gutter" check (clientX within [rect.left - 28,
+      // rect.left)) is satisfied by any negative clientX here.
+      const fakeEvent = { clientX: -14, clientY: 0 } as MouseEvent;
+
+      setBulletZoomClickEnabled(false);
+      const handledWhileDisabled = view.someProp("handleClick", (f) =>
+        f(view, itemPos, fakeEvent),
+      );
+      expect(handledWhileDisabled).not.toBe(true);
+      expect(
+        bulletZoomKey.getState(view.state)?.zoomRootPos ?? null,
+      ).toBeNull();
+
+      // The keyboard entry point (used by desktop's Ctrl+.) is untouched by
+      // the flag — it keeps working while click entry is disabled.
+      placeCursorInWord(view, "b");
+      expect(zoomIntoListItemAtCursor(view)).toBe(true);
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBe(itemPos);
+      exitBulletZoom(view);
+
+      setBulletZoomClickEnabled(true);
+      const handledWhileEnabled = view.someProp("handleClick", (f) =>
+        f(view, itemPos, fakeEvent),
+      );
+      expect(handledWhileEnabled).toBe(true);
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBe(itemPos);
+    });
+  });
+
+  it("suppresses the hover affordance by toggling a class on the editor DOM root", async () => {
+    const editor = await makeEditor("- a\n");
+    withView(editor, (view) => {
+      setBulletZoomClickEnabled(false);
+      // The affordance class is resynced on every view update (handleClick
+      // itself doesn't trigger one in this test, so dispatch a no-op
+      // transaction to force the plugin's view().update() to run).
+      view.dispatch(view.state.tr);
+      expect(
+        view.dom.classList.contains("bullet-zoom-affordance-disabled"),
+      ).toBe(true);
+
+      setBulletZoomClickEnabled(true);
+      view.dispatch(view.state.tr);
+      expect(
+        view.dom.classList.contains("bullet-zoom-affordance-disabled"),
+      ).toBe(false);
     });
   });
 });

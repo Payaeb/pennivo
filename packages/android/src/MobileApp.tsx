@@ -876,6 +876,7 @@ function MobileEditorContent({
             onWordCountChange={onWordCountChange}
             onCharCountChange={onCharCountChange}
             onMarkdownChange={onMarkdownChange}
+            enableBulletZoom={false}
           />
         )}
         {sourceMode && (
