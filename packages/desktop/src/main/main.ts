@@ -24,9 +24,11 @@ import {
   searchFiles,
   workspaceNameFromPath,
   defaultWorkspacePrefs,
+  extractTaskItems,
   type RecoverySettings,
   type SearchOptions,
   type SearchResults,
+  type TaskItem,
   type Workspace,
   type WorkspacePrefs,
   type WorkspacesState,
@@ -2057,6 +2059,37 @@ function registerIpcHandlers() {
         return searchFiles(trimmed, within, options);
       } catch (err) {
         console.error("[workspace:search] search failed:", err);
+        return empty;
+      }
+    },
+  );
+
+  // --- Cross-file Tasks panel (Phase 18c) ---
+  // Walk every markdown document under the active workspace root and extract
+  // GFM checklist items via the pure `extractTaskItems` core extractor.
+  // Mirrors `workspace:search` exactly: same root resolution (active
+  // workspace, then legacy folder), same oversized-file guard, and it never
+  // throws across the IPC boundary — any failure returns the empty shape.
+  ipcMain.handle(
+    "workspace:tasks",
+    async (): Promise<{ items: TaskItem[] }> => {
+      const empty: { items: TaskItem[] } = { items: [] };
+      try {
+        const { workspaces } = await readWorkspacesState();
+        const root =
+          activeWorkspaceRoot(workspaces) ?? (await readSidebarFolder());
+        if (!root) return empty;
+        const files = await enumerateMarkdownFiles(root);
+        const within = files.filter(
+          (f) => Buffer.byteLength(f.content, "utf-8") <= SEARCH_MAX_FILE_BYTES,
+        );
+        const items: TaskItem[] = [];
+        for (const f of within) {
+          items.push(...extractTaskItems(f.content, f.path));
+        }
+        return { items };
+      } catch (err) {
+        console.error("[workspace:tasks] extraction failed:", err);
         return empty;
       }
     },

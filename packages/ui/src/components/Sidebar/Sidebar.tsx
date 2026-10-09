@@ -107,15 +107,24 @@ interface SidebarProps {
   /** Forget a workspace by id. Never touches files on disk. */
   onRemoveWorkspace?: (id: string) => void;
   /**
-   * Global search (Phase 3). When `onToggleSearch` is wired, the header shows a
-   * magnifier toggle. When `searchActive` is true, `searchPanel` replaces the
-   * file tree in the rail (the header + workspace switcher stay visible). The
-   * panel node is supplied by the host so packages/ui stays platform-free.
+   * Which content fills the rail body below the header: the file tree
+   * ("tree", the default), the GlobalSearchPanel ("search", Phase 3), or the
+   * cross-file TasksPanel ("tasks", Phase 18c). The header + workspace
+   * switcher stay visible in all three modes; only the body swaps. The panel
+   * nodes themselves (`searchPanel`/`tasksPanel`) are supplied by the host so
+   * packages/ui stays platform-free.
    */
-  searchActive?: boolean;
+  railMode?: SidebarRailMode;
+  /** Global search (Phase 3). When wired, the header shows a magnifier toggle. */
   onToggleSearch?: () => void;
   searchPanel?: React.ReactNode;
+  /** Cross-file Tasks panel (Phase 18c). When wired, the header shows a Tasks toggle. */
+  onToggleTasks?: () => void;
+  tasksPanel?: React.ReactNode;
 }
+
+/** See {@link SidebarProps.railMode}. */
+export type SidebarRailMode = "tree" | "search" | "tasks";
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 400;
@@ -222,9 +231,11 @@ export function Sidebar({
   onSwitchWorkspace,
   onAddWorkspace,
   onRemoveWorkspace,
-  searchActive = false,
+  railMode = "tree",
   onToggleSearch,
   searchPanel,
+  onToggleTasks,
+  tasksPanel,
 }: SidebarProps) {
   const [width, setWidth] = useState(
     typeof initialWidth === "number" ? clampWidth(initialWidth) : DEFAULT_WIDTH,
@@ -724,7 +735,7 @@ export function Sidebar({
         {folderPath && tree.length > 0 && (
           <span className="sidebar-file-count">{countFiles(tree)}</span>
         )}
-        {folderPath && onSortChange && !searchActive && (
+        {folderPath && onSortChange && railMode === "tree" && (
           <SortMenu
             sortKey={sortKey}
             onSortChange={onSortChange}
@@ -734,13 +745,26 @@ export function Sidebar({
         )}
         {onToggleSearch && (
           <button
-            className={`sidebar-set-folder-btn${searchActive ? " sidebar-set-folder-btn--active" : ""}`}
+            className={`sidebar-set-folder-btn${railMode === "search" ? " sidebar-set-folder-btn--active" : ""}`}
             onClick={onToggleSearch}
-            title={searchActive ? "Close search" : "Search in workspace"}
+            title={
+              railMode === "search" ? "Close search" : "Search in workspace"
+            }
             aria-label="Search in workspace"
-            aria-pressed={searchActive}
+            aria-pressed={railMode === "search"}
           >
             <SearchIcon />
+          </button>
+        )}
+        {onToggleTasks && (
+          <button
+            className={`sidebar-set-folder-btn${railMode === "tasks" ? " sidebar-set-folder-btn--active" : ""}`}
+            onClick={onToggleTasks}
+            title={railMode === "tasks" ? "Close tasks" : "Show tasks"}
+            aria-label="Tasks"
+            aria-pressed={railMode === "tasks"}
+          >
+            <TasksIcon />
           </button>
         )}
         <button
@@ -752,8 +776,10 @@ export function Sidebar({
         </button>
       </div>
 
-      {searchActive ? (
+      {railMode === "search" ? (
         searchPanel
+      ) : railMode === "tasks" ? (
+        tasksPanel
       ) : (
         <>
           {trashCount > 0 && onShowTrash && (
@@ -1710,6 +1736,28 @@ function SearchIcon() {
     >
       <circle cx="7" cy="7" r="4.5" />
       <line x1="10.5" y1="10.5" x2="14" y2="14" />
+    </svg>
+  );
+}
+
+// Checklist glyph for the Tasks rail toggle — two checked rows, distinct from
+// SearchIcon and from the single-checkbox ToggleBoxIcon used in the sort menu.
+function TasksIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="2.5" width="3.4" height="3.4" rx="0.8" />
+      <polyline points="2.8,4.2 3.5,4.9 4.7,3.5" strokeWidth="1.1" />
+      <path d="M7.4 4.2h6.1" />
+      <rect x="2" y="9.1" width="3.4" height="3.4" rx="0.8" />
+      <polyline points="2.8,10.8 3.5,11.5 4.7,10.1" strokeWidth="1.1" />
+      <path d="M7.4 10.8h6.1" />
     </svg>
   );
 }

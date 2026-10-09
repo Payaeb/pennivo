@@ -131,18 +131,73 @@ describe("Sidebar", () => {
       expect(onToggleSearch).toHaveBeenCalledOnce();
     });
 
-    it("renders the search panel in place of the tree when searchActive", () => {
+    it('renders the search panel in place of the tree when railMode="search"', () => {
       render(
         <Sidebar
           {...defaultProps}
           onToggleSearch={vi.fn()}
-          searchActive
+          railMode="search"
           searchPanel={<div data-testid="search-panel">panel</div>}
         />,
       );
       expect(screen.getByTestId("search-panel")).toBeInTheDocument();
       // Tree files are hidden while search mode is on.
       expect(screen.queryByText("readme.md")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Tasks toggle", () => {
+    it("does not render the Tasks button when onToggleTasks is omitted", () => {
+      render(<Sidebar {...defaultProps} />);
+      expect(screen.queryByLabelText("Tasks")).not.toBeInTheDocument();
+    });
+
+    it("renders the Tasks button and calls onToggleTasks on click", () => {
+      const onToggleTasks = vi.fn();
+      render(<Sidebar {...defaultProps} onToggleTasks={onToggleTasks} />);
+      fireEvent.click(screen.getByLabelText("Tasks"));
+      expect(onToggleTasks).toHaveBeenCalledOnce();
+    });
+
+    it('renders the tasks panel in place of the tree when railMode="tasks"', () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          onToggleTasks={vi.fn()}
+          railMode="tasks"
+          tasksPanel={<div data-testid="tasks-panel">panel</div>}
+        />,
+      );
+      expect(screen.getByTestId("tasks-panel")).toBeInTheDocument();
+      expect(screen.queryByText("readme.md")).not.toBeInTheDocument();
+    });
+
+    it("search and tasks modes are mutually exclusive renders", () => {
+      const { rerender } = render(
+        <Sidebar
+          {...defaultProps}
+          onToggleSearch={vi.fn()}
+          onToggleTasks={vi.fn()}
+          railMode="search"
+          searchPanel={<div data-testid="search-panel">panel</div>}
+          tasksPanel={<div data-testid="tasks-panel">panel</div>}
+        />,
+      );
+      expect(screen.getByTestId("search-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("tasks-panel")).not.toBeInTheDocument();
+
+      rerender(
+        <Sidebar
+          {...defaultProps}
+          onToggleSearch={vi.fn()}
+          onToggleTasks={vi.fn()}
+          railMode="tasks"
+          searchPanel={<div data-testid="search-panel">panel</div>}
+          tasksPanel={<div data-testid="tasks-panel">panel</div>}
+        />,
+      );
+      expect(screen.getByTestId("tasks-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("search-panel")).not.toBeInTheDocument();
     });
   });
 

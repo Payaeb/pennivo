@@ -62,8 +62,10 @@ import {
 import { scrollToCmMatch } from "./components/FindReplace/cmFindReplace";
 import type { SaveStatus } from "./components/Statusbar/Statusbar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+import type { SidebarRailMode } from "./components/Sidebar/Sidebar";
 import { GlobalSearchPanel } from "./components/GlobalSearch/GlobalSearchPanel";
 import type { GlobalSearchJumpTarget } from "./components/GlobalSearch/GlobalSearchPanel";
+import { TasksPanel } from "./components/TasksPanel/TasksPanel";
 import {
   RecoveryModal,
   HistoryView,
@@ -245,6 +247,20 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
 
 const DROPPABLE_EXTENSIONS = new Set(["md", "markdown", "txt"]);
 
+/**
+ * Format a Date as a local (not UTC) `YYYY-MM-DD` string — the `todayIso`
+ * TasksPanel groups its agenda against. Local time, not UTC, matches how the
+ * rest of Pennivo displays dates (e.g. the History panel's day-group
+ * headers) and the locked design's "local device date/midnight boundary"
+ * rule for agenda bucketing.
+ */
+function formatLocalIsoDate(date: Date): string {
+  const yyyy = String(date.getFullYear()).padStart(4, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function AppContent() {
   const platform = getPlatform();
   const { toggleTheme, colorScheme, cycleColorScheme, setColorScheme } =
@@ -282,11 +298,12 @@ function AppContent() {
   const [sourceContent, setSourceContent] = useState("");
   const sourceModeRef = useRef(false);
   const cmViewRef = useRef<import("@codemirror/view").EditorView | null>(null);
-  // Monotonic token for search-result jumps. Each handleOpenSearchResult bumps
-  // it; the runPendingJump rAF loop captures the value for its invocation and
-  // bails the moment a newer click supersedes it, so overlapping clicks can't
-  // leave an older loop yanking scroll/selection to a stale target. Mirrors the
-  // requestIdRef last-write-wins pattern in GlobalSearchPanel.
+  // Monotonic token for result jumps (search AND tasks share this). Each
+  // handleOpenJumpTarget call bumps it; the runPendingJump rAF loop captures
+  // the value for its invocation and bails the moment a newer click
+  // supersedes it, so overlapping clicks can't leave an older loop yanking
+  // scroll/selection to a stale target. Mirrors the requestIdRef
+  // last-write-wins pattern in GlobalSearchPanel.
   const jumpTokenRef = useRef(0);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
@@ -459,9 +476,30 @@ function AppContent() {
   // through workspace prefs.
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(null);
 
-  // --- Global search (Phase 3) ---
-  // When true, the sidebar rail swaps the file tree for the GlobalSearchPanel.
-  const [searchActive, setSearchActive] = useState(false);
+  // --- Sidebar rail mode (Phase 3 search; Phase 18c cross-file tasks) ---
+  // Which content fills the sidebar rail body: the file tree, the
+  // GlobalSearchPanel, or the TasksPanel. Generalizes what was a single
+  // `searchActive` boolean so a third mode doesn't need its own flag.
+  const [railMode, setRailMode] = useState<SidebarRailMode>("tree");
+  // Bumped to trigger a TasksPanel reload from outside the panel itself (see
+  // the save-completion effect below). TasksPanel reloads on mount already;
+  // this covers "refresh after the app's own save completes while open".
+  const [tasksReloadSignal, setTasksReloadSignal] = useState(0);
+  // Refresh Tasks automatically after a save completes while the panel is
+  // open. Watching the `saveStatus` state transition is the cheapest
+  // reliable signal — it fires exactly once per save regardless of which of
+  // the many save code paths produced it, with no per-call-site wiring.
+  const prevSaveStatusForTasksRef = useRef(saveStatus);
+  useEffect(() => {
+    if (
+      saveStatus === "saved" &&
+      prevSaveStatusForTasksRef.current !== "saved" &&
+      railMode === "tasks"
+    ) {
+      setTasksReloadSignal((v) => v + 1);
+    }
+    prevSaveStatusForTasksRef.current = saveStatus;
+  }, [saveStatus, railMode]);
 
   // --- Active workspace (Phase 3 per-workspace prefs) ---
   // The id of the workspace whose prefs (sort key, sidebar width,
@@ -1996,9 +2034,10 @@ function AppContent() {
       setActiveWorkspaceId(id);
       if (state?.workspaces) setWorkspaceList(state.workspaces);
 
-      // A workspace switch invalidates any open search (results belong to the
-      // previous root). Drop back to tree mode so stale hits don't linger.
-      setSearchActive(false);
+      // A workspace switch invalidates any open search or tasks results
+      // (they belong to the previous root). Drop back to tree mode so stale
+      // hits don't linger.
+      setRailMode("tree");
 
       const prefs = state?.prefs[id] ?? defaultWorkspacePrefs();
       applyWorkspacePrefsToState(prefs);
@@ -3503,7 +3542,11 @@ function AppContent() {
     [applySourceJump, applyWysiwygJump],
   );
 
-  const handleOpenSearchResult = useCallback(
+  // Shared open+jump handler for both GlobalSearchPanel's onOpenResult and
+  // TasksPanel's onOpenTask — both hand it the same { line, fileOffset,
+  // query } shape, so one implementation serves both features (Phase 18c
+  // reuses this exact function rather than duplicating it).
+  const handleOpenJumpTarget = useCallback(
     (absPath: string, target: GlobalSearchJumpTarget) => {
       // Each click supersedes any in-flight jump: bump the token and capture it
       // so the rAF loop below bails the instant a later click takes over.
@@ -3581,7 +3624,16 @@ function AppContent() {
           // into search mode. The panel focuses its input on mount.
           e.preventDefault();
           setSidebarVisible(true);
-          setSearchActive(true);
+          setRailMode("search");
+        } else if (e.key === "T") {
+          // Cross-file Tasks panel (Phase 18c): reveal the sidebar if hidden,
+          // then switch the rail into tasks mode. Mirrors the search
+          // shortcut above exactly. No collision: verified against this
+          // listener, ShortcutsSheet.tsx, TitlebarMenu.tsx, and the Electron
+          // menu accelerators in main.ts — Ctrl+Shift+T is unused by all.
+          e.preventDefault();
+          setSidebarVisible(true);
+          setRailMode("tasks");
         } else if (e.key === ">") {
           // Ctrl+Shift+. — on a US layout, Shift turns "." into ">", so this
           // (not "Shift-.") is the key that actually arrives here.
@@ -3767,6 +3819,13 @@ function AppContent() {
         category: "View",
         keywords: "toc table of contents headings",
       },
+      {
+        id: "toggleTasks",
+        label: "Show Tasks",
+        shortcut: "Ctrl+Shift+T",
+        category: "View",
+        keywords: "checklist checkbox todo agenda due label",
+      },
       { id: "zoomIn", label: "Zoom In", category: "View" },
       { id: "zoomOut", label: "Zoom Out", category: "View" },
       { id: "resetZoom", label: "Reset Zoom", category: "View" },
@@ -3921,6 +3980,13 @@ function AppContent() {
           break;
         case "toggleOutline":
           setOutlineVisible((v) => !v);
+          break;
+        case "toggleTasks":
+          // Mirrors the header icon's toggle semantics, plus forcing the
+          // sidebar visible so the command can be invoked even when the
+          // sidebar is currently hidden (same as the Ctrl+Shift+T shortcut).
+          setSidebarVisible(true);
+          setRailMode((m) => (m === "tasks" ? "tree" : "tasks"));
           break;
         case "setFolder":
           handleChooseFolder();
@@ -4174,16 +4240,31 @@ function AppContent() {
           onSwitchWorkspace={handleSwitchWorkspace}
           onAddWorkspace={handleAddWorkspace}
           onRemoveWorkspace={handleRemoveWorkspace}
-          searchActive={searchActive}
-          onToggleSearch={() => setSearchActive((v) => !v)}
+          railMode={railMode}
+          onToggleSearch={() =>
+            setRailMode((m) => (m === "search" ? "tree" : "search"))
+          }
           searchPanel={
             <GlobalSearchPanel
               rootPath={sidebarFolder}
               onSearch={(query: string, options?: SearchOptions) =>
                 platform.searchWorkspace(query, options)
               }
-              onOpenResult={handleOpenSearchResult}
-              onClose={() => setSearchActive(false)}
+              onOpenResult={handleOpenJumpTarget}
+              onClose={() => setRailMode("tree")}
+            />
+          }
+          onToggleTasks={() =>
+            setRailMode((m) => (m === "tasks" ? "tree" : "tasks"))
+          }
+          tasksPanel={
+            <TasksPanel
+              rootPath={sidebarFolder}
+              onLoad={() => platform.getWorkspaceTasks()}
+              onOpenTask={handleOpenJumpTarget}
+              onClose={() => setRailMode("tree")}
+              todayIso={formatLocalIsoDate(new Date())}
+              reloadSignal={tasksReloadSignal}
             />
           }
         />

@@ -89,6 +89,14 @@ interface PennivoAPI {
     options?: import("@pennivo/core").SearchOptions,
   ) => Promise<import("@pennivo/core").SearchResults>;
 
+  // Cross-file Tasks panel (Phase 18c): walk the active workspace and run the
+  // core extractor in the main process. Inline `import(...)` types keep this
+  // file an ambient global declaration (no top-level import turns it into a
+  // module).
+  getWorkspaceTasks: () => Promise<{
+    items: import("@pennivo/core").TaskItem[];
+  }>;
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) => Promise<boolean>;
   getAssetSummary: (

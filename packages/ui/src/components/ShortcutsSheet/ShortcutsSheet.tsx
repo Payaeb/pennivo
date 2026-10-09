@@ -50,6 +50,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { action: "Shortcuts", keys: "Ctrl+/" },
       { action: "Zoom Into Bullet", keys: "Ctrl+." },
       { action: "Zoom Out One Level", keys: "Ctrl+Shift+." },
+      { action: "Show Tasks", keys: "Ctrl+Shift+T" },
     ],
   },
   {

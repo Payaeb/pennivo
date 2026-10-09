@@ -24,6 +24,7 @@ export type MenuAction =
   | "toggleTheme"
   | "toggleSidebar"
   | "toggleOutline"
+  | "toggleTasks"
   | "setFolder"
   | "zoomIn"
   | "zoomOut"

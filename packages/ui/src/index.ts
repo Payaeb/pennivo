@@ -29,5 +29,7 @@ export type {
   GlobalSearchJumpTarget,
 } from "./components/GlobalSearch/GlobalSearchPanel";
 export { joinWorkspacePath } from "./components/GlobalSearch/searchPanelUtils";
+export { TasksPanel } from "./components/TasksPanel/TasksPanel";
+export type { TasksPanelProps } from "./components/TasksPanel/TasksPanel";
 export { applyListConversion } from "./components/Editor/listConversion";
 export type { ListConversionTarget } from "./components/Editor/listConversion";

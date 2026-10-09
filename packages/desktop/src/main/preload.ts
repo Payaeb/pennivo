@@ -128,6 +128,13 @@ contextBridge.exposeInMainWorld("pennivo", {
   searchWorkspace: (query: string, options?: unknown) =>
     ipcRenderer.invoke("workspace:search", query, options) as Promise<unknown>,
 
+  // Cross-file Tasks panel (Phase 18c): walk the active workspace and run the
+  // pure `extractTaskItems` extractor in the main process. Returns the
+  // JSON-serializable `{ items: TaskItem[] }` shape; the renderer narrows it
+  // via the core `TaskItem` type.
+  getWorkspaceTasks: () =>
+    ipcRenderer.invoke("workspace:tasks") as Promise<unknown>,
+
   // Sidebar file operations
   showItemInFolder: (filePath: string) =>
     ipcRenderer.invoke("sidebar:show-in-folder", filePath) as Promise<boolean>,
