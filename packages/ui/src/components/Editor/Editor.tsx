@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Milkdown, useEditor } from "@milkdown/react";
 import {
   Editor as MilkdownEditorCore,
@@ -26,6 +26,12 @@ import {
   setBulletZoomClickEnabled,
 } from "./bulletZoomPlugin";
 import { taskMetaChipsPlugin } from "./taskMetaChipsPlugin";
+import {
+  dueDatePickerPlugin,
+  dueDatePickerKey,
+  insertDueToken,
+} from "./dueDatePickerPlugin";
+import { DueDatePicker, type DueDatePickerAnchor } from "./DueDatePicker";
 import { tablePlugin } from "./tablePlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
 import { getPlatform } from "../../platform";
@@ -56,6 +62,41 @@ export function Editor({
   // Ref so the paste plugin always sees the latest callback without re-creating the editor
   const onImagePasteRef = useRef(onImagePaste);
   onImagePasteRef.current = onImagePaste;
+
+  // --- Due-date picker (type `[due::` for a popover) ---
+  // Mirrors dueDatePickerKey's plugin state (dueDatePickerPlugin.ts) into
+  // local React state, via the same view().update() lifecycle toolbarSync
+  // uses to reach outward — but kept entirely local to THIS component
+  // (never bubbled through the onViewUpdate prop App.tsx owns) since the
+  // popover renders right here, next to <Milkdown/>.
+  const [duePicker, setDuePicker] = useState<{
+    from: number;
+    to: number;
+    anchor: DueDatePickerAnchor;
+  } | null>(null);
+  const dueViewRef = useRef<EditorView | null>(null);
+  // A trigger the user explicitly dismissed (Esc / outside click) stays
+  // dismissed while they keep typing the SAME `[due::` field — only a new
+  // trigger (a different `from`) or the trigger disappearing entirely
+  // clears this, so one Esc press can't be immediately undone by the very
+  // next keystroke.
+  const dueDismissedFromRef = useRef<number | null>(null);
+
+  const handleDuePick = useCallback(
+    (iso: string) => {
+      const view = dueViewRef.current;
+      if (!view || !duePicker) return;
+      insertDueToken(view, duePicker.from, duePicker.to, iso);
+      dueDismissedFromRef.current = null;
+      setDuePicker(null);
+    },
+    [duePicker],
+  );
+
+  const handleDueClose = useCallback(() => {
+    if (duePicker) dueDismissedFromRef.current = duePicker.from;
+    setDuePicker(null);
+  }, [duePicker]);
 
   // Module-level flag on bulletZoomPlugin — set it before useEditor's
   // factory builds the plugin list below, so the zoom plugin's view()
@@ -591,6 +632,42 @@ export function Editor({
 
     const findReplacePlugin = $prose(() => createFindReplacePlugin());
 
+    // Mirrors dueDatePickerKey's derived trigger state into this
+    // component's own React state so the popover can render right next to
+    // <Milkdown/> without bubbling through onViewUpdate. A second plugin
+    // instance on the same view().update() lifecycle toolbarSync already
+    // uses — registration order relative to dueDatePickerPlugin doesn't
+    // matter, since every plugin's view() update fires only after the
+    // transaction's state (and thus dueDatePickerKey's value) is fully
+    // resolved.
+    const dueDatePickerSync = $prose(
+      () =>
+        new Plugin({
+          view: () => ({
+            update: (view) => {
+              dueViewRef.current = view;
+              const match = dueDatePickerKey.getState(view.state);
+              if (!match) {
+                dueDismissedFromRef.current = null;
+                setDuePicker(null);
+                return;
+              }
+              if (dueDismissedFromRef.current === match.from) return;
+              const coords = view.coordsAtPos(match.to);
+              setDuePicker({
+                from: match.from,
+                to: match.to,
+                anchor: {
+                  top: coords.top,
+                  bottom: coords.bottom,
+                  left: coords.left,
+                },
+              });
+            },
+          }),
+        }),
+    );
+
     return MilkdownEditorCore.make()
       .config((ctx) => {
         ctx.set(rootCtx, root);
@@ -614,6 +691,8 @@ export function Editor({
       .use(collapsibleListPlugin)
       .use(bulletZoomPlugin)
       .use(taskMetaChipsPlugin)
+      .use(dueDatePickerPlugin)
+      .use(dueDatePickerSync)
       .use(tablePlugin)
       .use(findReplacePlugin)
       .config((ctx) => {
@@ -628,6 +707,13 @@ export function Editor({
   return (
     <div className="editor-wrapper" spellCheck>
       <Milkdown />
+      {duePicker && (
+        <DueDatePicker
+          anchor={duePicker.anchor}
+          onPick={handleDuePick}
+          onClose={handleDueClose}
+        />
+      )}
     </div>
   );
 }
