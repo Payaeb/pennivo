@@ -236,6 +236,40 @@ describe("TasksPanel", () => {
   });
 
   describe("Label filter", () => {
+    it("renders a chip for every label when there are many (the row cap is CSS-only)", async () => {
+      const labels = Array.from({ length: 40 }, (_, i) => `tag${i}`);
+      const many: TaskItem[] = labels.map((label, i) => ({
+        path: "many.md",
+        line: i,
+        charOffset: i * 10,
+        checked: false,
+        rawText: `Task ${i} #${label}`,
+        displayText: `Task ${i}`,
+        labels: [label],
+        due: null,
+        done: null,
+        indent: 0,
+      }));
+      render(
+        <TasksPanel
+          {...baseProps}
+          onLoad={vi.fn(async () => ({ items: many, labeledItems: [] }))}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Task 0")).toBeInTheDocument(),
+      );
+      const group = screen.getByRole("group", { name: "Filter by label" });
+      const chipTexts = Array.from(
+        group.querySelectorAll(".tasks-panel-label-chip"),
+      ).map((el) => el.textContent ?? "");
+      // Every label renders a chip; the cap is CSS-only, nothing is dropped.
+      labels.forEach((label) => {
+        expect(chipTexts.some((t) => t.startsWith(`#${label}`))).toBe(true);
+      });
+      expect(chipTexts.length).toBeGreaterThanOrEqual(40);
+    });
+
     it("narrows the list to items carrying the selected label (click toggles on)", async () => {
       render(<TasksPanel {...baseProps} />);
       await waitFor(() =>

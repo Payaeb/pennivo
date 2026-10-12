@@ -135,12 +135,40 @@
 /* ─── Label filter chip row ─── */
 
 .tasks-panel-label-row {
+  /* Cap at 3.5 chip rows so many tags scroll inside the row instead of
+     pushing the task list down. Chip = 11px * 1.5 line-height + 4px padding
+     + 2px border = 22.5px; 3 rows + 3 gaps (5px) + half a row, plus 8px
+     padding top/bottom and the 1px bottom border. The half row left visible
+     signals that the row scrolls. */
+  box-sizing: border-box;
+  flex-shrink: 0;
+  max-height: calc(3 * 22.5px + 3 * 5px + 11.25px + 16px + 1px);
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-content: flex-start;
   gap: 5px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+.tasks-panel-label-row::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tasks-panel-label-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tasks-panel-label-row::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.tasks-panel-label-row:hover::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
 }
 
 .tasks-panel-label-chip {
@@ -148,6 +176,7 @@
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
+  line-height: 1.5;
   background: var(--bg-overlay);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
