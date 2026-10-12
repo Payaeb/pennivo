@@ -291,3 +291,23 @@ describe("scanMetaTokens — HTML numeric character references", () => {
     expect(tokens[0]).toMatchObject({ kind: "label", value: "real" });
   });
 });
+
+describe("parseListItemText — due/done inside inline code", () => {
+  it("ignores a due/done field inside backticks and keeps the span intact", () => {
+    const r = parseListItemText("use `[due:: 2020-01-01]` syntax");
+    expect(r.due).toBeNull();
+    expect(r.displayText).toBe("use `[due:: 2020-01-01]` syntax");
+    const d = parseListItemText("note `[done:: 2020-01-01]`");
+    expect(d.done).toBeNull();
+    expect(d.displayText).toBe("note `[done:: 2020-01-01]`");
+  });
+
+  it("still parses a real field outside code on the same line", () => {
+    const r = parseListItemText(
+      "use `[due:: 2020-01-01]` then [due:: 2026-10-20] [done:: 2026-10-01]",
+    );
+    expect(r.due).toBe("2026-10-20");
+    expect(r.done).toBe("2026-10-01");
+    expect(r.displayText).toBe("use `[due:: 2020-01-01]` then");
+  });
+});

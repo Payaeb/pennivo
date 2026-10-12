@@ -10,7 +10,29 @@
 import { scanMetaTokens } from "@pennivo/core";
 import type { Node } from "@milkdown/prose/model";
 import type { EditorState, Transaction } from "@milkdown/prose/state";
-import { buildParagraphScanText } from "./taskMetaChipsPlugin";
+
+// Placeholder for code-marked text and non-text inline nodes in the planner's
+// scan string. Unlike the spaces buildParagraphScanText uses, it is not
+// whitespace, so the planner never mistakes padding for a real space (which
+// glued the token to a code span and, on uncheck, deleted a real character
+// or node). It is not a letter/digit either, so it cannot form or break tags.
+const PAD = "￼";
+
+/** Scan text for the done-field planner: 1:1 with ProseMirror offsets. */
+function buildPlannerScanText(paragraph: Node): string {
+  let text = "";
+  paragraph.forEach((child) => {
+    if (!child.isText) {
+      text += PAD.repeat(child.nodeSize);
+      return;
+    }
+    const hasCode = child.marks.some(
+      (m) => m.type.name === "code" || m.type.name === "inlineCode",
+    );
+    text += hasCode ? PAD.repeat(child.text!.length) : child.text;
+  });
+  return text;
+}
 
 export interface DoneFieldPlan {
   /** Text to append at the END of the paragraph content (includes its own
@@ -91,7 +113,7 @@ export function applyTaskToggle(
 
   const contentStart = itemPos + 2; // list_item open + paragraph open
   const plan = planDoneFieldEdit(
-    buildParagraphScanText(first),
+    buildPlannerScanText(first),
     nowIso,
     nextChecked,
   );

@@ -105,6 +105,7 @@ export function DueDatePicker({ anchor, onPick, onClose }: DueDatePickerProps) {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      event.stopPropagation();
       onClose();
     }
     function handleMouseDown(event: MouseEvent): void {
@@ -154,7 +155,10 @@ export function DueDatePicker({ anchor, onPick, onClose }: DueDatePickerProps) {
         type="date"
         className="due-date-picker-input"
         onChange={(event) => {
-          if (event.target.value) onPick(event.target.value);
+          // Chromium fires change at the first typed year digit
+          // ("0002-10-12"); ignore implausible years until the year settles.
+          const v = event.target.value;
+          if (v && v >= "1000-01-01") onPick(v);
         }}
       />
     </div>,

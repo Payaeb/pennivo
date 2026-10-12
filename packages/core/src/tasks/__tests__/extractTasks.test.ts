@@ -362,3 +362,21 @@ describe("extractTaskItems — HTML character references", () => {
     expect(items[0].labels).toEqual([]);
   });
 });
+
+describe("extractTaskItems — due/done inside inline code", () => {
+  it("ignores fields in backticks but parses a real one on the line", () => {
+    const a = extractTaskItems(
+      "- [ ] use `[due:: 2020-01-01]` syntax\n",
+      "a.md",
+    );
+    expect(a[0].due).toBeNull();
+    expect(a[0].displayText).toBe("use `[due:: 2020-01-01]` syntax");
+    const b = extractTaskItems(
+      "- [x] use `[done:: 2020-01-01]` [due:: 2026-10-20] [done:: 2026-10-02]\n",
+      "a.md",
+    );
+    expect(b[0].due).toBe("2026-10-20");
+    expect(b[0].done).toBe("2026-10-02");
+    expect(b[0].displayText).toBe("use `[done:: 2020-01-01]`");
+  });
+});

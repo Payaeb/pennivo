@@ -190,3 +190,21 @@ describe("extractLabeledItems — HTML character references", () => {
     expect(extractLabeledItems("- &#x20;text\n", "a.md")).toEqual([]);
   });
 });
+
+describe("extractLabeledItems — due inside inline code", () => {
+  it("does not index a doc bullet whose only due field is in backticks", () => {
+    expect(
+      extractLabeledItems("- use `[due:: 2020-01-01]` syntax\n", "a.md"),
+    ).toEqual([]);
+  });
+
+  it("keeps the code span intact and still parses a real field", () => {
+    const items = extractLabeledItems(
+      "- use `[due:: 2020-01-01]` #docs [due:: 2026-10-20]\n",
+      "a.md",
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].due).toBe("2026-10-20");
+    expect(items[0].displayText).toBe("use `[due:: 2020-01-01]` #docs");
+  });
+});

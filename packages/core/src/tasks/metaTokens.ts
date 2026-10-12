@@ -189,25 +189,37 @@ export function parseListItemText(rawText: string): ParsedListItemText {
     }
   }
 
-  let due: string | null = null;
-  let firstDueSeen = false;
-  let stripped = rawText.replace(DUE_FIELD_RE, (_match, value: string) => {
-    if (!firstDueSeen) {
-      firstDueSeen = true;
-      due = parseIsoDateStrict(value.trim());
+  // Find the due/done fields on the code-blanked scanText so a field inside
+  // an inline code span is ignored; first valid-position match wins. Cut
+  // exactly those ranges out of rawText (same length as scanText).
+  const cuts: Array<[number, number]> = [];
+  const firstValue = (re: RegExp): string | null => {
+    let value: string | null = null;
+    let seen = false;
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(scanText)) !== null) {
+      cuts.push([m.index, m.index + m[0].length]);
+      if (!seen) {
+        seen = true;
+        value = parseIsoDateStrict((m[1] ?? "").trim());
+      }
     }
-    return "";
-  });
+    re.lastIndex = 0;
+    return value;
+  };
+  const due = firstValue(DUE_FIELD_RE);
+  const done = firstValue(DONE_FIELD_RE);
 
-  let done: string | null = null;
-  let firstDoneSeen = false;
-  stripped = stripped.replace(DONE_FIELD_RE, (_match, value: string) => {
-    if (!firstDoneSeen) {
-      firstDoneSeen = true;
-      done = parseIsoDateStrict(value.trim());
-    }
-    return "";
-  });
+  cuts.sort((x, y) => x[0] - y[0]);
+  let stripped = "";
+  let pos = 0;
+  for (const [from, to] of cuts) {
+    if (from < pos) continue;
+    stripped += rawText.slice(pos, from);
+    pos = to;
+  }
+  stripped += rawText.slice(pos);
 
   const displayText = stripped.replace(/\s+/g, " ").trim();
 

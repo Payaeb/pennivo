@@ -103,7 +103,9 @@ function buildParagraphScanText(paragraph: ProseMirrorNode): string {
       text += " ".repeat(child.nodeSize);
       return;
     }
-    const hasCodeMark = child.marks.some((mark) => mark.type.name === "code");
+    const hasCodeMark = child.marks.some(
+      (mark) => mark.type.name === "code" || mark.type.name === "inlineCode",
+    );
     text += hasCodeMark ? " ".repeat(child.text!.length) : child.text;
   });
   return text;

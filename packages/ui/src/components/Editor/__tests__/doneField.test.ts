@@ -148,6 +148,33 @@ describe("applyTaskToggle", () => {
     expect(firstItemText(editor2)).toBe("Pay rent [done:: 2026-10-01]");
   });
 
+  it("keeps a real space and the code text across check/uncheck after a code span", async () => {
+    const editor = await makeEditor("- [ ] run `npm test`\n");
+    toggle(editor, true, true);
+    expect(firstItemText(editor)).toBe("run npm test [done:: 2026-10-12]");
+    toggle(editor, false, true);
+    expect(firstItemText(editor)).toBe("run npm test");
+  });
+
+  it("never deletes a trailing image or hard break on uncheck", async () => {
+    const editor = await makeEditor("- [ ] ![a](x.png)\n");
+    const imageCount = (): number =>
+      editor.action((ctx) => {
+        let n = 0;
+        ctx.get(editorViewCtx).state.doc.descendants((node) => {
+          if (node.type.name === "image") n++;
+        });
+        return n;
+      });
+    expect(imageCount()).toBe(1);
+    toggle(editor, true, true);
+    expect(imageCount()).toBe(1);
+    expect(firstItemText(editor)).toContain(" [done:: 2026-10-12]");
+    toggle(editor, false, true);
+    expect(imageCount()).toBe(1);
+    expect(firstItemText(editor)).toBe("");
+  });
+
   it("is a single undo step covering both the flip and the text", async () => {
     const editor = await makeEditor("- [ ] Pay rent\n");
     toggle(editor, true, true);
