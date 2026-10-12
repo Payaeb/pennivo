@@ -24,6 +24,17 @@ describe("extractLabeledItems — basic extraction", () => {
     expect(extractLabeledItems("- just a plain bullet\n", "a.md")).toEqual([]);
   });
 
+  it("indexes a dated plain bullet with no label (labels: [])", () => {
+    const items = extractLabeledItems(
+      "- Renew passport [due:: 2026-10-20]\n- just text\n",
+      "a.md",
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].labels).toEqual([]);
+    expect(items[0].due).toBe("2026-10-20");
+    expect(items[0].displayText).toBe("Renew passport");
+  });
+
   it("returns an empty array for a file with no list items", () => {
     expect(
       extractLabeledItems("# Heading\n\nJust a paragraph #tag.\n", "a.md"),

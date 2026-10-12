@@ -6,7 +6,7 @@
 // themselves need date arithmetic, done via `addIsoDays` below (UTC-based, so
 // month/year rollover is correct with no external deps).
 
-import type { AgendaBuckets, TaskItem } from "./types";
+import type { AgendaBuckets, ListItemLocation } from "./types";
 
 /**
  * Add `days` (may be negative) to an ISO `YYYY-MM-DD` date and return the
@@ -26,15 +26,19 @@ export function addIsoDays(iso: string, days: number): string {
  * Group `items` into agenda buckets relative to `todayIso`. Checked items
  * never enter a bucket; they are counted in `completed` instead. See
  * AgendaBuckets for the exact boundary semantics. Never throws.
+ *
+ * Generic so callers can mix tasks with dated plain bullets; an item with no
+ * `checked` field is treated as open. Undated items always land in `noDate`
+ * (this function does not exclude them), so a caller feeding plain bullets
+ * must pre-filter them to `due !== null`.
  */
-export function groupTasksByAgenda(
-  items: TaskItem[],
-  todayIso: string,
-): AgendaBuckets {
+export function groupTasksByAgenda<
+  T extends ListItemLocation & { checked?: boolean },
+>(items: T[], todayIso: string): AgendaBuckets<T> {
   const tomorrowIso = addIsoDays(todayIso, 1);
   const weekEndIso = addIsoDays(todayIso, 6);
 
-  const buckets: AgendaBuckets = {
+  const buckets: AgendaBuckets<T> = {
     overdue: [],
     today: [],
     tomorrow: [],

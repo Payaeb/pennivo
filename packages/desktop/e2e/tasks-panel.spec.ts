@@ -76,6 +76,8 @@ async function makeWorkspace(): Promise<string> {
       "",
       "- Big rewrite idea #ideas",
       "- Reorganize pantry #home",
+      // Dated plain bullet, no label: belongs in the Tasks tab (Tomorrow).
+      `- Renew passport [due:: ${isoDate(1)}]`,
       "",
     ].join("\n"),
   );
@@ -165,11 +167,30 @@ test("header toggle opens the tasks panel and groups items by agenda bucket", as
     window.locator(".tasks-panel-item", { hasText: "Old done task" }),
   ).toHaveCount(0);
 
-  // Overdue carries the danger styling class; the summary reports 6 open / 2 done.
+  // The dated plain bullet (no label) sits under Tomorrow with a dot glyph;
+  // the undated labeled bullets never appear in the Tasks tab.
+  const passport = window.locator(".tasks-panel-item", {
+    hasText: "Renew passport",
+  });
+  await expect(passport).toHaveCount(1);
+  await expect(passport.locator("circle")).toHaveCount(1);
+  await expect(passport.locator("rect")).toHaveCount(0);
+  await expect(
+    window.locator(
+      ".tasks-panel-section-header:has-text('Tomorrow') ~ .tasks-panel-item",
+      { hasText: "Renew passport" },
+    ),
+  ).toHaveCount(1);
+  await expect(
+    window.locator(".tasks-panel-item", { hasText: "Big rewrite idea" }),
+  ).toHaveCount(0);
+
+  // Overdue carries the danger styling class; the summary reports 7 open
+  // (6 tasks + the dated bullet) / 2 done.
   await expect(
     window.locator(".tasks-panel-section-header--overdue"),
   ).toContainText("Overdue");
-  await expect(window.locator(".tasks-panel-summary")).toContainText("6 open");
+  await expect(window.locator(".tasks-panel-summary")).toContainText("7 open");
   await expect(window.locator(".tasks-panel-summary")).toContainText("2 done");
 });
 
@@ -262,10 +283,39 @@ test.describe("Labels mode", () => {
     await expect(
       window.getByRole("option", { name: /Big rewrite idea/ }),
     ).toBeVisible();
-    // The Tasks-mode label filter row is not shown in Labels mode.
+    // The dated bullet has no label, so it has no group in the Labels tab.
+    await expect(
+      window.getByRole("option", { name: /Renew passport/ }),
+    ).toHaveCount(0);
+  });
+
+  test("the label chip row shows in Labels mode and a chip narrows to that group", async () => {
+    await openLabels();
+
     await expect(
       window.getByRole("group", { name: "Filter by label" }),
+    ).toBeVisible();
+    await window
+      .locator(".tasks-panel-label-chip", { hasText: "#ideas" })
+      .click();
+    await expect(
+      window.locator(
+        ".tasks-panel-label-group-header .tasks-panel-chip--label",
+      ),
+    ).toHaveText(["#ideas"]);
+    await expect(
+      window.getByRole("option", { name: /Big rewrite idea/ }),
+    ).toBeVisible();
+    await expect(
+      window.getByRole("option", { name: /Reorganize pantry/ }),
     ).toHaveCount(0);
+
+    await window.locator(".tasks-panel-label-chip", { hasText: "All" }).click();
+    await expect(
+      window.locator(
+        ".tasks-panel-label-group-header .tasks-panel-chip--label",
+      ),
+    ).toHaveText(["#archive", "#home", "#ideas", "#urgent"]);
   });
 
   test("a label shared by tasks and a plain bullet shows all rows under one header", async () => {

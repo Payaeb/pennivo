@@ -497,7 +497,7 @@ describe("TasksPanel", () => {
       // just a different presentation.
     });
 
-    it("hides the Tasks-mode label-chip filter row in Labels mode", async () => {
+    it("shows the label-chip filter row in Labels mode too", async () => {
       render(
         <TasksPanel
           {...baseProps}
@@ -510,17 +510,115 @@ describe("TasksPanel", () => {
       await waitFor(() =>
         expect(screen.getByText("Pay rent")).toBeInTheDocument(),
       );
-      expect(
-        screen.getByRole("group", { name: "Filter by label" }),
-      ).toBeInTheDocument();
-
       fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
       await waitFor(() =>
         expect(screen.getByText("Big rewrite idea")).toBeInTheDocument(),
       );
+      const group = screen.getByRole("group", { name: "Filter by label" });
+      const texts = Array.from(
+        group.querySelectorAll(".tasks-panel-label-chip"),
+      ).map((el) => el.textContent ?? "");
+      // Labeled bullets contribute chips (#ideas is bullet-only, undated).
+      expect(texts.some((t) => t.startsWith("#ideas"))).toBe(true);
+      expect(texts.some((t) => t.startsWith("#urgent"))).toBe(true);
+    });
+
+    it("selecting a chip narrows Labels mode to that label's group; Escape clears it, then closes", async () => {
+      const onClose = vi.fn();
+      render(
+        <TasksPanel
+          {...baseProps}
+          onClose={onClose}
+          onLoad={vi.fn(async () => ({
+            items: makeItems(),
+            labeledItems: makeLabeledItems(),
+          }))}
+        />,
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
+      await waitFor(() =>
+        expect(screen.getByText("Big rewrite idea")).toBeInTheDocument(),
+      );
+      const headers = () =>
+        Array.from(
+          document.querySelectorAll(
+            ".tasks-panel-label-group-header .tasks-panel-chip--label",
+          ),
+        ).map((el) => el.textContent);
+      expect(headers()).toEqual(["#errands", "#home", "#ideas", "#urgent"]);
+
+      fireEvent.click(screen.getByRole("button", { name: /^#ideas/ }));
+      expect(headers()).toEqual(["#ideas"]);
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+
+      const region = screen.getByRole("region", { name: "Tasks" });
+      fireEvent.keyDown(region, { key: "Escape" });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(headers()).toEqual(["#errands", "#home", "#ideas", "#urgent"]);
+      fireEvent.keyDown(region, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("Dated plain bullets in Tasks mode", () => {
+    it("shows a dated bullet under its date section with a dot glyph and jumps on click", async () => {
+      const onOpenTask = vi.fn();
+      render(
+        <TasksPanel
+          {...baseProps}
+          onOpenTask={onOpenTask}
+          onLoad={vi.fn(async () => ({
+            items: makeItems(),
+            labeledItems: makeLabeledItems(),
+          }))}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Renew passport")).toBeInTheDocument(),
+      );
+      const row = screen
+        .getByText("Renew passport")
+        .closest(".tasks-panel-item");
+      expect(row?.querySelector("circle")).not.toBeNull();
+      expect(row?.querySelector("rect")).toBeNull();
+      // 2026-10-20 is beyond today+6: it sits in Later, after "Plan trip".
+      const later = screen
+        .getByText("Later")
+        .closest(".tasks-panel-section-header");
       expect(
-        screen.queryByRole("group", { name: "Filter by label" }),
+        later?.querySelector(".tasks-panel-section-count")?.textContent,
+      ).toBe("2");
+      // Undated labeled bullets never appear in Tasks mode.
+      expect(screen.queryByText("Big rewrite idea")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Reorganize the pantry"),
       ).not.toBeInTheDocument();
+
+      fireEvent.click(row as Element);
+      expect(onOpenTask).toHaveBeenCalledWith("/work/space/errands.md", {
+        line: 1,
+        fileOffset: 0,
+        query: "Renew passport #errands",
+      });
+    });
+
+    it("applies the selected label chips to dated bullets", async () => {
+      render(
+        <TasksPanel
+          {...baseProps}
+          onLoad={vi.fn(async () => ({
+            items: makeItems(),
+            labeledItems: makeLabeledItems(),
+          }))}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Renew passport")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("button", { name: /^#urgent/ }));
+      expect(screen.queryByText("Renew passport")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^#errands/ }));
+      expect(screen.getByText("Renew passport")).toBeInTheDocument();
     });
   });
 

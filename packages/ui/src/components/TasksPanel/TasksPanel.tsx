@@ -202,24 +202,30 @@ export function TasksPanel({
     [textQuery],
   );
 
-  // Label chip row: enumerated from every loaded OPEN item (the panel's scope
-  // is "all open checklist items workspace-wide" per the locked design),
-  // independent of the current text/label filters so the facet row stays
-  // stable as the user narrows down rather than shrinking out from under them.
-  // Tasks-mode only — Labels mode groups by label directly, so this facet
-  // row would be redundant there (and is hidden in that mode, see render).
+  // Label chip row: enumerated from every item that can appear in the
+  // current mode, independent of the text/label filters so the facet row
+  // stays stable as the user narrows down. Tasks mode: open tasks plus dated
+  // plain bullets. Labels mode: every task (checked included) plus every
+  // labeled bullet. The selection itself is shared between the two modes.
   const labelOptions = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const item of items) {
-      if (item.checked) continue;
+    const bump = (item: AnyListItem) => {
       for (const label of item.labels) {
         counts.set(label, (counts.get(label) ?? 0) + 1);
       }
+    };
+    for (const item of items) {
+      if (mode === "tasks" && item.checked) continue;
+      bump(item);
+    }
+    for (const item of labeledItems) {
+      if (mode === "tasks" && item.due === null) continue;
+      bump(item);
     }
     return Array.from(counts.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([label, count]) => ({ label, count }));
-  }, [items]);
+  }, [items, labeledItems, mode]);
 
   const hasActiveFilter =
     debouncedTextFilter.trim().length > 0 || selectedLabels.size > 0;
@@ -243,9 +249,25 @@ export function TasksPanel({
   // unchecked items only; `completed` counts the checked ones), so filtering
   // first and grouping once gives both the agenda AND the "N done" count
   // scoped to the current filter with no separate pre-filter step.
-  const buckets: AgendaBuckets = useMemo(
-    () => groupTasksByAgenda(filteredItems, todayIso),
-    [filteredItems, todayIso],
+  // Plain bullets join the agenda ONLY when dated: groupTasksByAgenda would
+  // put an undated bullet in `noDate`, so they are pre-filtered here.
+  const agendaItems = useMemo<AnyListItem[]>(
+    () => [
+      ...filteredItems,
+      ...labeledItems.filter(
+        (b) =>
+          b.due !== null &&
+          matchesText(b) &&
+          (selectedLabels.size === 0 ||
+            b.labels.some((l) => selectedLabels.has(l))),
+      ),
+    ],
+    [filteredItems, labeledItems, matchesText, selectedLabels],
+  );
+
+  const buckets: AgendaBuckets<AnyListItem> = useMemo(
+    () => groupTasksByAgenda(agendaItems, todayIso),
+    [agendaItems, todayIso],
   );
 
   const visibleBucketKeys = useMemo(
@@ -275,6 +297,7 @@ export function TasksPanel({
     const byLabel = new Map<string, LabelsFlatRow[]>();
 
     function addRow(label: string, item: AnyListItem) {
+      if (selectedLabels.size > 0 && !selectedLabels.has(label)) return;
       const row: LabelsFlatRow = {
         key: `${label}:${item.path}:${item.line}`,
         item,
@@ -306,7 +329,7 @@ export function TasksPanel({
         label,
         rows: rows.slice().sort(comparePathLine),
       }));
-  }, [items, labeledItems, matchesText]);
+  }, [items, labeledItems, matchesText, selectedLabels]);
 
   const labelsFlatRows = useMemo<LabelsFlatRow[]>(
     () => labelGroups.flatMap((g) => g.rows),
@@ -392,12 +415,12 @@ export function TasksPanel({
           e.preventDefault();
           // First Escape clears any active filter; a second (already clear)
           // closes — mirrors GlobalSearchPanel's clear-then-close convention.
-          // The label-chip selection is Tasks-mode-only state, so in Labels
-          // mode only the text filter counts as "active".
+          // The chip selection is shared by both modes, so it counts as an
+          // active filter in either.
           if (
             debouncedTextFilter.trim().length > 0 ||
             textFilter.length > 0 ||
-            (mode === "tasks" && selectedLabels.size > 0)
+            selectedLabels.size > 0
           ) {
             setTextFilter("");
             setSelectedLabels(new Set());
@@ -414,7 +437,6 @@ export function TasksPanel({
       debouncedTextFilter,
       textFilter,
       selectedLabels,
-      mode,
       onClose,
     ],
   );
@@ -488,7 +510,7 @@ export function TasksPanel({
         </button>
       </div>
 
-      {mode === "tasks" && labelOptions.length > 0 && (
+      {labelOptions.length > 0 && (
         <div
           className="tasks-panel-label-row"
           role="group"
@@ -555,13 +577,13 @@ export function TasksPanel({
                   </p>
                 </>
               )
-            ) : debouncedTextFilter.trim().length > 0 ? (
+            ) : hasActiveFilter ? (
               <>
                 <p className="tasks-panel-empty-title">
                   No matching labeled items
                 </p>
                 <p className="tasks-panel-empty-hint">
-                  Try a different filter.
+                  Try a different filter or label.
                 </p>
               </>
             ) : (

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { addIsoDays, groupTasksByAgenda } from "../agenda";
 import { AGENDA_BUCKET_ORDER } from "../types";
-import type { TaskItem } from "../types";
+import type { TaskItem, LabeledItem } from "../types";
 
 /** Build a minimal TaskItem fixture; only `due`/`checked` vary per test. */
 function task(
@@ -162,6 +162,35 @@ describe("groupTasksByAgenda — empty input", () => {
       noDate: [],
       completed: 0,
     });
+  });
+});
+
+describe("groupTasksByAgenda with plain bullets (no `checked` field)", () => {
+  function bullet(due: string | null, line: number): LabeledItem {
+    return {
+      path: "a.md",
+      line,
+      charOffset: 0,
+      rawText: "b",
+      displayText: "b",
+      labels: [],
+      due,
+      indent: 0,
+    };
+  }
+
+  it("buckets a dated bullet like an open task", () => {
+    const b = bullet("2026-10-08", 1);
+    const buckets = groupTasksByAgenda([task("2026-10-07"), b], "2026-10-07");
+    expect(buckets.today).toHaveLength(1);
+    expect(buckets.tomorrow).toEqual([b]);
+  });
+
+  it("puts an undated bullet in noDate; the caller must pre-filter to due != null", () => {
+    const buckets = groupTasksByAgenda([bullet(null, 2)], "2026-10-07");
+    expect(buckets.noDate).toHaveLength(1);
+    const filtered = [bullet(null, 2)].filter((b) => b.due !== null);
+    expect(groupTasksByAgenda(filtered, "2026-10-07").noDate).toHaveLength(0);
   });
 });
 

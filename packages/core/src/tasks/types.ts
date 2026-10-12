@@ -62,9 +62,8 @@ export interface TaskItem extends ListItemLocation {
 
 /**
  * One non-checklist (plain bullet/ordered) list item discovered by
- * extractLabeledItems. Always carries at least one label — items with no
- * label are not indexed, since the Labels view has nothing to group them
- * under. Same location/text fields as TaskItem, minus the checklist-only
+ * extractLabeledItems. Carries a label and/or a due date (a dated bullet with no label has `labels: []`)— items with no
+ * neither are not indexed. Same location/text fields as TaskItem, minus the checklist-only
  * `checked`/`done` state (a plain bullet has no check state to track).
  */
 export type LabeledItem = ListItemLocation;
@@ -129,19 +128,19 @@ export const AGENDA_BUCKET_ORDER: AgendaBucketKey[] = [
  * unchecked items only; checked items never enter the agenda and are instead
  * summed into `completed` so the panel can show an "N done" count.
  */
-export interface AgendaBuckets {
+export interface AgendaBuckets<T extends ListItemLocation = TaskItem> {
   /** due < today. */
-  overdue: TaskItem[];
+  overdue: T[];
   /** due === today. */
-  today: TaskItem[];
+  today: T[];
   /** due === today + 1. */
-  tomorrow: TaskItem[];
+  tomorrow: T[];
   /** today + 2 .. today + 6. */
-  thisWeek: TaskItem[];
+  thisWeek: T[];
   /** due >= today + 7. */
-  later: TaskItem[];
+  later: T[];
   /** due === null. */
-  noDate: TaskItem[];
+  noDate: T[];
   /** Count of checked items, excluded from every bucket above. */
   completed: number;
 }
