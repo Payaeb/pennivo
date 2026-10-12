@@ -1,4 +1,9 @@
-import type { SearchOptions, SearchResults, TaskItem } from "@pennivo/core";
+import type {
+  SearchOptions,
+  SearchResults,
+  TaskItem,
+  LabeledItem,
+} from "@pennivo/core";
 
 export interface FileTreeEntry {
   name: string;
@@ -267,14 +272,19 @@ export interface PennivoPlatform {
   ) => Promise<SearchResults>;
 
   /**
-   * Cross-file Tasks panel (Phase 18c). Walks every markdown document in the
-   * active workspace and extracts GFM checklist items via the pure
-   * `extractTaskItems` core extractor. Mirrors `searchWorkspace`'s shape and
-   * resolution rules exactly (active workspace root, then legacy folder).
-   * Desktop-first per the locked design — web and mobile stub this to the
-   * empty shape (no workspace filesystem to walk / out of scope for v1).
+   * Cross-file Tasks panel (Phase 18c, +18c labeled view). Walks every
+   * markdown document in the active workspace and extracts GFM checklist
+   * items via the pure `extractTaskItems` core extractor, plus labeled plain
+   * bullets/ordered items via `extractLabeledItems` (the Labels view's data
+   * source). Mirrors `searchWorkspace`'s shape and resolution rules exactly
+   * (active workspace root, then legacy folder). Desktop-first per the
+   * locked design — web and mobile stub this to the empty shape (no
+   * workspace filesystem to walk / out of scope for v1).
    */
-  getWorkspaceTasks: () => Promise<{ items: TaskItem[] }>;
+  getWorkspaceTasks: () => Promise<{
+    items: TaskItem[];
+    labeledItems: LabeledItem[];
+  }>;
 
   // Move a file into a different folder. Returns ok=true with the new
   // absolute path on success. On a name collision in destDir, returns

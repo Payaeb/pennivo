@@ -263,6 +263,82 @@ describe("extractTaskItems — displayText", () => {
   });
 });
 
+describe("extractTaskItems — done date parsing", () => {
+  it("parses a plain done field", () => {
+    const items = extractTaskItems(
+      "- [x] shipped it [done:: 2026-10-15]\n",
+      "a.md",
+    );
+    expect(items[0].done).toBe("2026-10-15");
+  });
+
+  it("has done null when no field is present", () => {
+    const items = extractTaskItems("- [x] shipped it\n", "a.md");
+    expect(items[0].done).toBeNull();
+  });
+
+  it("treats an invalid calendar date as absent, silently", () => {
+    const items = extractTaskItems(
+      "- [x] shipped it [done:: 2026-13-45]\n",
+      "a.md",
+    );
+    expect(items[0].done).toBeNull();
+  });
+
+  it("is independent of checked — an unchecked item can still carry a stale done field", () => {
+    const items = extractTaskItems(
+      "- [ ] reopened [done:: 2026-10-01]\n",
+      "a.md",
+    );
+    expect(items[0].checked).toBe(false);
+    expect(items[0].done).toBe("2026-10-01");
+  });
+
+  it("strips the done field from displayText but keeps due and labels", () => {
+    const items = extractTaskItems(
+      "- [x] Ship it #work [due:: 2026-10-15] [done:: 2026-10-16]\n",
+      "a.md",
+    );
+    expect(items[0].due).toBe("2026-10-15");
+    expect(items[0].done).toBe("2026-10-16");
+    expect(items[0].labels).toEqual(["work"]);
+    expect(items[0].displayText).toBe("Ship it #work");
+  });
+});
+
+describe("extractTaskItems — escaped bracket form (\\[due::, \\[done::)", () => {
+  it("parses a due field whose opening bracket was backslash-escaped on disk", () => {
+    const items = extractTaskItems(
+      "- [ ] ship it \\[due:: 2026-10-15]\n",
+      "a.md",
+    );
+    expect(items[0].due).toBe("2026-10-15");
+    expect(items[0].displayText).toBe("ship it");
+    expect(items[0].displayText.includes("\\")).toBe(false);
+  });
+
+  it("parses a done field whose opening bracket was backslash-escaped on disk", () => {
+    const items = extractTaskItems(
+      "- [x] shipped it \\[done:: 2026-10-15]\n",
+      "a.md",
+    );
+    expect(items[0].done).toBe("2026-10-15");
+    expect(items[0].displayText).toBe("shipped it");
+    expect(items[0].displayText.includes("\\")).toBe(false);
+  });
+
+  it("handles escaped due and done together with a label, stripping all syntax cleanly", () => {
+    const items = extractTaskItems(
+      "- [x] Ship #work \\[due:: 2026-10-10] \\[done:: 2026-10-12]\n",
+      "a.md",
+    );
+    expect(items[0].due).toBe("2026-10-10");
+    expect(items[0].done).toBe("2026-10-12");
+    expect(items[0].labels).toEqual(["work"]);
+    expect(items[0].displayText).toBe("Ship #work");
+  });
+});
+
 describe("extractTaskItems — empty input / no tasks", () => {
   it("returns an empty array for an empty file", () => {
     expect(extractTaskItems("", "a.md")).toEqual([]);

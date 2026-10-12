@@ -67,6 +67,27 @@ async function makeWorkspace(): Promise<string> {
       "",
     ].join("\n"),
   );
+  // Labels-mode fixtures: labeled PLAIN bullets (one sharing #home with the
+  // open tasks above) and a checked task carrying a [done::] stamp.
+  await writeFile(
+    path.join(dir, "notes.md"),
+    [
+      "# Notes",
+      "",
+      "- Big rewrite idea #ideas",
+      "- Reorganize pantry #home",
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    path.join(dir, "delta.md"),
+    [
+      "# Delta",
+      "",
+      "- [x] Shipped thing #archive [done:: 2026-10-05]",
+      "",
+    ].join("\n"),
+  );
   return dir;
 }
 
@@ -144,12 +165,12 @@ test("header toggle opens the tasks panel and groups items by agenda bucket", as
     window.locator(".tasks-panel-item", { hasText: "Old done task" }),
   ).toHaveCount(0);
 
-  // Overdue carries the danger styling class; the summary reports 6 open / 1 done.
+  // Overdue carries the danger styling class; the summary reports 6 open / 2 done.
   await expect(
     window.locator(".tasks-panel-section-header--overdue"),
   ).toContainText("Overdue");
   await expect(window.locator(".tasks-panel-summary")).toContainText("6 open");
-  await expect(window.locator(".tasks-panel-summary")).toContainText("1 done");
+  await expect(window.locator(".tasks-panel-summary")).toContainText("2 done");
 });
 
 test("clicking a task opens that file and jumps to the correct line in WYSIWYG mode", async () => {
@@ -213,4 +234,83 @@ test("Ctrl+Shift+T opens tasks and focuses the filter input", async () => {
   const input = window.locator(".tasks-panel-input");
   await expect(input).toBeVisible({ timeout: 5_000 });
   await expect(input).toBeFocused();
+});
+
+test.describe("Labels mode", () => {
+  async function openLabels() {
+    await window.locator('.sidebar-header [aria-label="Tasks"]').click();
+    await expect(window.locator(".tasks-panel")).toBeVisible({
+      timeout: 5_000,
+    });
+    const tasksTab = window.getByRole("tab", { name: "Tasks" });
+    await expect(tasksTab).toHaveAttribute("aria-selected", "true");
+    const labelsTab = window.getByRole("tab", { name: "Labels" });
+    await labelsTab.click();
+    await expect(labelsTab).toHaveAttribute("aria-selected", "true");
+  }
+
+  test("Labels tab lists label group headers alphabetically, including plain bullets", async () => {
+    await openLabels();
+
+    await expect(
+      window.locator(
+        ".tasks-panel-label-group-header .tasks-panel-chip--label",
+      ),
+    ).toHaveText(["#archive", "#home", "#ideas", "#urgent"], {
+      timeout: 5_000,
+    });
+    await expect(
+      window.getByRole("option", { name: /Big rewrite idea/ }),
+    ).toBeVisible();
+    // The Tasks-mode label filter row is not shown in Labels mode.
+    await expect(
+      window.getByRole("group", { name: "Filter by label" }),
+    ).toHaveCount(0);
+  });
+
+  test("a label shared by tasks and a plain bullet shows all rows under one header", async () => {
+    await openLabels();
+
+    const homeHeader = window.locator(".tasks-panel-label-group-header", {
+      hasText: "#home",
+    });
+    await expect(homeHeader).toHaveCount(1);
+    await expect(homeHeader.locator(".tasks-panel-section-count")).toHaveText(
+      "3",
+    );
+    // Buy groceries + Clean garage (tasks) and Reorganize pantry (bullet).
+    const homeRows = window.locator(
+      ".tasks-panel-label-group-header:has-text('#home') ~ .tasks-panel-item",
+    );
+    await expect(homeRows.filter({ hasText: "Reorganize pantry" })).toHaveCount(
+      1,
+    );
+    await expect(homeRows.filter({ hasText: "Buy groceries" })).toHaveCount(1);
+    await expect(homeRows.filter({ hasText: "Clean garage" })).toHaveCount(1);
+  });
+
+  test("clicking a plain bullet row opens its file and jumps to that line", async () => {
+    await openLabels();
+
+    const row = window.getByRole("option", { name: /Big rewrite idea/ });
+    await expect(row).toBeVisible({ timeout: 5_000 });
+    await row.click();
+
+    await expect(window.locator(".ProseMirror")).toContainText(
+      "Big rewrite idea",
+      { timeout: 5_000 },
+    );
+    const current = window.locator(".ProseMirror .find-match--current");
+    await expect(current).toHaveText("Big", { timeout: 5_000 });
+  });
+
+  test("a checked task shows its done chip", async () => {
+    await openLabels();
+
+    const row = window.getByRole("option", { name: /Shipped thing/ });
+    await expect(row).toBeVisible({ timeout: 5_000 });
+    await expect(row.locator(".tasks-panel-chip--done")).toHaveText(
+      "done 2026-10-05",
+    );
+  });
 });

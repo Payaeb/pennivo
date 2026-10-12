@@ -678,9 +678,10 @@ export function createCapacitorPlatform(): PennivoPlatform {
       capped: false,
     }),
 
-    // Cross-file Tasks panel (Phase 18c) — desktop-first per the locked
-    // design; the mobile Tasks panel UI does not ship in this release.
-    getWorkspaceTasks: async () => ({ items: [] }),
+    // Cross-file Tasks panel (Phase 18c, +18c labeled view) — desktop-first
+    // per the locked design; the mobile Tasks panel UI does not ship in
+    // this release.
+    getWorkspaceTasks: async () => ({ items: [], labeledItems: [] }),
 
     // Toolbar config
     getToolbarConfig: async () => {

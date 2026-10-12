@@ -18,6 +18,7 @@ function task(
     displayText: "task",
     labels: [],
     due,
+    done: null,
     indent: 0,
     ...overrides,
   };

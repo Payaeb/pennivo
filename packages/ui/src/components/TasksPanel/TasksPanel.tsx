@@ -6,7 +6,12 @@ import {
   useMemo,
   Fragment,
 } from "react";
-import type { AgendaBucketKey, AgendaBuckets, TaskItem } from "@pennivo/core";
+import type {
+  AgendaBucketKey,
+  AgendaBuckets,
+  TaskItem,
+  LabeledItem,
+} from "@pennivo/core";
 import {
   AGENDA_BUCKET_ORDER,
   groupTasksByAgenda,
@@ -16,6 +21,32 @@ import { joinWorkspacePath } from "../GlobalSearch/searchPanelUtils";
 import type { GlobalSearchJumpTarget } from "../GlobalSearch/GlobalSearchPanel";
 import "./TasksPanel.css";
 
+/** Either extraction result the panel can render a row for. Both share every
+ *  location/text field (path/line/charOffset/displayText/labels/due) — only
+ *  TaskItem carries `checked`/`done`, which is how a row tells the two
+ *  apart (see `isTaskItem` below) without a dedicated discriminant field in
+ *  core (kept out of core per the design doc: the UI composes the two
+ *  extractors' output, core never double-extracts). */
+type AnyListItem = TaskItem | LabeledItem;
+
+function isTaskItem(item: AnyListItem): item is TaskItem {
+  return "checked" in item;
+}
+
+/** One row in the Labels view's flattened navigation list. The SAME item
+ *  can produce multiple rows (once per label it carries), so the row key is
+ *  group-scoped (`label:path:line`), unlike Tasks mode's `path:line` (an
+ *  item appears in exactly one agenda bucket there). */
+interface LabelsFlatRow {
+  key: string;
+  item: AnyListItem;
+}
+
+interface LabelGroup {
+  label: string;
+  rows: LabelsFlatRow[];
+}
+
 export interface TasksPanelProps {
   /**
    * Active workspace root (absolute). Used to convert a task's
@@ -24,12 +55,12 @@ export interface TasksPanelProps {
    */
   rootPath: string | null;
   /**
-   * Load every GFM checklist item across the active workspace. The host
-   * wires this to `platform.getWorkspaceTasks` so the panel stays
-   * presentational (no platform import) — mirrors GlobalSearchPanel's
-   * `onSearch`.
+   * Load every GFM checklist item AND every labeled plain bullet/ordered
+   * item across the active workspace. The host wires this to
+   * `platform.getWorkspaceTasks` so the panel stays presentational (no
+   * platform import) — mirrors GlobalSearchPanel's `onSearch`.
    */
-  onLoad: () => Promise<{ items: TaskItem[] }>;
+  onLoad: () => Promise<{ items: TaskItem[]; labeledItems: LabeledItem[] }>;
   /**
    * Open a task's file and jump to its line. Receives the absolute path plus
    * a jump target in GlobalSearchPanel's exact `{ line, fileOffset, query }`
@@ -67,13 +98,13 @@ const BUCKET_LABELS: Record<AgendaBucketKey, string> = {
 };
 
 /**
- * `TaskItem.displayText` deliberately keeps `#label` tokens (core's own
- * doc comment: "Labels stay in displayText") — extractTaskItems only
- * strips the `[due:: ...]` field. The row already renders each label as
- * its own chip below the text, so showing it a second time inline would
- * duplicate it. Scan with scanMetaTokens (the same tokenizer the WYSIWYG
- * chip renderer and extractTaskItems both use, so this can never
- * disagree with them on what counts as a label) and excise every
+ * `TaskItem.displayText`/`LabeledItem.displayText` deliberately keep
+ * `#label` tokens (core's own doc comment: "Labels stay in displayText") —
+ * the extractors only strip the `[due:: ...]`/`[done:: ...]` fields. The row
+ * already renders each label as its own chip below the text, so showing it
+ * a second time inline would duplicate it. Scan with scanMetaTokens (the
+ * same tokenizer the WYSIWYG chip renderer and both extractors use, so this
+ * can never disagree with them on what counts as a label) and excise every
  * `label`-kind token's range, then collapse the whitespace left behind —
  * never an ad-hoc regex, so `#2026`-style all-digit non-tags and tags
  * inside code spans (already absent from displayText / never present to
@@ -94,6 +125,8 @@ function stripLabelTokensForDisplay(text: string): string {
   return result.replace(/\s+/g, " ").trim();
 }
 
+type PanelMode = "tasks" | "labels";
+
 export function TasksPanel({
   rootPath,
   onLoad,
@@ -102,7 +135,9 @@ export function TasksPanel({
   todayIso,
   reloadSignal,
 }: TasksPanelProps) {
+  const [mode, setMode] = useState<PanelMode>("tasks");
   const [items, setItems] = useState<TaskItem[]>([]);
+  const [labeledItems, setLabeledItems] = useState<LabeledItem[]>([]);
   // True once a load has actually resolved, so the empty state can distinguish
   // "still loading" from "loaded, genuinely nothing to show".
   const [loaded, setLoaded] = useState(false);
@@ -136,6 +171,7 @@ export function TasksPanel({
     void onLoad().then((res) => {
       if (id !== requestIdRef.current) return; // stale response; dropped
       setItems(res.items);
+      setLabeledItems(res.labeledItems);
       setLoaded(true);
     });
   }, [onLoad]);
@@ -159,10 +195,19 @@ export function TasksPanel({
     return () => clearTimeout(handle);
   }, [textFilter]);
 
+  const textQuery = debouncedTextFilter.trim().toLowerCase();
+  const matchesText = useCallback(
+    (item: AnyListItem) =>
+      !textQuery || item.displayText.toLowerCase().includes(textQuery),
+    [textQuery],
+  );
+
   // Label chip row: enumerated from every loaded OPEN item (the panel's scope
   // is "all open checklist items workspace-wide" per the locked design),
   // independent of the current text/label filters so the facet row stays
   // stable as the user narrows down rather than shrinking out from under them.
+  // Tasks-mode only — Labels mode groups by label directly, so this facet
+  // row would be redundant there (and is hidden in that mode, see render).
   const labelOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of items) {
@@ -179,10 +224,11 @@ export function TasksPanel({
   const hasActiveFilter =
     debouncedTextFilter.trim().length > 0 || selectedLabels.size > 0;
 
+  // --- Tasks mode: agenda buckets (unchanged behavior) ---
+
   const filteredItems = useMemo(() => {
-    const q = debouncedTextFilter.trim().toLowerCase();
     return items.filter((item) => {
-      if (q && !item.displayText.toLowerCase().includes(q)) return false;
+      if (!matchesText(item)) return false;
       if (
         selectedLabels.size > 0 &&
         !item.labels.some((l) => selectedLabels.has(l))
@@ -191,7 +237,7 @@ export function TasksPanel({
       }
       return true;
     });
-  }, [items, debouncedTextFilter, selectedLabels]);
+  }, [items, matchesText, selectedLabels]);
 
   // groupTasksByAgenda does its own checked/unchecked split (buckets hold
   // unchecked items only; `completed` counts the checked ones), so filtering
@@ -209,19 +255,84 @@ export function TasksPanel({
 
   // Flattened navigation model in render order, mirroring GlobalSearchPanel's
   // flattened result list — Arrow Up/Down moves a single selection across
-  // bucket boundaries.
-  const flatItems = useMemo(
-    () => visibleBucketKeys.flatMap((k) => buckets[k]),
+  // bucket boundaries. Keys are `path:line`, safe to be globally unique here
+  // because groupTasksByAgenda partitions each item into exactly one bucket.
+  const tasksFlatRows = useMemo<LabelsFlatRow[]>(
+    () =>
+      visibleBucketKeys.flatMap((k) =>
+        buckets[k].map((item) => ({
+          key: `${item.path}:${item.line}`,
+          item,
+        })),
+      ),
     [visibleBucketKeys, buckets],
   );
+
+  // --- Labels mode: group by label, text-filter only (the label-chip row
+  // is Tasks-mode-only — grouping already covers that narrowing) ---
+
+  const labelGroups = useMemo<LabelGroup[]>(() => {
+    const byLabel = new Map<string, LabelsFlatRow[]>();
+
+    function addRow(label: string, item: AnyListItem) {
+      const row: LabelsFlatRow = {
+        key: `${label}:${item.path}:${item.line}`,
+        item,
+      };
+      const bucket = byLabel.get(label);
+      if (bucket) bucket.push(row);
+      else byLabel.set(label, [row]);
+    }
+
+    for (const item of items) {
+      if (!matchesText(item)) continue;
+      for (const label of item.labels) addRow(label, item);
+    }
+    for (const item of labeledItems) {
+      if (!matchesText(item)) continue;
+      for (const label of item.labels) addRow(label, item);
+    }
+
+    const comparePathLine = (a: LabelsFlatRow, b: LabelsFlatRow) => {
+      if (a.item.path !== b.item.path) {
+        return a.item.path < b.item.path ? -1 : 1;
+      }
+      return a.item.line - b.item.line;
+    };
+
+    return Array.from(byLabel.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, rows]) => ({
+        label,
+        rows: rows.slice().sort(comparePathLine),
+      }));
+  }, [items, labeledItems, matchesText]);
+
+  const labelsFlatRows = useMemo<LabelsFlatRow[]>(
+    () => labelGroups.flatMap((g) => g.rows),
+    [labelGroups],
+  );
+
+  // The row list actually driving keyboard nav / selection / empty-state —
+  // whichever mode is active. Both Tasks and Labels builds already landed
+  // on the same `{ key, item }` shape above specifically so this one spot
+  // can stay mode-agnostic.
+  const activeFlatRows = mode === "tasks" ? tasksFlatRows : labelsFlatRows;
 
   // Clamp the selection when the filtered set shrinks. A `null` selection
   // (nothing chosen yet) is left alone — there's nothing to clamp.
   useEffect(() => {
-    if (selectedIndex !== null && selectedIndex >= flatItems.length) {
-      setSelectedIndex(Math.max(0, flatItems.length - 1));
+    if (selectedIndex !== null && selectedIndex >= activeFlatRows.length) {
+      setSelectedIndex(Math.max(0, activeFlatRows.length - 1));
     }
-  }, [flatItems.length, selectedIndex]);
+  }, [activeFlatRows.length, selectedIndex]);
+
+  // Mode switch: a selection from one mode's row list doesn't necessarily
+  // mean anything in the other's (different grouping, different row keys) —
+  // start fresh rather than risk indexing into a wrong list.
+  useEffect(() => {
+    setSelectedIndex(null);
+  }, [mode]);
 
   // Scroll the selected row into view as it moves.
   useEffect(() => {
@@ -234,11 +345,11 @@ export function TasksPanel({
   }, [selectedIndex]);
 
   const openItem = useCallback(
-    (item: TaskItem | undefined) => {
+    (item: AnyListItem | undefined) => {
       if (!item || !rootPath) return;
       const absPath = joinWorkspacePath(rootPath, item.path);
       onOpenTask(absPath, {
-        // GlobalSearchJumpTarget.line is 1-based; TaskItem.line is 0-based.
+        // GlobalSearchJumpTarget.line is 1-based; TaskItem/LabeledItem.line is 0-based.
         line: item.line + 1,
         fileOffset: item.charOffset,
         query: item.displayText,
@@ -262,24 +373,32 @@ export function TasksPanel({
         case "ArrowDown":
           e.preventDefault();
           setSelectedIndex((i) =>
-            i === null ? 0 : Math.min(i + 1, flatItems.length - 1),
+            i === null ? 0 : Math.min(i + 1, activeFlatRows.length - 1),
           );
           break;
         case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((i) =>
-            i === null ? flatItems.length - 1 : Math.max(i - 1, 0),
+            i === null ? activeFlatRows.length - 1 : Math.max(i - 1, 0),
           );
           break;
         case "Enter":
           e.preventDefault();
-          if (selectedIndex !== null) openItem(flatItems[selectedIndex]);
+          if (selectedIndex !== null) {
+            openItem(activeFlatRows[selectedIndex]?.item);
+          }
           break;
         case "Escape":
           e.preventDefault();
           // First Escape clears any active filter; a second (already clear)
           // closes — mirrors GlobalSearchPanel's clear-then-close convention.
-          if (hasActiveFilter) {
+          // The label-chip selection is Tasks-mode-only state, so in Labels
+          // mode only the text filter counts as "active".
+          if (
+            debouncedTextFilter.trim().length > 0 ||
+            textFilter.length > 0 ||
+            (mode === "tasks" && selectedLabels.size > 0)
+          ) {
             setTextFilter("");
             setSelectedLabels(new Set());
           } else {
@@ -288,19 +407,28 @@ export function TasksPanel({
           break;
       }
     },
-    [flatItems, selectedIndex, openItem, hasActiveFilter, onClose],
+    [
+      activeFlatRows,
+      selectedIndex,
+      openItem,
+      debouncedTextFilter,
+      textFilter,
+      selectedLabels,
+      mode,
+      onClose,
+    ],
   );
 
-  // Map each flat item to its global index for selection + data attrs.
+  // Map each flat row to its global index for selection + data attrs.
   const indexByKey = useMemo(() => {
     const map = new Map<string, number>();
-    flatItems.forEach((item, idx) => {
-      map.set(`${item.path}:${item.line}`, idx);
+    activeFlatRows.forEach((row, idx) => {
+      map.set(row.key, idx);
     });
     return map;
-  }, [flatItems]);
+  }, [activeFlatRows]);
 
-  const showEmpty = flatItems.length === 0;
+  const showEmpty = activeFlatRows.length === 0;
 
   return (
     <div
@@ -309,13 +437,40 @@ export function TasksPanel({
       aria-label="Tasks"
       onKeyDown={handleKeyDown}
     >
+      <div
+        className="tasks-panel-mode-tabs"
+        role="tablist"
+        aria-label="Tasks panel view"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "tasks"}
+          className={`tasks-panel-mode-tab${mode === "tasks" ? " tasks-panel-mode-tab--active" : ""}`}
+          onClick={() => setMode("tasks")}
+        >
+          Tasks
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "labels"}
+          className={`tasks-panel-mode-tab${mode === "labels" ? " tasks-panel-mode-tab--active" : ""}`}
+          onClick={() => setMode("labels")}
+        >
+          Labels
+        </button>
+      </div>
+
       <div className="tasks-panel-input-row">
         <ChecklistIcon className="tasks-panel-icon" width={14} height={14} />
         <input
           ref={inputRef}
           className="tasks-panel-input"
           type="text"
-          placeholder="Filter tasks..."
+          placeholder={
+            mode === "tasks" ? "Filter tasks..." : "Filter labeled items..."
+          }
           value={textFilter}
           onChange={(e) => setTextFilter(e.target.value)}
           spellCheck={false}
@@ -333,7 +488,7 @@ export function TasksPanel({
         </button>
       </div>
 
-      {labelOptions.length > 0 && (
+      {mode === "tasks" && labelOptions.length > 0 && (
         <div
           className="tasks-panel-label-row"
           role="group"
@@ -361,9 +516,15 @@ export function TasksPanel({
         </div>
       )}
 
-      {loaded && (
+      {loaded && mode === "tasks" && (
         <div className="tasks-panel-summary" aria-live="polite">
-          {flatItems.length} open · {buckets.completed} done
+          {tasksFlatRows.length} open · {buckets.completed} done
+        </div>
+      )}
+      {loaded && mode === "labels" && (
+        <div className="tasks-panel-summary" aria-live="polite">
+          {labelsFlatRows.length} item{labelsFlatRows.length === 1 ? "" : "s"} ·{" "}
+          {labelGroups.length} label{labelGroups.length === 1 ? "" : "s"}
         </div>
       )}
 
@@ -378,23 +539,42 @@ export function TasksPanel({
             />
             {!loaded ? (
               <p className="tasks-panel-empty-title">Loading tasks…</p>
-            ) : hasActiveFilter ? (
+            ) : mode === "tasks" ? (
+              hasActiveFilter ? (
+                <>
+                  <p className="tasks-panel-empty-title">No matching tasks</p>
+                  <p className="tasks-panel-empty-hint">
+                    Try a different filter or label.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="tasks-panel-empty-title">No open tasks</p>
+                  <p className="tasks-panel-empty-hint">
+                    Checklist items across your workspace will show up here.
+                  </p>
+                </>
+              )
+            ) : debouncedTextFilter.trim().length > 0 ? (
               <>
-                <p className="tasks-panel-empty-title">No matching tasks</p>
+                <p className="tasks-panel-empty-title">
+                  No matching labeled items
+                </p>
                 <p className="tasks-panel-empty-hint">
-                  Try a different filter or label.
+                  Try a different filter.
                 </p>
               </>
             ) : (
               <>
-                <p className="tasks-panel-empty-title">No open tasks</p>
+                <p className="tasks-panel-empty-title">No labeled items</p>
                 <p className="tasks-panel-empty-hint">
-                  Checklist items across your workspace will show up here.
+                  Bullets and tasks carrying a #label will show up here, grouped
+                  by label.
                 </p>
               </>
             )}
           </div>
-        ) : (
+        ) : mode === "tasks" ? (
           visibleBucketKeys.map((bucketKey) => (
             <Fragment key={bucketKey}>
               <div
@@ -408,52 +588,45 @@ export function TasksPanel({
                 </span>
               </div>
               {buckets[bucketKey].map((item) => {
-                const idx = indexByKey.get(`${item.path}:${item.line}`) ?? -1;
+                const key = `${item.path}:${item.line}`;
+                const idx = indexByKey.get(key) ?? -1;
                 const selected = idx === selectedIndex;
                 return (
-                  <button
-                    key={`${item.path}:${item.line}`}
-                    type="button"
-                    data-task-index={idx}
-                    className={`tasks-panel-item${selected ? " tasks-panel-item--selected" : ""}`}
+                  <TaskRow
+                    key={key}
+                    item={item}
+                    idx={idx}
+                    selected={selected}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     onClick={() => openItem(item)}
-                    tabIndex={-1}
-                    role="option"
-                    aria-selected={selected}
-                  >
-                    <span
-                      className="tasks-panel-item-checkbox"
-                      aria-hidden="true"
-                    >
-                      <TaskCheckboxGlyph />
-                    </span>
-                    <span className="tasks-panel-item-body">
-                      <span className="tasks-panel-item-text">
-                        {stripLabelTokensForDisplay(item.displayText)}
-                      </span>
-                      {(item.labels.length > 0 || item.due) && (
-                        <span className="tasks-panel-item-meta">
-                          {item.labels.map((label) => (
-                            <span
-                              key={label}
-                              className="tasks-panel-chip tasks-panel-chip--label"
-                            >
-                              #{label}
-                            </span>
-                          ))}
-                          {item.due && (
-                            <span className="tasks-panel-chip tasks-panel-chip--due">
-                              {item.due}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <span className="tasks-panel-item-path" title={item.path}>
-                        {item.path}
-                      </span>
-                    </span>
-                  </button>
+                  />
+                );
+              })}
+            </Fragment>
+          ))
+        ) : (
+          labelGroups.map((group) => (
+            <Fragment key={group.label}>
+              <div className="tasks-panel-label-group-header">
+                <span className="tasks-panel-chip tasks-panel-chip--label">
+                  #{group.label}
+                </span>
+                <span className="tasks-panel-section-count">
+                  {group.rows.length}
+                </span>
+              </div>
+              {group.rows.map((row) => {
+                const idx = indexByKey.get(row.key) ?? -1;
+                const selected = idx === selectedIndex;
+                return (
+                  <TaskRow
+                    key={row.key}
+                    item={row.item}
+                    idx={idx}
+                    selected={selected}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onClick={() => openItem(row.item)}
+                  />
                 );
               })}
             </Fragment>
@@ -461,6 +634,77 @@ export function TasksPanel({
         )}
       </div>
     </div>
+  );
+}
+
+/** One row — shared between Tasks mode (always a TaskItem) and Labels mode
+ *  (a TaskItem OR a LabeledItem). The glyph is the only thing that depends
+ *  on which: a dot for a plain labeled bullet, a checkbox (reflecting its
+ *  checked state) for a task. */
+function TaskRow({
+  item,
+  idx,
+  selected,
+  onMouseEnter,
+  onClick,
+}: {
+  item: AnyListItem;
+  idx: number;
+  selected: boolean;
+  onMouseEnter: () => void;
+  onClick: () => void;
+}) {
+  const task = isTaskItem(item);
+  const doneDate = task ? item.done : null;
+  return (
+    <button
+      type="button"
+      data-task-index={idx}
+      className={`tasks-panel-item${selected ? " tasks-panel-item--selected" : ""}`}
+      onMouseEnter={onMouseEnter}
+      onClick={onClick}
+      tabIndex={-1}
+      role="option"
+      aria-selected={selected}
+    >
+      <span className="tasks-panel-item-checkbox" aria-hidden="true">
+        {task ? (
+          <TaskCheckboxGlyph checked={item.checked} />
+        ) : (
+          <BulletDotGlyph />
+        )}
+      </span>
+      <span className="tasks-panel-item-body">
+        <span className="tasks-panel-item-text">
+          {stripLabelTokensForDisplay(item.displayText)}
+        </span>
+        {(item.labels.length > 0 || item.due || doneDate) && (
+          <span className="tasks-panel-item-meta">
+            {item.labels.map((label) => (
+              <span
+                key={label}
+                className="tasks-panel-chip tasks-panel-chip--label"
+              >
+                #{label}
+              </span>
+            ))}
+            {item.due && (
+              <span className="tasks-panel-chip tasks-panel-chip--due">
+                {item.due}
+              </span>
+            )}
+            {doneDate && (
+              <span className="tasks-panel-chip tasks-panel-chip--done">
+                done {doneDate}
+              </span>
+            )}
+          </span>
+        )}
+        <span className="tasks-panel-item-path" title={item.path}>
+          {item.path}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -518,24 +762,47 @@ function RefreshIcon() {
   );
 }
 
-// Decorative, read-only checkbox glyph for a task row. Every item that
-// reaches this render path is unchecked by construction — groupTasksByAgenda
-// routes checked items only into `completed`, never into a bucket — so this
-// never needs a checked-state branch. Not interactive in v1 per the locked
-// design (clicking a row jumps to the item; it does not toggle it).
-function TaskCheckboxGlyph() {
+// Decorative, read-only checkbox glyph for a task row. In Tasks mode every
+// item that reaches this render path is unchecked by construction
+// (groupTasksByAgenda routes checked items only into `completed`, never
+// into a bucket), but Labels mode shows checked AND unchecked tasks side by
+// side, so this needs to actually reflect `checked` there. Not interactive
+// in v1 per the locked design (clicking a row jumps to the item; it does
+// not toggle it).
+function TaskCheckboxGlyph({ checked = false }: { checked?: boolean }) {
   return (
     <svg
       width="13"
       height="13"
       viewBox="0 0 16 16"
-      fill="none"
+      fill={checked ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth="1.4"
       strokeLinejoin="round"
       aria-hidden="true"
     >
       <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" />
+      {checked && (
+        <polyline
+          points="4.3,8.3 6.8,10.8 11.7,5.3"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  );
+}
+
+// Decorative glyph for a plain (non-checklist) labeled bullet/ordered item
+// in the Labels view — a filled dot, distinguishing it at a glance from a
+// task row's checkbox glyph.
+function BulletDotGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="3.2" fill="currentColor" />
     </svg>
   );
 }

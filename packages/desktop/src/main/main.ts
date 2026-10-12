@@ -25,6 +25,8 @@ import {
   workspaceNameFromPath,
   defaultWorkspacePrefs,
   extractTaskItems,
+  extractLabeledItems,
+  type LabeledItem,
   type RecoverySettings,
   type SearchOptions,
   type SearchResults,
@@ -364,6 +366,14 @@ interface AppSettings {
   spellcheck?: boolean;
   showWordCount?: boolean;
   typewriterMode?: boolean;
+  /**
+   * Phase 18c+ "Record completion dates" toggle. Off by default. When on,
+   * the editor's checkbox-toggle handler appends `[done:: date]` on
+   * check-off and removes it on un-check; when off, it never writes or
+   * removes anything. Purely a UI-behavior switch — not interpreted here,
+   * just round-tripped through settings like typewriterMode.
+   */
+  recordCompletionDates?: boolean;
   /**
    * Global sidebar display pref: when true (default), folders with no markdown
    * descendants still render in the tree (so newly created / empty folders are
@@ -2066,14 +2076,21 @@ function registerIpcHandlers() {
 
   // --- Cross-file Tasks panel (Phase 18c) ---
   // Walk every markdown document under the active workspace root and extract
-  // GFM checklist items via the pure `extractTaskItems` core extractor.
-  // Mirrors `workspace:search` exactly: same root resolution (active
-  // workspace, then legacy folder), same oversized-file guard, and it never
-  // throws across the IPC boundary — any failure returns the empty shape.
+  // GFM checklist items via the pure `extractTaskItems` core extractor, plus
+  // (18c+) labeled plain bullets/ordered items via `extractLabeledItems` —
+  // the data source for the panel's Labels view. One handler, one payload:
+  // `{ items, labeledItems }`, keeping the original `items` field name for
+  // backward compatibility. Mirrors `workspace:search` exactly: same root
+  // resolution (active workspace, then legacy folder), same oversized-file
+  // guard, and it never throws across the IPC boundary — any failure returns
+  // the empty shape.
   ipcMain.handle(
     "workspace:tasks",
-    async (): Promise<{ items: TaskItem[] }> => {
-      const empty: { items: TaskItem[] } = { items: [] };
+    async (): Promise<{ items: TaskItem[]; labeledItems: LabeledItem[] }> => {
+      const empty: { items: TaskItem[]; labeledItems: LabeledItem[] } = {
+        items: [],
+        labeledItems: [],
+      };
       try {
         const { workspaces } = await readWorkspacesState();
         const root =
@@ -2084,10 +2101,12 @@ function registerIpcHandlers() {
           (f) => Buffer.byteLength(f.content, "utf-8") <= SEARCH_MAX_FILE_BYTES,
         );
         const items: TaskItem[] = [];
+        const labeledItems: LabeledItem[] = [];
         for (const f of within) {
           items.push(...extractTaskItems(f.content, f.path));
+          labeledItems.push(...extractLabeledItems(f.content, f.path));
         }
-        return { items };
+        return { items, labeledItems };
       } catch (err) {
         console.error("[workspace:tasks] extraction failed:", err);
         return empty;

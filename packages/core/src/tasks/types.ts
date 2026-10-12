@@ -2,11 +2,19 @@
 // can be unit-tested without fs/IPC/DOM. No React, DOM, Electron, or
 // node:path.
 //
-// v1 scope: only GFM checklist lines (`- [ ]` / `- [x]`) become TaskItems.
-// Label/due indexing of plain (non-checklist) list items is a later phase.
+// v1 scope: GFM checklist lines (`- [ ]` / `- [x]`) become TaskItems (see
+// extractTaskItems). Phase 18c+ also indexes plain (non-checklist) list
+// items that carry a label, as LabeledItem (see extractLabeled.ts) — the two
+// extractors are kept separate (never double-extracting a checklist line)
+// and composed together only in the UI layer's Labels view.
 
-/** One GFM checklist item discovered by extractTaskItems. */
-export interface TaskItem {
+/**
+ * Fields every located list item shares, whether it's a GFM checklist item
+ * (TaskItem) or a plain labeled bullet/ordered item (LabeledItem). Factored
+ * out so the two extractors can never drift on what a "located list item"
+ * looks like.
+ */
+export interface ListItemLocation {
   /** Workspace-relative path of the file the item was found in. */
   path: string;
   /** 0-based line number within the file. */
@@ -17,16 +25,15 @@ export interface TaskItem {
    * so the UI can reuse one jump-to-match code path for both features.
    */
   charOffset: number;
-  /** True for `[x]`/`[X]`, false for `[ ]`. */
-  checked: boolean;
   /**
-   * The item text after the checkbox marker, verbatim (still contains any
-   * `#label` tokens and the raw `[due:: ...]` field, if present).
+   * The item text after the list marker (and, for a checklist item, the
+   * checkbox), verbatim — still contains any `#label` tokens and the raw
+   * `[due:: ...]` / `[done:: ...]` fields, if present.
    */
   rawText: string;
   /**
-   * `rawText` with the `[due:: ...]` token(s) removed and whitespace
-   * collapsed/trimmed. Labels stay in `displayText`.
+   * `rawText` with the `[due:: ...]` and `[done:: ...]` token(s) removed and
+   * whitespace collapsed/trimmed. Labels stay in `displayText`.
    */
   displayText: string;
   /** Inline `#tag` labels, deduped, without the leading `#`, in order of first appearance. */
@@ -36,6 +43,31 @@ export interface TaskItem {
   /** Nesting depth indicator: count of leading indentation characters. Cheap; no full tree needed. */
   indent: number;
 }
+
+/** One GFM checklist item discovered by extractTaskItems. */
+export interface TaskItem extends ListItemLocation {
+  /** True for `[x]`/`[X]`, false for `[ ]`. */
+  checked: boolean;
+  /**
+   * ISO `YYYY-MM-DD` from a `[done:: ...]` field, or null when absent/
+   * invalid. Written by the editor's checkbox-toggle handler ONLY when the
+   * "Record completion dates" setting is on, and only ever removed by the
+   * same handler on un-check — extractTaskItems just reads whatever is on
+   * disk. Independent of `checked` at the data layer: a checked item with
+   * `done === null` is valid (the setting was off, or was turned on after
+   * the item was already checked).
+   */
+  done: string | null;
+}
+
+/**
+ * One non-checklist (plain bullet/ordered) list item discovered by
+ * extractLabeledItems. Always carries at least one label — items with no
+ * label are not indexed, since the Labels view has nothing to group them
+ * under. Same location/text fields as TaskItem, minus the checklist-only
+ * `checked`/`done` state (a plain bullet has no check state to track).
+ */
+export type LabeledItem = ListItemLocation;
 
 /** Index over a set of TaskItems, grouped for cheap lookup. */
 export interface TaskIndex {
@@ -65,15 +97,17 @@ export interface MetaTokenDatePart {
 }
 
 /**
- * One inline task-metadata token found by scanMetaTokens: a `#tag` label or
- * a valid `[due:: YYYY-MM-DD]` field. `start`/`end` are char offsets into
- * the scanned string, covering the token's full text (for `label`, the `#`
- * plus the tag name; for `due`, the whole `[due:: ...]` bracket). `value` is
- * the tag name (no `#`) for a label, or the validated ISO date string for a
- * due field. `datePart` is present only on `due` tokens.
+ * One inline task-metadata token found by scanMetaTokens: a `#tag` label, a
+ * valid `[due:: YYYY-MM-DD]` field, or a valid `[done:: YYYY-MM-DD]` field.
+ * `start`/`end` are char offsets into the scanned string, covering the
+ * token's full text (for `label`, the `#` plus the tag name; for `due`/
+ * `done`, the whole bracket field — including a leading backslash when the
+ * field was escaped as `\[due:: ...]` by the markdown serializer). `value`
+ * is the tag name (no `#`) for a label, or the validated ISO date string for
+ * a due/done field. `datePart` is present only on `due`/`done` tokens.
  */
 export interface MetaToken {
-  kind: "label" | "due";
+  kind: "label" | "due" | "done";
   start: number;
   end: number;
   value: string;

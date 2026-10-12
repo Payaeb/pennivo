@@ -162,16 +162,22 @@ export {
 export { type StableDeferredSplit, splitStableDeferred } from "./streaming";
 
 export {
+  type ListItemLocation,
   type TaskItem,
+  type LabeledItem,
   type TaskIndex,
   type AgendaBucketKey,
   type AgendaBuckets,
   type MetaToken,
   type MetaTokenDatePart,
+  type ParsedListItemText,
   AGENDA_BUCKET_ORDER,
   extractTaskItems,
+  extractLabeledItems,
+  TASK_LINE_RE,
   buildTaskIndex,
   groupTasksByAgenda,
   addIsoDays,
   scanMetaTokens,
+  parseListItemText,
 } from "./tasks";

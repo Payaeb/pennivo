@@ -284,9 +284,9 @@ export function createWebPlatform(): PennivoPlatform {
       capped: false,
     }),
 
-    // Cross-file Tasks panel (Phase 18c) — desktop-first per the locked
-    // design; no workspace filesystem to walk in the browser.
-    getWorkspaceTasks: async () => ({ items: [] }),
+    // Cross-file Tasks panel (Phase 18c, +18c labeled view) — desktop-first
+    // per the locked design; no workspace filesystem to walk in the browser.
+    getWorkspaceTasks: async () => ({ items: [], labeledItems: [] }),
 
     // Toolbar config — persisted in localStorage
     getToolbarConfig: async () =>

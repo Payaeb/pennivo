@@ -1,5 +1,7 @@
 export type {
+  ListItemLocation,
   TaskItem,
+  LabeledItem,
   TaskIndex,
   AgendaBucketKey,
   AgendaBuckets,
@@ -8,7 +10,12 @@ export type {
 } from "./types";
 export { AGENDA_BUCKET_ORDER } from "./types";
 
-export { extractTaskItems } from "./extractTasks";
+export { extractTaskItems, TASK_LINE_RE } from "./extractTasks";
+export { extractLabeledItems } from "./extractLabeled";
 export { buildTaskIndex } from "./taskIndex";
 export { groupTasksByAgenda, addIsoDays } from "./agenda";
-export { scanMetaTokens } from "./metaTokens";
+export {
+  scanMetaTokens,
+  parseListItemText,
+  type ParsedListItemText,
+} from "./metaTokens";

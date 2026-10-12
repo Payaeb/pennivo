@@ -1,4 +1,4 @@
-import type { TaskItem } from "@pennivo/core";
+import type { TaskItem, LabeledItem } from "@pennivo/core";
 import type { PennivoPlatform } from "./platform";
 
 export function createElectronPlatform(): PennivoPlatform {
@@ -75,11 +75,15 @@ export function createElectronPlatform(): PennivoPlatform {
     // bridge, which runs the core matcher in the main process.
     searchWorkspace: (query, options) => api.searchWorkspace(query, options),
 
-    // Cross-file Tasks panel (Phase 18c): delegate to the preload
-    // `getWorkspaceTasks` bridge, which runs the core extractor in the main
-    // process over every markdown document in the active workspace.
+    // Cross-file Tasks panel (Phase 18c, +18c labeled view): delegate to the
+    // preload `getWorkspaceTasks` bridge, which runs the core extractors in
+    // the main process over every markdown document in the active
+    // workspace.
     getWorkspaceTasks: () =>
-      api.getWorkspaceTasks() as Promise<{ items: TaskItem[] }>,
+      api.getWorkspaceTasks() as Promise<{
+        items: TaskItem[];
+        labeledItems: LabeledItem[];
+      }>,
 
     // Toolbar config
     getToolbarConfig: () => api.getToolbarConfig(),

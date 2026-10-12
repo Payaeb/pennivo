@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scanMetaTokens } from "../metaTokens";
+import { scanMetaTokens, parseListItemText } from "../metaTokens";
 
 describe("scanMetaTokens — empty / no tokens", () => {
   it("returns an empty array for an empty string", () => {
@@ -150,6 +150,108 @@ describe("scanMetaTokens — multiple tokens on one line", () => {
     const tokens = scanMetaTokens(text);
     expect(tokens.map((t) => t.kind)).toEqual(["label", "due", "label"]);
     expect(tokens.map((t) => t.value)).toEqual(["alpha", "2026-10-15", "beta"]);
+  });
+});
+
+describe("scanMetaTokens — done field", () => {
+  it("parses a plain done field", () => {
+    const text = "shipped [done:: 2026-10-15]";
+    const tokens = scanMetaTokens(text);
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ kind: "done", value: "2026-10-15" });
+    expect(text.slice(tokens[0]!.start, tokens[0]!.end)).toBe(
+      "[done:: 2026-10-15]",
+    );
+  });
+
+  it("tolerates the same spacing variations as due", () => {
+    const tokens = scanMetaTokens("x [done ::  2026-10-15  ]");
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]!.value).toBe("2026-10-15");
+  });
+
+  it("rejects an invalid calendar date, yielding no token", () => {
+    expect(scanMetaTokens("x [done:: 2026-13-45]")).toEqual([]);
+  });
+
+  it("returns both a due and a done token on the same line", () => {
+    const text = "a [due:: 2026-10-15] b [done:: 2026-10-16]";
+    const tokens = scanMetaTokens(text);
+    expect(tokens.map((t) => t.kind)).toEqual(["due", "done"]);
+    expect(tokens.map((t) => t.value)).toEqual(["2026-10-15", "2026-10-16"]);
+  });
+});
+
+describe("scanMetaTokens — escaped bracket (\\[due::, \\[done::)", () => {
+  it("parses a due field whose opening bracket was backslash-escaped", () => {
+    const text = "ship it \\[due:: 2026-10-15]";
+    const tokens = scanMetaTokens(text);
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ kind: "due", value: "2026-10-15" });
+    // The match's own range includes the backslash, so a caller that slices
+    // it out removes the escape along with the rest of the token.
+    expect(text.slice(tokens[0]!.start, tokens[0]!.end)).toBe(
+      "\\[due:: 2026-10-15]",
+    );
+  });
+
+  it("parses a done field whose opening bracket was backslash-escaped", () => {
+    const tokens = scanMetaTokens("shipped \\[done:: 2026-10-15]");
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ kind: "done", value: "2026-10-15" });
+  });
+
+  it("datePart excludes the backslash along with the rest of the syntax", () => {
+    const text = "a \\[due:: 2026-10-15] b";
+    const tokens = scanMetaTokens(text);
+    const token = tokens[0]!;
+    const dp = token.datePart!;
+    expect(text.slice(dp.start, dp.end)).toBe("2026-10-15");
+  });
+});
+
+describe("parseListItemText — due/done stripping and the escaped-bracket form", () => {
+  it("strips a plain due field from displayText", () => {
+    const result = parseListItemText("Write report [due:: 2026-10-15] now");
+    expect(result.due).toBe("2026-10-15");
+    expect(result.displayText).toBe("Write report now");
+  });
+
+  it("strips an escaped due field from displayText without a stray backslash", () => {
+    const result = parseListItemText("Write report \\[due:: 2026-10-15] now");
+    expect(result.due).toBe("2026-10-15");
+    expect(result.displayText).toBe("Write report now");
+    expect(result.displayText.includes("\\")).toBe(false);
+  });
+
+  it("parses a plain done field and strips it from displayText", () => {
+    const result = parseListItemText("Finished it [done:: 2026-10-15]");
+    expect(result.done).toBe("2026-10-15");
+    expect(result.displayText).toBe("Finished it");
+  });
+
+  it("parses an escaped done field and strips it without a stray backslash", () => {
+    const result = parseListItemText("Finished it \\[done:: 2026-10-15]");
+    expect(result.done).toBe("2026-10-15");
+    expect(result.displayText).toBe("Finished it");
+    expect(result.displayText.includes("\\")).toBe(false);
+  });
+
+  it("handles both an escaped due and an escaped done field together", () => {
+    const result = parseListItemText(
+      "Task \\[due:: 2026-10-10] \\[done:: 2026-10-12] #work",
+    );
+    expect(result.due).toBe("2026-10-10");
+    expect(result.done).toBe("2026-10-12");
+    expect(result.displayText).toBe("Task #work");
+    expect(result.labels).toEqual(["work"]);
+  });
+
+  it("keeps labels intact alongside an escaped due field", () => {
+    const result = parseListItemText("Ship #work \\[due:: 2026-10-15] soon");
+    expect(result.labels).toEqual(["work"]);
+    expect(result.due).toBe("2026-10-15");
+    expect(result.displayText).toBe("Ship #work soon");
   });
 });
 
