@@ -337,3 +337,141 @@ test("a task-item checkbox stays visible (not replaced by the zoom dot) while ho
   // The checkmark SVG background-image must still be present.
   expect(checked.backgroundImage).not.toBe("none");
 });
+
+// Magnifier affordance (v1.5.1): icon is a `li::after` at left:-46px, 14px
+// wide, always present (opacity 0) and revealed on hover.
+// Optional: set PENNIVO_SHOT_DIR to also save crops for visual review.
+const SHOT_DIR = process.env.PENNIVO_SHOT_DIR ?? "";
+
+function itemOf(word: string) {
+  return window
+    .locator(".ProseMirror")
+    .getByText(word, { exact: true })
+    .first()
+    .locator("xpath=ancestor::li[1]");
+}
+
+async function iconState(word: string) {
+  const li = itemOf(word);
+  await li.hover({ position: { x: 20, y: 8 } });
+  // Let the 120ms opacity transition finish.
+  await window.waitForTimeout(250);
+  return li.evaluate((el) => {
+    const cs = getComputedStyle(el, "::after");
+    return {
+      content: cs.content,
+      display: cs.display,
+      opacity: parseFloat(cs.opacity),
+      left: parseFloat(cs.left),
+      width: parseFloat(cs.width),
+      pointerEvents: cs.pointerEvents,
+    };
+  });
+}
+
+/** Page coordinates of the icon centre: li left edge + computed left + half width. */
+async function iconCentre(word: string) {
+  const li = itemOf(word);
+  const box = await li.boundingBox();
+  if (!box) throw new Error("no box");
+  const st = await iconState(word);
+  return { x: box.x + st.left + st.width / 2, y: box.y + 14 };
+}
+
+test("hovering a leaf item reveals the magnifier icon in the -46..-32 band", async () => {
+  await launchWithContent(FIXTURE);
+  const st = await iconState("Task Alpha");
+  expect(st.opacity).toBe(1);
+  expect(st.left).toBe(-46);
+  expect(st.left + st.width).toBeLessThanOrEqual(-32);
+  expect(st.pointerEvents).toBe("auto");
+  await window.mouse.move(0, 0);
+  await window.waitForTimeout(250);
+  const off = await itemOf("Task Alpha").evaluate((el) =>
+    parseFloat(getComputedStyle(el, "::after").opacity),
+  );
+  expect(off).toBe(0);
+});
+
+test("hovering a parent item (with a chevron) also reveals the icon", async () => {
+  await launchWithContent(FIXTURE);
+  await expect(itemOf("Phase One")).toHaveClass(/list-item--collapsible/);
+  const st = await iconState("Phase One");
+  expect(st.opacity).toBe(1);
+  expect(st.left).toBe(-46);
+  expect(st.left + st.width).toBeLessThanOrEqual(-32);
+});
+
+test("task items show no magnifier icon", async () => {
+  await launchWithContent("- [ ] Buy milk\n- [x] Walk the dog\n");
+  for (const sel of ['li[data-checked="false"]', 'li[data-checked="true"]']) {
+    const li = window.locator(sel).first();
+    await li.hover();
+    await window.waitForTimeout(250);
+    const cs = await li.evaluate((el) => {
+      const s = getComputedStyle(el, "::after");
+      return { content: s.content, opacity: s.opacity, display: s.display };
+    });
+    expect(
+      cs.content === "none" || cs.content === "normal" || cs.opacity === "0",
+    ).toBe(true);
+  }
+});
+
+test("clicking the icon on a parent item zooms into it", async () => {
+  await launchWithContent(FIXTURE);
+  const { x, y } = await iconCentre("Phase One");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Phase One",
+  );
+  await expect(
+    window.locator(".ProseMirror").getByText("Task Alpha", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    window.locator(".ProseMirror").getByText("Phase Two", { exact: true }),
+  ).toBeHidden();
+});
+
+test("clicking the icon on a leaf item zooms into it", async () => {
+  await launchWithContent(FIXTURE);
+  const { x, y } = await iconCentre("Task Beta");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Task Beta",
+  );
+  await expect(
+    window.locator(".ProseMirror").getByText("Task Alpha", { exact: true }),
+  ).toBeHidden();
+});
+
+test("clicking the icon on a top-level item zooms into it", async () => {
+  await launchWithContent(FIXTURE);
+  const { x, y } = await iconCentre("Other Top");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Other Top",
+  );
+});
+
+test("screenshots: icon on a parent and a leaf item", async () => {
+  test.skip(!SHOT_DIR, "set PENNIVO_SHOT_DIR to capture");
+  await launchWithContent(FIXTURE);
+  for (const [word, name] of [
+    ["Phase One", "parent"],
+    ["Task Alpha", "leaf"],
+  ] as const) {
+    await iconState(word);
+    const box = await itemOf(word).boundingBox();
+    if (!box) throw new Error("no box");
+    await window.screenshot({
+      path: `${SHOT_DIR}/icon-${name}.png`,
+      clip: {
+        x: Math.max(0, box.x - 90),
+        y: Math.max(0, box.y - 12),
+        width: 360,
+        height: 56,
+      },
+    });
+  }
+});

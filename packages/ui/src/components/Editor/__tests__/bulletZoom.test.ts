@@ -408,6 +408,46 @@ describe("setBulletZoomClickEnabled (mobile opt-out)", () => {
     });
   });
 
+  it("injects an override that hides the icon and drops its pointer-events", async () => {
+    await makeEditor("- a\n");
+    const style = document.head.querySelector(
+      'style[data-pennivo-style="bullet-zoom-affordance-override"]',
+    );
+    expect(style).not.toBeNull();
+    const css = style!.textContent ?? "";
+    expect(css).toContain(".bullet-zoom-affordance-disabled");
+    expect(css).toContain("li:not([data-checked])::after");
+    expect(css).toContain("display: none !important");
+    expect(css).toContain("pointer-events: none !important");
+  });
+
+  it("zooms the li under an icon-band click (target = li), and respects the opt-out", async () => {
+    const editor = await makeEditor("- a\n  - b\n");
+    withView(editor, (view) => {
+      const bPos = listItemPosForWord(view, "b");
+      const liB = view.nodeDOM(bPos) as HTMLElement;
+      // jsdom rects are all zero: clientX -40 is inside -48..-30.
+      const iconEvent = {
+        clientX: -40,
+        clientY: 0,
+        target: liB,
+      } as unknown as MouseEvent;
+      // pos deliberately points at the PARENT item, as posAtCoords may.
+      const parentPos = listItemPosForWord(view, "a");
+
+      setBulletZoomClickEnabled(false);
+      expect(
+        view.someProp("handleClick", (f) => f(view, parentPos, iconEvent)),
+      ).not.toBe(true);
+
+      setBulletZoomClickEnabled(true);
+      expect(
+        view.someProp("handleClick", (f) => f(view, parentPos, iconEvent)),
+      ).toBe(true);
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBe(bPos);
+    });
+  });
+
   it("suppresses the hover affordance by toggling a class on the editor DOM root", async () => {
     const editor = await makeEditor("- a\n");
     withView(editor, (view) => {

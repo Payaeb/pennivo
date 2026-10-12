@@ -93,7 +93,6 @@ export function DueDatePicker({ anchor, onPick, onClose }: DueDatePickerProps) {
     setStyle({ top, left });
     // anchor is a plain object recomputed by the caller on every relevant
     // transaction — compare its fields, not identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchor.top, anchor.bottom, anchor.left]);
 
   // Escape anywhere (the editor still has focus while typing-through is in

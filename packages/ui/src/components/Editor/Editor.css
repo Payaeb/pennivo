@@ -479,6 +479,39 @@
   padding-right: 5px;
 }
 
+/* Done ([done:: date]) — a muted "completed" record: same three-sibling-run
+   pill mechanics as the due chip above, but a flat surface fill, dashed
+   border and muted (non-bold) date so it reads as a quiet receipt rather
+   than an upcoming commitment. Built only from existing tokens, so every
+   light/dark theme stays readable. */
+.meta-chip--done {
+  background: var(--bg-surface);
+  border-top: 1px dashed var(--border-mid);
+  border-bottom: 1px dashed var(--border-mid);
+  color: var(--text-muted);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.meta-chip--done.meta-chip__syntax:has(+ .meta-chip--done.meta-chip__date) {
+  border-left: 1px dashed var(--border-mid);
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+  padding-left: 5px;
+}
+
+.meta-chip--done.meta-chip__date + .meta-chip--done.meta-chip__syntax {
+  border-right: 1px dashed var(--border-mid);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  padding-right: 5px;
+}
+
+.meta-chip--done.meta-chip__date {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* Syntax portions of a due chip ("[due::" and "]") — dimmed. */
 .meta-chip__syntax {
   color: var(--text-faint);
@@ -612,10 +645,9 @@ li.bullet-zoom-root {
 /* ── Bullet-zoom hover affordance ──
    Discoverable hint that hovering this item's gutter zooms in — a separate
    control from the collapse chevron (which keeps its own look/behavior
-   above). Purely decorative (pointer-events: none); the actual zoom-in
-   click is handled by bulletZoomPlugin's handleClick via coordinate
-   hit-testing against the same gutter, exactly like the taskListClick
-   checkbox handler already does for its own gutter.
+   above). The zoom-in click itself is handled by bulletZoomPlugin's
+   handleClick via coordinate hit-testing, like the taskListClick
+   checkbox handler does for its own gutter.
 
    Two things this rule must never do, both regressions found in real-world
    testing of v1.5.0:
@@ -640,50 +672,47 @@ li.bullet-zoom-root {
       "click to zoom" hint there was always misleading on top of being the
       collision in (1).
 
-   Sizing/position (non-task items only, from here down):
-   The gutter is only 28px wide (.ProseMirror ul/ol padding-left) and
-   already hosts the native list marker (measured ~-8px..-2px from the
-   text edge, both bullet and ordered) plus, on any item with children, the
-   collapse chevron (-28px..-10px, 18px wide — see .collapse-toggle above).
+   Icon (v1.5.1): a 14px magnifying glass, painted with `mask-image` (inline
+   SVG data-URI) over `background-color: var(--accent)` so it follows every
+   theme. It shows for plain items AND parent items alike, in the band
+   -46px..-32px from the text edge: left of the chevron (-28..-10) and the
+   native marker (~-8..-2), i.e. outside the 28px ul gutter.
 
-   No chevron (the common case: leaf items, or any item without nested
-   children) — the dot gets the wide -22px..-10px slot: 12px across, a
-   clear 2px gap from the native marker's left-most measured extent (-8px)
-   on one side and from the ul's own edge (-28px) on the other.
-
-   Has a chevron (.list-item--collapsible / .list-item--collapsed) — the
-   chevron already occupies -28px..-10px, leaving only a ~10px scrap
-   between it and the text edge, and that scrap is where the native marker
-   itself renders (~-8px..-2px) — there is no sub-position left in there
-   that's simultaneously clear of the chevron, the marker, AND big enough
-   to read as "noticeably visible" (confirmed empirically: a dot sized to
-   fit that scrap sits close enough to the marker that the marker paints
-   over most of it, making it functionally invisible on hover — worse than
-   not having one). Rather than ship a decoration nobody can actually see,
-   suppress it there entirely: the chevron itself is a permanent, bold,
-   always-visible (not hover-gated) widget that already answers "this row
-   has gutter controls," so this item type doesn't need a second one.
-   Gutter-click zoom itself is unaffected either way — bulletZoomPlugin's
-   handleClick hit-tests the whole 28px gutter by coordinate, independent
-   of this purely-decorative CSS. */
+   Because that band is outside the li's box, `li:hover` alone would never
+   fire over the icon and clicks there would not target the li. So the
+   `::after` box is ALWAYS present (opacity 0) with `pointer-events: auto`;
+   a pseudo-element hit-tests as part of its originating element, so
+   hovering/clicking the icon hovers/targets the li. z-index: 1 keeps a
+   nested item's icon (which overlaps the parent's indentation whitespace)
+   above the parent's box. bulletZoomPlugin's handleClick maps a click whose
+   target is the li at an x in this band to a zoom of that li. The mobile
+   opt-out (ensureAffordanceOverrideStyle) hides it and drops pointer-events
+   so the invisible box cannot intercept taps. */
 .ProseMirror li {
   position: relative;
 }
 
-.ProseMirror
-  li:not([data-checked]):not(.list-item--collapsible):not(
-    .list-item--collapsed
-  ):hover::after {
+.ProseMirror li:not([data-checked])::after {
   content: "";
   position: absolute;
-  left: -22px;
+  left: -46px;
   top: 8px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent);
-  pointer-events: none;
-  z-index: 0;
+  width: 14px;
+  height: 14px;
+  background-color: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='6.5' cy='6.5' r='4.5'/%3E%3Cpath d='M10 10l4.5 4.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='6.5' cy='6.5' r='4.5'/%3E%3Cpath d='M10 10l4.5 4.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 1;
+  transition: opacity 0.12s ease;
+}
+
+.ProseMirror li:not([data-checked]):hover::after {
+  opacity: 1;
 }
 
 /* ── Mermaid diagram preview (decoration widget) ── */

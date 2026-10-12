@@ -81,12 +81,17 @@ export function setBulletZoomClickEnabled(enabled: boolean): void {
   bulletZoomClickEnabled = enabled;
 }
 
+// Magnifier icon band, measured from the li's left (text) edge: the icon is
+// 14px wide at left:-46px (-46..-32); allow 2px slop each side.
+const ICON_BAND_OUTER = 48;
+const ICON_BAND_INNER = 30;
+
 const AFFORDANCE_DISABLED_CLASS = "bullet-zoom-affordance-disabled";
 let affordanceOverrideInjected = false;
 
 /**
- * Editor.css's discoverability affordance (`.ProseMirror li:hover::after`,
- * the hover dot near the bullet glyph) is unconditional CSS — it predates
+ * Editor.css's discoverability affordance (`.ProseMirror li:not([data-checked])::after`,
+ * the hover magnifier left of the chevron) is unconditional CSS — it predates
  * this opt-out and has no gating class to key off. Rather than leave that
  * affordance inviting a tap that silently does nothing once click entry is
  * disabled, inject one small override rule — scoped to a class this plugin
@@ -106,7 +111,7 @@ function ensureAffordanceOverrideStyle(): void {
   affordanceOverrideInjected = true;
   const style = document.createElement("style");
   style.setAttribute("data-pennivo-style", "bullet-zoom-affordance-override");
-  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:hover::after { display: none !important; }`;
+  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:not([data-checked])::after { display: none !important; pointer-events: none !important; }`;
   document.head.appendChild(style);
 }
 
@@ -433,6 +438,38 @@ export const bulletZoomPlugin = $prose(
         // plain click elsewhere, which is unambiguous).
         handleClick(view, pos, event) {
           if (!bulletZoomClickEnabled) return false;
+
+          // Magnifier icon band (Editor.css `li::after`, left:-46px, 14px
+          // wide => -46..-32 from the text edge). It sits outside the
+          // li's box, but the always-present ::after hit-tests as the li,
+          // so event.target IS the li. Zoom THAT li — posAtCoords would
+          // resolve elsewhere (parent / editor padding).
+          const target = event.target;
+          if (target instanceof Element) {
+            const li = target.closest("li");
+            if (li instanceof HTMLElement) {
+              const r = li.getBoundingClientRect();
+              if (
+                event.clientX >= r.left - ICON_BAND_OUTER &&
+                event.clientX <= r.left - ICON_BAND_INNER
+              ) {
+                let inner: number;
+                try {
+                  inner = view.posAtDOM(li, 0);
+                } catch {
+                  return false;
+                }
+                const iconItemPos = inner - 1;
+                const iconNode = view.state.doc.nodeAt(iconItemPos);
+                if (!iconNode || iconNode.type.name !== "list_item") {
+                  return false;
+                }
+                if (iconNode.attrs["checked"] != null) return false;
+                zoomToPosition(view, iconItemPos);
+                return true;
+              }
+            }
+          }
 
           const { doc } = view.state;
           const atPos = doc.nodeAt(pos);
