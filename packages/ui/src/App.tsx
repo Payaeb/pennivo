@@ -128,6 +128,7 @@ import { useTheme } from "./hooks/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { resolveImagePaths, relativizeImagePaths } from "./utils/imagePaths";
 import { extractFilename } from "./utils/paths";
+import { formatLocalIsoDate } from "./utils/localDate";
 import {
   saveDraft,
   loadDraft,
@@ -246,20 +247,6 @@ function getActiveFormats(view: EditorView): Set<ToolbarAction> {
 }
 
 const DROPPABLE_EXTENSIONS = new Set(["md", "markdown", "txt"]);
-
-/**
- * Format a Date as a local (not UTC) `YYYY-MM-DD` string — the `todayIso`
- * TasksPanel groups its agenda against. Local time, not UTC, matches how the
- * rest of Pennivo displays dates (e.g. the History panel's day-group
- * headers) and the locked design's "local device date/midnight boundary"
- * rule for agenda bucketing.
- */
-function formatLocalIsoDate(date: Date): string {
-  const yyyy = String(date.getFullYear()).padStart(4, "0");
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function AppContent() {
   const platform = getPlatform();
@@ -673,6 +660,7 @@ function AppContent() {
 
   // --- Settings-backed UI state ---
   const [showWordCount, setShowWordCount] = useState(true);
+  const [recordCompletionDates, setRecordCompletionDates] = useState(false);
 
   // Track whether the sidebar visibility has been hydrated from storage —
   // gates the persistence effect to skip the initial render.
@@ -712,6 +700,9 @@ function AppContent() {
       ([saved, rawWorkspaces]) => {
         if (saved && typeof saved.showWordCount === "boolean") {
           setShowWordCount(saved.showWordCount);
+        }
+        if (saved && typeof saved.recordCompletionDates === "boolean") {
+          setRecordCompletionDates(saved.recordCompletionDates);
         }
         if (saved && typeof saved.sidebarVisible === "boolean") {
           setSidebarVisible(saved.sidebarVisible);
@@ -795,6 +786,9 @@ function AppContent() {
     (settings: Record<string, unknown>) => {
       if (typeof settings.showWordCount === "boolean") {
         setShowWordCount(settings.showWordCount);
+      }
+      if (typeof settings.recordCompletionDates === "boolean") {
+        setRecordCompletionDates(settings.recordCompletionDates);
       }
     },
     [],
@@ -4306,6 +4300,7 @@ function AppContent() {
           onMarkdownChange={handleMarkdownChange}
           onViewUpdate={handleViewUpdate}
           onImagePaste={handleImagePaste}
+          recordCompletionDates={recordCompletionDates}
         />
       </div>
       {sourceEverActivated && (

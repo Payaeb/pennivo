@@ -26,6 +26,8 @@ import {
   setBulletZoomClickEnabled,
 } from "./bulletZoomPlugin";
 import { taskMetaChipsPlugin } from "./taskMetaChipsPlugin";
+import { applyTaskToggle } from "./doneField";
+import { formatLocalIsoDate } from "../../utils/localDate";
 import {
   dueDatePickerPlugin,
   dueDatePickerKey,
@@ -48,6 +50,9 @@ interface EditorProps {
    *  zoom back out — pass false there so a tap can't trap the user in a
    *  zoomed subtree. Default true (desktop behavior is unchanged). */
   enableBulletZoom?: boolean;
+  /** "Record completion dates" setting: checking a task appends
+   *  `[done:: YYYY-MM-DD]` (local date), unchecking removes it. Default false. */
+  recordCompletionDates?: boolean;
 }
 
 export function Editor({
@@ -58,10 +63,14 @@ export function Editor({
   onViewUpdate,
   onImagePaste,
   enableBulletZoom = true,
+  recordCompletionDates = false,
 }: EditorProps) {
   // Ref so the paste plugin always sees the latest callback without re-creating the editor
   const onImagePasteRef = useRef(onImagePaste);
   onImagePasteRef.current = onImagePaste;
+  // Same pattern: the checkbox plugin reads the latest setting at click time.
+  const recordCompletionDatesRef = useRef(recordCompletionDates);
+  recordCompletionDatesRef.current = recordCompletionDates;
 
   // --- Due-date picker (type `[due::` for a popover) ---
   // Mirrors dueDatePickerKey's plugin state (dueDatePickerPlugin.ts) into
@@ -400,11 +409,16 @@ export function Editor({
                   if (!clickInCheckboxArea) break;
 
                   const nodePos = $pos.before(d);
+                  // One transaction: checkbox flip + (optional) done-field
+                  // edit, so a single undo reverts both.
                   view.dispatch(
-                    state.tr.setNodeMarkup(nodePos, undefined, {
-                      ...node.attrs,
-                      checked: !node.attrs["checked"],
-                    }),
+                    applyTaskToggle(
+                      state,
+                      nodePos,
+                      !node.attrs["checked"],
+                      recordCompletionDatesRef.current,
+                      formatLocalIsoDate(new Date()),
+                    ),
                   );
 
                   // Restore scroll position saved during mousedown

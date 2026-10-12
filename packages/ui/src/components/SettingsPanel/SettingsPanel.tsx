@@ -16,6 +16,7 @@ export interface AppSettings {
   spellcheck: boolean;
   showWordCount: boolean;
   typewriterMode: boolean;
+  recordCompletionDates: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   spellcheck: true,
   showWordCount: true,
   typewriterMode: false,
+  recordCompletionDates: false,
 };
 
 interface SettingsPanelProps {
@@ -320,6 +322,30 @@ export function SettingsPanel({
                 onClick={() => onTypewriterModeChange(!typewriterMode)}
                 role="switch"
                 aria-checked={typewriterMode}
+              >
+                <span className="settings-toggle-knob" />
+              </button>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-label">
+                Record completion dates
+                <span className="settings-label-desc">
+                  When you check off a task, append its completion date as
+                  [done:: YYYY-MM-DD].
+                </span>
+              </div>
+              <button
+                className={`settings-toggle${settings.recordCompletionDates ? " settings-toggle--on" : ""}`}
+                onClick={() =>
+                  updateSetting(
+                    "recordCompletionDates",
+                    !settings.recordCompletionDates,
+                  )
+                }
+                role="switch"
+                aria-checked={settings.recordCompletionDates}
+                aria-label="Record completion dates"
               >
                 <span className="settings-toggle-knob" />
               </button>

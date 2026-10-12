@@ -35,7 +35,7 @@ const taskMetaChipsKey = new PluginKey("task-meta-chips");
  * returned string still lines up 1:1 with a ProseMirror content position
  * relative to the paragraph's content start.
  */
-function buildParagraphScanText(paragraph: Node): string {
+export function buildParagraphScanText(paragraph: Node): string {
   let text = "";
   paragraph.forEach((child) => {
     if (!child.isText) {
@@ -77,10 +77,16 @@ function buildDecorations(doc: Node): DecorationSet {
         continue;
       }
 
-      // due — whole-token chip, plus sub-decorations for the dimmed
-      // `[due::`/`]` syntax and the emphasized date.
+      // due / done — whole-token chip, plus sub-decorations for the dimmed
+      // `[due::`/`]` syntax and the emphasized date. `done` (the completion
+      // date the editor can append on check-off) gets its own muted class.
       decorations.push(
-        Decoration.inline(from, to, { class: "meta-chip meta-chip--due" }),
+        Decoration.inline(from, to, {
+          class:
+            token.kind === "done"
+              ? "meta-chip meta-chip--done"
+              : "meta-chip meta-chip--due",
+        }),
       );
 
       const datePart = token.datePart;
