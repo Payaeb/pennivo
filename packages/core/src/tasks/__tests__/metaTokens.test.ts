@@ -275,3 +275,19 @@ describe("scanMetaTokens — unicode", () => {
     expect(text.slice(due.start, due.end)).toBe("[due:: 2026-10-15]");
   });
 });
+
+describe("scanMetaTokens — HTML numeric character references", () => {
+  it("does not read &#x20; as a label", () => {
+    expect(scanMetaTokens("&#x20;foo")).toEqual([]);
+  });
+
+  it("does not read &#35; as a label", () => {
+    expect(scanMetaTokens("&#35;")).toEqual([]);
+  });
+
+  it("still finds a real tag after a character reference", () => {
+    const tokens = scanMetaTokens("a &#x20;#real");
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ kind: "label", value: "real" });
+  });
+});

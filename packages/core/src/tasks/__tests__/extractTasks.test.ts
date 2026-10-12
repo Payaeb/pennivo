@@ -354,3 +354,11 @@ describe("extractTaskItems — empty input / no tasks", () => {
     expect(() => extractTaskItems("- [ ] [due:: ]\n", "a.md")).not.toThrow();
   });
 });
+
+describe("extractTaskItems — HTML character references", () => {
+  it("does not read &#x20; as a label", () => {
+    const items = extractTaskItems("- [ ] &#x20;text\n", "a.md");
+    expect(items).toHaveLength(1);
+    expect(items[0].labels).toEqual([]);
+  });
+});

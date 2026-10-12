@@ -173,3 +173,9 @@ describe("extractLabeledItems — never throws", () => {
     expect(() => extractLabeledItems("- [due:: ]\n", "a.md")).not.toThrow();
   });
 });
+
+describe("extractLabeledItems — HTML character references", () => {
+  it("does not index a bullet whose only #-text is &#x20;", () => {
+    expect(extractLabeledItems("- &#x20;text\n", "a.md")).toEqual([]);
+  });
+});

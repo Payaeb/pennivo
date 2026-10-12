@@ -13,9 +13,11 @@
 import type { MetaToken } from "./types";
 
 // A `#tag` token, unicode-aware. Not a match when immediately preceded by a
-// word character (letter/digit/underscore, any script) or `/` (so URL
-// fragments like `https://x.com/#frag` are excluded).
-export const TAG_RE = /(?<![\p{L}\p{N}_/])#([\p{L}\p{N}_-]+)/gu;
+// word character (letter/digit/underscore, any script), `/` (so URL
+// fragments like `https://x.com/#frag` are excluded), or `&` (so HTML numeric
+// character references like `&#x20;` / `&#35;`, which Milkdown's serializer
+// writes for a list item starting with a space, are not read as tags).
+export const TAG_RE = /(?<![\p{L}\p{N}_/&])#([\p{L}\p{N}_-]+)/gu;
 
 // A tag made of digits only is not a tag (Obsidian rule: `#2026` is a year,
 // not a label).
