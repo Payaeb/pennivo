@@ -665,12 +665,13 @@ li.bullet-zoom-root {
       future edits. (bulletZoomPlugin.ts's ensureAffordanceOverrideStyle
       mobile opt-out targets the same `::after` selector — keep both in
       sync.)
-   2. MUST NOT render on task items at all (`:not([data-checked])` below).
-      bulletZoomPlugin's own handleClick already excludes checked items
-      from gutter-click zoom (`if (node.attrs["checked"] != null) return
-      false;` — the checkbox owns that gutter for toggling), so showing a
-      "click to zoom" hint there was always misleading on top of being the
-      collision in (1).
+   Task items are included (since 2026-10-12) so a parent task with nested
+   sub-tasks can be zoomed into like any bullet. The old exclusion existed
+   only because the previous dot collided with the checkbox; the icon band
+   (-46..-32 from the li's left edge) is outside both the checkbox (`::before`,
+   left:0, 16px) and its 28px click gutter. `::before` stays reserved for the
+   checkbox, and an in-gutter click on a task item still toggles it and never
+   zooms.
 
    Icon (v1.5.1): a 14px magnifying glass, painted with `mask-image` (inline
    SVG data-URI) over `background-color: var(--accent)` so it follows every
@@ -692,7 +693,7 @@ li.bullet-zoom-root {
   position: relative;
 }
 
-.ProseMirror li:not([data-checked])::after {
+.ProseMirror li::after {
   content: "";
   position: absolute;
   left: -46px;
@@ -711,7 +712,7 @@ li.bullet-zoom-root {
   transition: opacity 0.12s ease;
 }
 
-.ProseMirror li:not([data-checked]):hover::after {
+.ProseMirror li:hover::after {
   opacity: 1;
 }
 

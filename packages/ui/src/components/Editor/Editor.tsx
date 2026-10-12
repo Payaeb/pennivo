@@ -404,8 +404,13 @@ export function Editor({
                   if (!domNode) break;
 
                   const rect = domNode.getBoundingClientRect();
-                  // Checkbox is rendered via CSS ::before at the left edge
-                  const clickInCheckboxArea = event.clientX < rect.left + 28;
+                  // Checkbox is rendered via CSS ::before at the left edge.
+                  // Lower-bounded at rect.left so a click in the zoom
+                  // magnifier band (left of the li, -46..-32px) falls
+                  // through to bulletZoomPlugin instead of toggling.
+                  const clickInCheckboxArea =
+                    event.clientX >= rect.left &&
+                    event.clientX < rect.left + 28;
                   if (!clickInCheckboxArea) break;
 
                   const nodePos = $pos.before(d);

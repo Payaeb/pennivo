@@ -416,7 +416,8 @@ describe("setBulletZoomClickEnabled (mobile opt-out)", () => {
     expect(style).not.toBeNull();
     const css = style!.textContent ?? "";
     expect(css).toContain(".bullet-zoom-affordance-disabled");
-    expect(css).toContain("li:not([data-checked])::after");
+    expect(css).toContain("li::after");
+    expect(css).not.toContain("data-checked");
     expect(css).toContain("display: none !important");
     expect(css).toContain("pointer-events: none !important");
   });
@@ -445,6 +446,35 @@ describe("setBulletZoomClickEnabled (mobile opt-out)", () => {
         view.someProp("handleClick", (f) => f(view, parentPos, iconEvent)),
       ).toBe(true);
       expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBe(bPos);
+    });
+  });
+
+  it("zooms a task li on an icon-band click, but an in-gutter click on it does not zoom", async () => {
+    const editor = await makeEditor("- [ ] parent\n  - [ ] child\n");
+    withView(editor, (view) => {
+      setBulletZoomClickEnabled(true);
+      const parentPos = listItemPosForWord(view, "parent");
+      const liParent = view.nodeDOM(parentPos) as HTMLElement;
+      // In-gutter click (-14): the checkbox owns it; must not zoom.
+      const gutterEvent = {
+        clientX: -14,
+        clientY: 0,
+        target: liParent,
+      } as unknown as MouseEvent;
+      expect(
+        view.someProp("handleClick", (f) => f(view, parentPos, gutterEvent)),
+      ).not.toBe(true);
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBeNull();
+
+      const iconEvent = {
+        clientX: -40,
+        clientY: 0,
+        target: liParent,
+      } as unknown as MouseEvent;
+      expect(
+        view.someProp("handleClick", (f) => f(view, parentPos, iconEvent)),
+      ).toBe(true);
+      expect(bulletZoomKey.getState(view.state)?.zoomRootPos).toBe(parentPos);
     });
   });
 

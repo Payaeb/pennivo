@@ -90,7 +90,7 @@ const AFFORDANCE_DISABLED_CLASS = "bullet-zoom-affordance-disabled";
 let affordanceOverrideInjected = false;
 
 /**
- * Editor.css's discoverability affordance (`.ProseMirror li:not([data-checked])::after`,
+ * Editor.css's discoverability affordance (`.ProseMirror li::after`,
  * the hover magnifier left of the chevron) is unconditional CSS — it predates
  * this opt-out and has no gating class to key off. Rather than leave that
  * affordance inviting a tap that silently does nothing once click entry is
@@ -111,7 +111,7 @@ function ensureAffordanceOverrideStyle(): void {
   affordanceOverrideInjected = true;
   const style = document.createElement("style");
   style.setAttribute("data-pennivo-style", "bullet-zoom-affordance-override");
-  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li:not([data-checked])::after { display: none !important; pointer-events: none !important; }`;
+  style.textContent = `.ProseMirror.${AFFORDANCE_DISABLED_CLASS} li::after { display: none !important; pointer-events: none !important; }`;
   document.head.appendChild(style);
 }
 
@@ -443,7 +443,8 @@ export const bulletZoomPlugin = $prose(
           // wide => -46..-32 from the text edge). It sits outside the
           // li's box, but the always-present ::after hit-tests as the li,
           // so event.target IS the li. Zoom THAT li — posAtCoords would
-          // resolve elsewhere (parent / editor padding).
+          // resolve elsewhere (parent / editor padding). Task items are
+          // included: this band is outside the checkbox gutter.
           const target = event.target;
           if (target instanceof Element) {
             const li = target.closest("li");
@@ -464,7 +465,6 @@ export const bulletZoomPlugin = $prose(
                 if (!iconNode || iconNode.type.name !== "list_item") {
                   return false;
                 }
-                if (iconNode.attrs["checked"] != null) return false;
                 zoomToPosition(view, iconItemPos);
                 return true;
               }

@@ -402,20 +402,19 @@ test("hovering a parent item (with a chevron) also reveals the icon", async () =
   expect(st.left + st.width).toBeLessThanOrEqual(-32);
 });
 
-test("task items show no magnifier icon", async () => {
-  await launchWithContent("- [ ] Buy milk\n- [x] Walk the dog\n");
-  for (const sel of ['li[data-checked="false"]', 'li[data-checked="true"]']) {
-    const li = window.locator(sel).first();
-    await li.hover();
-    await window.waitForTimeout(250);
-    const cs = await li.evaluate((el) => {
-      const s = getComputedStyle(el, "::after");
-      return { content: s.content, opacity: s.opacity, display: s.display };
-    });
-    expect(
-      cs.content === "none" || cs.content === "normal" || cs.opacity === "0",
-    ).toBe(true);
-  }
+test("task items show the magnifier and clicking it zooms into the task", async () => {
+  await launchWithContent("- [ ] Parent task\n  - [ ] Child task\n");
+  const st = await iconState("Parent task");
+  expect(st.opacity).toBe(1);
+  expect(st.left).toBe(-46);
+  const { x, y } = await iconCentre("Parent task");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Parent task",
+  );
+  await expect(
+    window.locator(".ProseMirror").getByText("Child task", { exact: true }),
+  ).toBeVisible();
 });
 
 test("clicking the icon on a parent item zooms into it", async () => {
