@@ -374,6 +374,10 @@ export function Editor({
                   "li[data-checked]",
                 ) as HTMLElement | null;
                 if (!li) return false;
+                // Only the task's own checkbox band counts: a click that
+                // targets a nested child li (e.g. its magnifier) is not ours.
+                const ownLi = target.closest("li");
+                if (ownLi && ownLi !== li) return false;
 
                 const rect = li.getBoundingClientRect();
                 if (event.clientX >= rect.left + 28) return false;
@@ -402,6 +406,14 @@ export function Editor({
                     view.state.doc.resolve($pos.before(d)).pos,
                   ) as HTMLElement | null;
                   if (!domNode) break;
+
+                  // A click targeting a different li (a nested child's
+                  // magnifier lands inside this task's 0..28 strip) is not a
+                  // checkbox click.
+                  const targetLi = (event.target as Element | null)?.closest?.(
+                    "li",
+                  );
+                  if (targetLi && targetLi !== domNode) break;
 
                   const rect = domNode.getBoundingClientRect();
                   // Checkbox is rendered via CSS ::before at the left edge.

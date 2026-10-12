@@ -474,3 +474,37 @@ test("screenshots: icon on a parent and a leaf item", async () => {
     });
   }
 });
+
+// Magnifier of a child nested under a TASK must zoom the child, never toggle
+// the parent task (the child's icon band lands inside the parent's checkbox
+// strip).
+test("a plain bullet nested under a task: its magnifier zooms the child and leaves the parent unchecked", async () => {
+  await launchWithContent("- [ ] Parent task\n  - plain child\n");
+  const before = await window.locator('li[data-checked="false"]').count();
+  const { x, y } = await iconCentre("plain child");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "plain child",
+  );
+  await expect(window.locator('li[data-checked="false"]')).toHaveCount(before);
+  await expect(window.locator('li[data-checked="true"]')).toHaveCount(0);
+});
+
+test("a task nested under a task: the child's magnifier zooms the child and leaves the parent unchecked", async () => {
+  await launchWithContent("- [ ] Parent task\n  - [ ] Child task\n");
+  const { x, y } = await iconCentre("Child task");
+  await window.mouse.click(x, y);
+  await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(
+    "Child task",
+  );
+  await expect(window.locator('li[data-checked="true"]')).toHaveCount(0);
+});
+
+test("clicking a parent task's checkbox still toggles it", async () => {
+  await launchWithContent("- [ ] Parent task\n  - plain child\n");
+  const li = itemOf("Parent task");
+  const box = await li.boundingBox();
+  if (!box) throw new Error("no box");
+  await window.mouse.click(box.x + 8, box.y + 12);
+  await expect(window.locator('li[data-checked="true"]')).toHaveCount(1);
+});

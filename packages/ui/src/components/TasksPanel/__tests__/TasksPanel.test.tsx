@@ -932,5 +932,53 @@ describe("TasksPanel", () => {
         query: "Renew passport #errands",
       });
     });
+
+    it("prunes a selected label the Tasks mode does not offer (checked-only label)", async () => {
+      const items = makeItems();
+      items.push({
+        path: "alpha.md",
+        line: 9,
+        charOffset: 120,
+        checked: true,
+        rawText: "Shipped it #archived",
+        displayText: "Shipped it #archived",
+        labels: ["archived"],
+        due: null,
+        done: null,
+        indent: 0,
+      });
+      render(
+        <TasksPanel
+          {...baseProps}
+          onLoad={vi.fn(async () => ({ items, labeledItems: [] }))}
+        />,
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
+      await waitFor(() =>
+        expect(screen.getByText("Shipped it")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("button", { name: /^#archived/ }));
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("tab", { name: "Tasks" }));
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      expect(screen.queryByText("No matching tasks")).not.toBeInTheDocument();
+    });
+
+    it("a rejected onLoad still finishes loading with empty data", async () => {
+      render(
+        <TasksPanel
+          {...baseProps}
+          onLoad={vi.fn(async () => {
+            throw new Error("boom");
+          })}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(/Loading tasks/)).not.toBeInTheDocument(),
+      );
+    });
   });
 });

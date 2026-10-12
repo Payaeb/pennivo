@@ -168,12 +168,14 @@ export function TasksPanel({
 
   const load = useCallback(() => {
     const id = ++requestIdRef.current;
-    void onLoad().then((res) => {
-      if (id !== requestIdRef.current) return; // stale response; dropped
-      setItems(res.items);
-      setLabeledItems(res.labeledItems);
-      setLoaded(true);
-    });
+    void onLoad()
+      .catch(() => ({ items: [], labeledItems: [] }))
+      .then((res) => {
+        if (id !== requestIdRef.current) return; // stale response; dropped
+        setItems(res.items);
+        setLabeledItems(res.labeledItems);
+        setLoaded(true);
+      });
   }, [onLoad]);
 
   // Load on mount (panel just opened) and whenever the host bumps
@@ -226,6 +228,18 @@ export function TasksPanel({
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([label, count]) => ({ label, count }));
   }, [items, labeledItems, mode]);
+
+  // The selection is shared across modes but each mode offers different
+  // chips. Drop selected labels the current mode does not offer, so a hidden
+  // chip can never keep filtering. Returns the same Set when nothing changes.
+  useEffect(() => {
+    setSelectedLabels((prev) => {
+      if (prev.size === 0) return prev;
+      const offered = new Set(labelOptions.map((o) => o.label));
+      const next = new Set([...prev].filter((l) => offered.has(l)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [labelOptions]);
 
   const hasActiveFilter =
     debouncedTextFilter.trim().length > 0 || selectedLabels.size > 0;
