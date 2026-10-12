@@ -279,7 +279,7 @@ export function SettingsPanel({
               <div className="settings-label">
                 Font Size
                 <span className="settings-label-desc">
-                  Editor text size (12\u201324px)
+                  Editor text size (12–24px)
                 </span>
               </div>
               <div className="settings-slider-row">
