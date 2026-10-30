@@ -194,6 +194,23 @@ test("header toggle opens the tasks panel and groups items by agenda bucket", as
   await expect(window.locator(".tasks-panel-summary")).toContainText("2 done");
 });
 
+// The panel jump places the caret inside the exact list item (no find
+// decoration), so assert on the item containing the selection.
+async function expectCaretInItem(text: string) {
+  await expect
+    .poll(
+      () =>
+        window.evaluate(() => {
+          const n = window.getSelection()?.anchorNode ?? null;
+          const el =
+            n?.nodeType === 3 ? n.parentElement : (n as Element | null);
+          return el?.closest("li")?.textContent ?? "";
+        }),
+      { timeout: 5_000 },
+    )
+    .toContain(text);
+}
+
 test("clicking a task opens that file and jumps to the correct line in WYSIWYG mode", async () => {
   await window.locator('.sidebar-header [aria-label="Tasks"]').click();
 
@@ -208,12 +225,7 @@ test("clicking a task opens that file and jumps to the correct line in WYSIWYG m
   await expect(window.locator(".ProseMirror")).toContainText("Review PR", {
     timeout: 5_000,
   });
-  // The jump re-finds the first term ("Review") and drives the same find
-  // decoration FindReplace uses, so the matched occurrence carries the
-  // find-match--current class — proving the editor landed on the task line,
-  // not merely that the file opened.
-  const current = window.locator(".ProseMirror .find-match--current");
-  await expect(current).toHaveText("Review", { timeout: 5_000 });
+  await expectCaretInItem("Review PR");
 });
 
 test("filtering by a label chip narrows the list", async () => {
@@ -350,8 +362,7 @@ test.describe("Labels mode", () => {
       "Big rewrite idea",
       { timeout: 5_000 },
     );
-    const current = window.locator(".ProseMirror .find-match--current");
-    await expect(current).toHaveText("Big", { timeout: 5_000 });
+    await expectCaretInItem("Big rewrite idea");
   });
 
   test("a checked task shows its done chip", async () => {

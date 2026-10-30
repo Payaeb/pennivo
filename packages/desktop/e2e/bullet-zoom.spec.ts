@@ -480,7 +480,11 @@ test("screenshots: icon on a parent and a leaf item", async () => {
 // strip).
 test("a plain bullet nested under a task: its magnifier zooms the child and leaves the parent unchecked", async () => {
   await launchWithContent("- [ ] Parent task\n  - plain child\n");
-  const before = await window.locator('li[data-checked="false"]').count();
+  // Wait for the document to render before taking the baseline: a bare
+  // count() can race the editor and read 0, which then makes the post-click
+  // assertion below expect 0 and fail on a perfectly good run.
+  await expect(window.locator('li[data-checked="false"]')).toHaveCount(1);
+  const before = 1;
   const { x, y } = await iconCentre("plain child");
   await window.mouse.click(x, y);
   await expect(window.locator(".zoom-breadcrumb__current")).toHaveText(

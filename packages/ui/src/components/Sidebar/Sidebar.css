@@ -8,6 +8,7 @@
   user-select: none;
   position: relative;
   flex-shrink: 0;
+  container-type: inline-size;
   transition:
     background var(--transition-base),
     border-color var(--transition-base);
@@ -19,8 +20,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px 10px;
-  gap: 6px;
+  padding: 12px 12px 10px;
+  gap: 4px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   /* Positioned ancestor for the header popovers (sort menu + workspace menu).
@@ -42,7 +43,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
-  min-width: 0;
+  min-width: 3ch;
 }
 
 .sidebar-file-count {
@@ -55,6 +56,13 @@
   border-radius: 8px;
   flex-shrink: 0;
   line-height: 1.4;
+}
+
+/* Header is too tight for the badge at the minimum sidebar width. */
+@container (max-width: 209px) {
+  .sidebar-file-count {
+    display: none;
+  }
 }
 
 .sidebar-set-folder-btn {
@@ -77,6 +85,16 @@
 .sidebar-set-folder-btn:hover {
   color: var(--text-primary);
   background: var(--accent-soft);
+}
+
+.sidebar-set-folder-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sidebar-set-folder-btn:disabled:hover {
+  color: var(--text-faint);
+  background: none;
 }
 
 .sidebar-set-folder-btn--active {
@@ -591,26 +609,26 @@
   top: calc(100% + 6px);
   /* Anchor the popover to the sidebar's RIGHT edge (via the full-width
      `.sidebar-header` positioned ancestor) and grow leftward. The header's
-     right padding is 14px, so `right: 14px` seats the menu just inside the
+     right padding is 14px, so `right: 12px` seats the menu just inside the
      sidebar's right edge — it never overhangs into the editor (which paints
      over any sidebar overflow), and growing leftward keeps the reserved check
      column + "Show empty folders" toggle fully on-screen rather than clipped
      off the left window edge. The width fits a default (~240px) sidebar; the
      viewport clamp below keeps it inside an unusually narrow sidebar too. */
-  right: 14px;
+  right: 12px;
   left: auto;
   z-index: 1000;
   /* Preferred width fits a default (~240px) sidebar; `max-width` clamps it to
      the sidebar's inner width when the sidebar is dragged narrower. `100%`
      resolves against the header (the positioned ancestor), which spans the
-     full sidebar width; subtracting the 14px left + 14px right padding keeps
+     full sidebar width; subtracting the 12px left + 12px right padding keeps
      the menu inside both the sidebar's left padding (so it never clips off the
      left window edge) and its right padding (so it never overhangs under the
      editor). `min-width` stays under the narrowest sidebar's inner width
-     (180 - 28 = 152px) so the clamp can never be overridden by it. */
+     (180 - 24 = 156px) so the clamp can never be overridden by it. */
   width: 200px;
   min-width: 0;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 24px);
   padding: 4px;
   /* Use the elevated base surface (lighter than the sidebar's --bg-surface) so
      the popover reads as a distinct, fully opaque layer floating above the
@@ -718,7 +736,7 @@
   align-items: center;
   gap: 4px;
   width: 100%;
-  min-width: 0;
+  min-width: 3ch;
   padding: 0;
   background: none;
   border: none;
@@ -738,7 +756,7 @@
    inside the trigger flex row. */
 .sidebar-workspace-trigger .sidebar-title {
   flex: 1;
-  min-width: 0;
+  min-width: 3ch;
 }
 
 .sidebar-workspace-chevron {
@@ -774,16 +792,16 @@
   position: absolute;
   top: calc(100% + 6px);
   /* Anchor to the sidebar's LEFT edge (via the full-width `.sidebar-header`)
-     and grow rightward from there. `left: 14px` matches the header's left
+     and grow rightward from there. `left: 12px` matches the header's left
      padding so the menu lines up under the workspace title. `max-width` clamps
      it to the sidebar's inner width so a wide workspace name can never push the
      menu past the sidebar's right edge into / under the editor. */
-  left: 14px;
+  left: 12px;
   right: auto;
   z-index: 1000;
   width: 220px;
   min-width: 0;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 24px);
   padding: 4px;
   /* Fully opaque, elevated surface (lighter than the sidebar's --bg-surface)
      so occluded tree rows do not bleed through the popover. Paired with a

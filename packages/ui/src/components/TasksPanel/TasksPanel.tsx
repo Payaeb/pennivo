@@ -19,6 +19,8 @@ import {
 } from "@pennivo/core";
 import { joinWorkspacePath } from "../GlobalSearch/searchPanelUtils";
 import type { GlobalSearchJumpTarget } from "../GlobalSearch/GlobalSearchPanel";
+import { normalizeListItemKey } from "../../utils/findListItemByText";
+import { toWorkspaceRelativePath, normalizeItemPath } from "./tasksScope";
 import "./TasksPanel.css";
 
 /** Either extraction result the panel can render a row for. Both share every
@@ -84,6 +86,18 @@ export interface TasksPanelProps {
    * trigger — the manual refresh button and the mount-time load still work.
    */
   reloadSignal?: number;
+  /**
+   * Absolute path of the document open in the editor, or null when none is.
+   * Powers the "This file" scope: items are matched by their
+   * workspace-relative `path` against this file's path under `rootPath`.
+   */
+  currentFilePath?: string | null;
+  /**
+   * Controlled scope. When provided (with `onScopeChange`) the parent owns the
+   * choice, so it survives the panel unmounting; otherwise it is internal.
+   */
+  scope?: "all" | "file";
+  onScopeChange?: (scope: "all" | "file") => void;
 }
 
 const DEBOUNCE_MS = 200;
@@ -126,6 +140,7 @@ function stripLabelTokensForDisplay(text: string): string {
 }
 
 type PanelMode = "tasks" | "labels";
+type PanelScope = "all" | "file";
 
 export function TasksPanel({
   rootPath,
@@ -134,10 +149,41 @@ export function TasksPanel({
   onClose,
   todayIso,
   reloadSignal,
+  currentFilePath = null,
+  scope: scopeProp,
+  onScopeChange,
 }: TasksPanelProps) {
   const [mode, setMode] = useState<PanelMode>("tasks");
-  const [items, setItems] = useState<TaskItem[]>([]);
-  const [labeledItems, setLabeledItems] = useState<LabeledItem[]>([]);
+  const [scopeState, setScopeState] = useState<PanelScope>("all");
+  const scope: PanelScope = scopeProp ?? scopeState;
+  const setScope = (next: PanelScope) => {
+    // Controlled: the parent owns the value, so only report the change.
+    if (scopeProp === undefined) setScopeState(next);
+    onScopeChange?.(next);
+  };
+  const scopeAllRef = useRef<HTMLButtonElement>(null);
+  const scopeFileRef = useRef<HTMLButtonElement>(null);
+  // WAI-ARIA radio pattern: arrows move selection to the other (enabled) option.
+  const handleScopeKeyDown = (e: React.KeyboardEvent) => {
+    const key = e.key;
+    let next: PanelScope | null = null;
+    if (key === "ArrowRight" || key === "ArrowDown") {
+      next = e.target === scopeAllRef.current ? "file" : "all";
+    } else if (key === "ArrowLeft" || key === "ArrowUp") {
+      next = e.target === scopeFileRef.current ? "all" : "file";
+    } else if (key === "Home") {
+      next = "all";
+    } else if (key === "End") {
+      next = "file";
+    }
+    if (next === null) return;
+    e.preventDefault();
+    if (next === "file" && currentFilePath == null) return;
+    setScope(next);
+    (next === "file" ? scopeFileRef : scopeAllRef).current?.focus();
+  };
+  const [rawItems, setItems] = useState<TaskItem[]>([]);
+  const [rawLabeledItems, setLabeledItems] = useState<LabeledItem[]>([]);
   // True once a load has actually resolved, so the empty state can distinguish
   // "still loading" from "loaded, genuinely nothing to show".
   const [loaded, setLoaded] = useState(false);
@@ -196,6 +242,31 @@ export function TasksPanel({
     );
     return () => clearTimeout(handle);
   }, [textFilter]);
+
+  // "This file" needs an open document; without one the panel falls back to
+  // showing everything rather than stranding the user on an empty list. The
+  // chosen scope is kept, so it re-engages when a file is opened again.
+  const canScopeToFile = currentFilePath != null;
+  const fileScopeActive = scope === "file" && canScopeToFile;
+  const currentRelPath = useMemo(
+    () => toWorkspaceRelativePath(currentFilePath, rootPath),
+    [currentFilePath, rootPath],
+  );
+  const outsideWorkspace = fileScopeActive && currentRelPath === null;
+
+  // Scope is applied first, ahead of the text and label filters.
+  const items = useMemo(() => {
+    if (!fileScopeActive) return rawItems;
+    if (currentRelPath === null) return [];
+    return rawItems.filter((i) => normalizeItemPath(i.path) === currentRelPath);
+  }, [rawItems, fileScopeActive, currentRelPath]);
+  const labeledItems = useMemo(() => {
+    if (!fileScopeActive) return rawLabeledItems;
+    if (currentRelPath === null) return [];
+    return rawLabeledItems.filter(
+      (i) => normalizeItemPath(i.path) === currentRelPath,
+    );
+  }, [rawLabeledItems, fileScopeActive, currentRelPath]);
 
   const textQuery = debouncedTextFilter.trim().toLowerCase();
   const matchesText = useCallback(
@@ -385,14 +456,30 @@ export function TasksPanel({
     (item: AnyListItem | undefined) => {
       if (!item || !rootPath) return;
       const absPath = joinWorkspacePath(rootPath, item.path);
+      const kind = isTaskItem(item) ? "task" : "plain";
+      const norm = normalizeListItemKey(item.rawText);
+      const pool: AnyListItem[] = kind === "task" ? rawItems : rawLabeledItems;
+      const samePath = normalizeItemPath(item.path);
+      let occurrence = 0;
+      for (const other of pool) {
+        if (
+          normalizeItemPath(other.path) === samePath &&
+          normalizeListItemKey(other.rawText) === norm &&
+          (other.line < item.line ||
+            (other.line === item.line && other.charOffset < item.charOffset))
+        ) {
+          occurrence++;
+        }
+      }
       onOpenTask(absPath, {
         // GlobalSearchJumpTarget.line is 1-based; TaskItem/LabeledItem.line is 0-based.
         line: item.line + 1,
         fileOffset: item.charOffset,
         query: item.displayText,
+        listItem: { text: item.rawText, kind, occurrence },
       });
     },
-    [rootPath, onOpenTask],
+    [rootPath, onOpenTask, rawItems, rawLabeledItems],
   );
 
   const toggleLabel = useCallback((label: string) => {
@@ -498,6 +585,37 @@ export function TasksPanel({
         </button>
       </div>
 
+      <div
+        className="tasks-panel-scope"
+        role="radiogroup"
+        aria-label="Task scope"
+        onKeyDown={handleScopeKeyDown}
+      >
+        <button
+          ref={scopeAllRef}
+          type="button"
+          role="radio"
+          aria-checked={!fileScopeActive}
+          className={`tasks-panel-scope-option${!fileScopeActive ? " tasks-panel-scope-option--active" : ""}`}
+          onClick={() => setScope("all")}
+        >
+          All files
+        </button>
+        <button
+          ref={scopeFileRef}
+          type="button"
+          role="radio"
+          aria-checked={fileScopeActive}
+          aria-disabled={!canScopeToFile}
+          disabled={!canScopeToFile}
+          title={canScopeToFile ? undefined : "Open a file to focus on it"}
+          className={`tasks-panel-scope-option${fileScopeActive ? " tasks-panel-scope-option--active" : ""}`}
+          onClick={() => setScope("file")}
+        >
+          This file
+        </button>
+      </div>
+
       <div className="tasks-panel-input-row">
         <ChecklistIcon className="tasks-panel-icon" width={14} height={14} />
         <input
@@ -575,6 +693,10 @@ export function TasksPanel({
             />
             {!loaded ? (
               <p className="tasks-panel-empty-title">Loading tasks…</p>
+            ) : outsideWorkspace ? (
+              <p className="tasks-panel-empty-title">
+                The open file is outside this workspace
+              </p>
             ) : mode === "tasks" ? (
               hasActiveFilter ? (
                 <>
@@ -585,7 +707,11 @@ export function TasksPanel({
                 </>
               ) : (
                 <>
-                  <p className="tasks-panel-empty-title">No open tasks</p>
+                  <p className="tasks-panel-empty-title">
+                    {fileScopeActive
+                      ? "No tasks in this file"
+                      : "No open tasks"}
+                  </p>
                   <p className="tasks-panel-empty-hint">
                     Checklist items across your workspace will show up here.
                   </p>
@@ -602,7 +728,11 @@ export function TasksPanel({
               </>
             ) : (
               <>
-                <p className="tasks-panel-empty-title">No labeled items</p>
+                <p className="tasks-panel-empty-title">
+                  {fileScopeActive
+                    ? "No labeled items in this file"
+                    : "No labeled items"}
+                </p>
                 <p className="tasks-panel-empty-hint">
                   Bullets and tasks carrying a #label will show up here, grouped
                   by label.

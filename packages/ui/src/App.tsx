@@ -20,11 +20,15 @@ import {
   bulletZoomKey,
   computeZoomPath,
   exitBulletZoom,
+  isPosInsideSubtree,
   zoomIntoListItemAtCursor,
   zoomOutOneLevel,
   zoomToPosition,
   type BulletZoomInfo,
 } from "./components/Editor/bulletZoomPlugin";
+import { revealPosition } from "./components/Editor/collapsibleListPlugin";
+import { TextSelection } from "@milkdown/prose/state";
+import { findListItemByText } from "./utils/findListItemByText";
 import { ZoomBreadcrumb } from "./components/Editor/ZoomBreadcrumb";
 import {
   toggleStrongCommand,
@@ -472,6 +476,8 @@ function AppContent() {
   // the save-completion effect below). TasksPanel reloads on mount already;
   // this covers "refresh after the app's own save completes while open".
   const [tasksReloadSignal, setTasksReloadSignal] = useState(0);
+  // Tasks-panel scope lives here so it survives the rail closing (session only).
+  const [tasksScope, setTasksScope] = useState<"all" | "file">("all");
   // Refresh Tasks automatically after a save completes while the panel is
   // open. Watching the `saveStatus` state transition is the cheapest
   // reliable signal — it fires exactly once per save regardless of which of
@@ -3494,31 +3500,81 @@ function AppContent() {
   );
 
   const applyWysiwygJump = useCallback(
-    (target: GlobalSearchJumpTarget): boolean => {
+    (target: GlobalSearchJumpTarget, token: number): boolean => {
       const view = getEditorView();
       if (!view) return false;
-      // Search is multi-term AND; passing the whole raw query as one literal
-      // substring would never match the rendered doc. Locate using the FIRST
-      // term only (findFirstPmMatch is case-insensitive by default). Single-term
-      // queries are unaffected.
-      const term = target.query.split(/\s+/).filter(Boolean)[0] ?? target.query;
-      if (!term) return true; // nothing to locate; opening the file is enough
-      // Raw file offsets do not map 1:1 to ProseMirror positions, so re-find
-      // the first occurrence of the term in the rendered document and drive the
-      // same find decoration FindReplace uses, then scroll it into view.
-      const match = findFirstPmMatch(view.state.doc, term);
-      if (!match) return true; // term not present in rendered content; no jump
-      view.dispatch(
-        view.state.tr.setMeta(findReplacePluginKey, {
-          query: term,
-          useRegex: false,
-          currentIndex: 0,
-        }),
-      );
-      scrollToPmMatch(view, match);
+      // Tasks-panel rows identify one exact list item: locate it by text,
+      // kind and occurrence rather than searching for the first word.
+      const itemLoc = target.listItem
+        ? findListItemByText(view.state.doc, target.listItem)
+        : null;
+      let match: { from: number; to: number } | null;
+      let term = "";
+      if (itemLoc) {
+        match = { from: itemLoc.from, to: itemLoc.to };
+      } else {
+        // Search is multi-term AND; passing the whole raw query as one literal
+        // substring would never match the rendered doc. Locate using the FIRST
+        // term only (findFirstPmMatch is case-insensitive by default). Single-term
+        // queries are unaffected.
+        term = target.query.split(/\s+/).filter(Boolean)[0] ?? target.query;
+        if (!term) return true; // nothing to locate; opening the file is enough
+        // Raw file offsets do not map 1:1 to ProseMirror positions, so re-find
+        // the first occurrence of the term in the rendered document and drive
+        // the same find decoration FindReplace uses, then scroll it into view.
+        match = findFirstPmMatch(view.state.doc, term);
+        if (!match) return true; // term not present in rendered content; no jump
+      }
+      const found = match;
+      // Make the target visible: leave bullet zoom if the match lies outside
+      // the zoomed subtree, and expand collapsed ancestors. Neither changes
+      // the doc, so match positions stay valid.
+      let deferScroll = false;
+      const zoomRootPos = bulletZoomKey.getState(view.state)?.zoomRootPos;
+      if (
+        zoomRootPos != null &&
+        !isPosInsideSubtree(view.state.doc, zoomRootPos, found.from)
+      ) {
+        exitZoomFully();
+        // handleViewUpdate restores the pre-zoom scroll in a rAF; scroll
+        // after it so we are not overwritten.
+        deferScroll = true;
+      }
+      revealPosition(view, found.from);
+      if (itemLoc) {
+        // Caret on the item's paragraph; no find decoration (it would paint
+        // every occurrence of a word elsewhere in the document).
+        view.dispatch(
+          view.state.tr
+            .setMeta(findReplacePluginKey, { query: "", useRegex: false })
+            .setSelection(TextSelection.create(view.state.doc, itemLoc.from)),
+        );
+        view.focus();
+      } else {
+        view.dispatch(
+          view.state.tr.setMeta(findReplacePluginKey, {
+            query: term,
+            useRegex: false,
+            currentIndex: 0,
+          }),
+        );
+      }
+      if (deferScroll) {
+        // Bail if a newer jump started or the doc changed in the meantime.
+        const stillValid = () =>
+          token === jumpTokenRef.current &&
+          found.to <= view.state.doc.content.size;
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            if (stillValid()) scrollToPmMatch(view, found);
+          }),
+        );
+      } else {
+        scrollToPmMatch(view, found);
+      }
       return true;
     },
-    [getEditorView],
+    [getEditorView, exitZoomFully],
   );
 
   const runPendingJump = useCallback(
@@ -3529,7 +3585,7 @@ function AppContent() {
       const MAX_ATTEMPTS = 30; // ~0.5s at 60fps; well past editor settle time
       const applied = sourceModeRef.current
         ? applySourceJump(target)
-        : applyWysiwygJump(target);
+        : applyWysiwygJump(target, token);
       if (applied || attempt >= MAX_ATTEMPTS) return;
       requestAnimationFrame(() => runPendingJump(target, attempt + 1, token));
     },
@@ -4259,6 +4315,9 @@ function AppContent() {
               onClose={() => setRailMode("tree")}
               todayIso={formatLocalIsoDate(new Date())}
               reloadSignal={tasksReloadSignal}
+              currentFilePath={filePath}
+              scope={tasksScope}
+              onScopeChange={setTasksScope}
             />
           }
         />

@@ -116,6 +116,142 @@ describe("Sidebar", () => {
     });
   });
 
+  describe("Collapse all folders", () => {
+    const nestedTree: FileTreeEntry[] = [
+      {
+        name: "notes",
+        path: "/docs/notes",
+        type: "folder",
+        children: [
+          {
+            name: "deep",
+            path: "/docs/notes/deep",
+            type: "folder",
+            children: [
+              {
+                name: "inner.md",
+                path: "/docs/notes/deep/inner.md",
+                type: "file",
+              },
+            ],
+          },
+          { name: "todo.md", path: "/docs/notes/todo.md", type: "file" },
+        ],
+      },
+      {
+        name: "work",
+        path: "/docs/work",
+        type: "folder",
+        children: [
+          { name: "plan.md", path: "/docs/work/plan.md", type: "file" },
+        ],
+      },
+      { name: "readme.md", path: "/docs/readme.md", type: "file" },
+    ];
+
+    it("renders an accessible, enabled button in tree mode with folders", () => {
+      render(<Sidebar {...defaultProps} tree={nestedTree} />);
+      const btn = screen.getByRole("button", { name: "Collapse all folders" });
+      expect(btn).toHaveAttribute("title", "Collapse all folders");
+      expect(btn).toBeEnabled();
+    });
+
+    it("is not rendered when the tree has no folders", () => {
+      const flat: FileTreeEntry[] = [
+        { name: "a.md", path: "/docs/a.md", type: "file" },
+      ];
+      render(<Sidebar {...defaultProps} tree={flat} />);
+      expect(
+        screen.queryByRole("button", { name: "Collapse all folders" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is not rendered outside tree mode", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          railMode="search"
+          searchPanel={<div>search</div>}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Collapse all folders" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("collapses every expanded folder, including nested ones", () => {
+      render(<Sidebar {...defaultProps} tree={nestedTree} />);
+      fireEvent.click(screen.getByText("deep"));
+      expect(screen.getByText("inner.md")).toBeInTheDocument();
+      expect(screen.getByText("plan.md")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Collapse all folders" }),
+      );
+      expect(screen.queryByText("inner.md")).not.toBeInTheDocument();
+      expect(screen.queryByText("todo.md")).not.toBeInTheDocument();
+      expect(screen.queryByText("plan.md")).not.toBeInTheDocument();
+      expect(screen.getByText("notes")).toBeInTheDocument();
+      expect(screen.getByText("readme.md")).toBeInTheDocument();
+    });
+
+    it("is disabled once nothing is expanded and re-enables on expand", () => {
+      render(<Sidebar {...defaultProps} tree={nestedTree} />);
+      const btn = screen.getByRole("button", { name: "Collapse all folders" });
+      fireEvent.click(btn);
+      expect(btn).toBeDisabled();
+
+      fireEvent.click(screen.getByText("work"));
+      expect(btn).toBeEnabled();
+      expect(screen.getByText("plan.md")).toBeInTheDocument();
+    });
+
+    it("resets expansion to the default when the workspace changes", () => {
+      const otherTree: FileTreeEntry[] = [
+        {
+          name: "alpha",
+          path: "/other/alpha",
+          type: "folder",
+          children: [{ name: "a.md", path: "/other/alpha/a.md", type: "file" }],
+        },
+      ];
+      const { rerender } = render(
+        <Sidebar {...defaultProps} tree={nestedTree} />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Collapse all folders" }),
+      );
+      expect(screen.queryByText("plan.md")).not.toBeInTheDocument();
+
+      rerender(
+        <Sidebar {...defaultProps} folderPath="/other" tree={otherTree} />,
+      );
+      expect(screen.getByText("a.md")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Collapse all folders" }),
+      ).toBeEnabled();
+    });
+
+    it("keeps the current file selected after collapsing its folder", () => {
+      render(
+        <Sidebar
+          {...defaultProps}
+          tree={nestedTree}
+          currentFilePath="/docs/work/plan.md"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Collapse all folders" }),
+      );
+      expect(screen.queryByText("plan.md")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText("work"));
+      expect(
+        screen.getByText("plan.md").closest(".tree-item--active"),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("Global search toggle", () => {
     it("does not render the search button when onToggleSearch is omitted", () => {
       render(<Sidebar {...defaultProps} />);

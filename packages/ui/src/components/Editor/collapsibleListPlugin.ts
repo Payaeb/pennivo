@@ -27,6 +27,57 @@ function hasNestedList(node: Node): boolean {
   return false;
 }
 
+/**
+ * True when any ancestor list_item of `pos` is currently collapsed (so the
+ * content at `pos` is CSS-hidden). Read-only.
+ */
+export function isPositionHiddenByCollapse(
+  state: EditorState,
+  pos: number,
+): boolean {
+  return collapsedAncestorIndices(state, pos).length > 0;
+}
+
+function collapsedAncestorIndices(state: EditorState, pos: number): number[] {
+  const out: number[] = [];
+  if (pos < 0 || pos > state.doc.content.size) return out;
+  const $pos = state.doc.resolve(pos);
+  // The innermost list_item is the target's OWN item: its text is visible
+  // whether or not its children are collapsed, so leave that user choice
+  // alone and only expand the strict ancestors that actually hide it.
+  let skippedOwnItem = false;
+  for (let d = $pos.depth; d >= 1; d--) {
+    const node = $pos.node(d);
+    if (node.type.name !== "list_item") continue;
+    if (!skippedOwnItem) {
+      skippedOwnItem = true;
+      continue;
+    }
+    if (!hasNestedList(node)) continue;
+    const idx = collapsibleIndexOf(state, $pos.before(d));
+    if (idx !== -1 && collapsedIndices.has(idx)) out.push(idx);
+  }
+  return out;
+}
+
+/**
+ * Expand every collapsed ancestor list_item on the path to `pos`. Siblings
+ * collapsed elsewhere are untouched. Returns true when something expanded.
+ */
+export function revealPosition(view: EditorView, pos: number): boolean {
+  const indices = collapsedAncestorIndices(view.state, pos);
+  if (indices.length === 0) return false;
+  for (const idx of indices) collapsedIndices.delete(idx);
+  view.dispatch(view.state.tr.setMeta(collapsibleKey, true));
+  return true;
+}
+
+/** Test-only: clear module-level collapsed state. */
+export function __resetCollapsedForTests(indices: number[] = []): void {
+  collapsedIndices.clear();
+  for (const i of indices) collapsedIndices.add(i);
+}
+
 export const collapsibleListPlugin = $prose(
   () =>
     new Plugin({

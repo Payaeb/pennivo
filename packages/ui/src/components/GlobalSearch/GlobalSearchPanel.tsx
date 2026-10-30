@@ -27,6 +27,11 @@ export interface GlobalSearchJumpTarget {
   line: number;
   fileOffset: number;
   query: string;
+  /**
+   * Set by the Tasks panel only: identifies one exact list item so WYSIWYG
+   * mode can land on it instead of searching for the first word of `query`.
+   */
+  listItem?: { text: string; kind: "task" | "plain"; occurrence: number };
 }
 
 export interface GlobalSearchPanelProps {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   type SidebarSortKey,
   SORT_OPTIONS,
@@ -144,6 +144,30 @@ function countFiles(entries: FileTreeEntry[]): number {
   return count;
 }
 
+function hasFolders(entries: FileTreeEntry[]): boolean {
+  return entries.some((e) => e.type === "folder");
+}
+
+/** Default expansion: top-level folders open, everything deeper closed. */
+function defaultExpanded(entries: FileTreeEntry[]): Set<string> {
+  const set = new Set<string>();
+  for (const e of entries) if (e.type === "folder") set.add(e.path);
+  return set;
+}
+
+/** True when at least one folder that exists in the tree is expanded. */
+function anyExpandedIn(
+  entries: FileTreeEntry[],
+  expanded: Set<string>,
+): boolean {
+  for (const e of entries) {
+    if (e.type !== "folder") continue;
+    if (expanded.has(e.path)) return true;
+    if (e.children && anyExpandedIn(e.children, expanded)) return true;
+  }
+  return false;
+}
+
 // Drop target for the workspace root (when dragging a file out of any folder).
 const ROOT_DROP_TARGET = "__root__";
 
@@ -242,6 +266,39 @@ export function Sidebar({
   );
   const [resizing, setResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Expanded folders. Owned here (not in TreeContainer) so the header's
+  // "Collapse all folders" button can read and clear it. `null` means the user
+  // has not toggled anything yet: top-level folders are open by default.
+  const [expandedOverride, setExpandedOverride] = useState<Set<string> | null>(
+    null,
+  );
+  const defaultExpandedPaths = useMemo(() => defaultExpanded(tree), [tree]);
+  const expandedPaths = useMemo(
+    () => expandedOverride ?? defaultExpandedPaths,
+    [expandedOverride, defaultExpandedPaths],
+  );
+  // The updater reads the latest tree through a ref so its identity is stable
+  // across tree refreshes (an unstable identity re-ran the auto-expand-on-create
+  // effect and re-expanded folders the user had just collapsed).
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const updateExpandedPaths = useCallback(
+    (update: (prev: Set<string>) => Set<string>) => {
+      setExpandedOverride((prev) =>
+        update(prev ?? defaultExpanded(treeRef.current)),
+      );
+    },
+    [],
+  );
+  const anyFolderExpanded = useMemo(
+    () => anyExpandedIn(tree, expandedPaths),
+    [tree, expandedPaths],
+  );
+  // A different workspace root starts from the default expansion again.
+  useEffect(() => {
+    setExpandedOverride(null);
+  }, [folderPath]);
 
   // Re-seed the internal width when the host hands us a different stored width
   // (e.g. a workspace switch restored a new value). We only follow non-null
@@ -743,6 +800,17 @@ export function Sidebar({
             onToggleShowEmptyFolders={onToggleShowEmptyFolders}
           />
         )}
+        {folderPath && railMode === "tree" && hasFolders(tree) && (
+          <button
+            className="sidebar-set-folder-btn sidebar-collapse-all-btn"
+            onClick={() => updateExpandedPaths(() => new Set<string>())}
+            title="Collapse all folders"
+            aria-label="Collapse all folders"
+            disabled={!anyFolderExpanded}
+          >
+            <CollapseAllIcon />
+          </button>
+        )}
         {onToggleSearch && (
           <button
             className={`sidebar-set-folder-btn${railMode === "search" ? " sidebar-set-folder-btn--active" : ""}`}
@@ -803,6 +871,8 @@ export function Sidebar({
           {folderPath && tree.length > 0 ? (
             <TreeContainer
               tree={tree}
+              expandedPaths={expandedPaths}
+              setExpandedPaths={updateExpandedPaths}
               currentFilePath={currentFilePath}
               rootDir={folderPath}
               onFileClick={onFileClick}
@@ -1055,8 +1125,12 @@ function TreeContainer({
   onDragOverTarget,
   onDragLeaveTarget,
   onDropOnTarget,
+  expandedPaths,
+  setExpandedPaths,
 }: {
   tree: FileTreeEntry[];
+  expandedPaths: Set<string>;
+  setExpandedPaths: (update: (prev: Set<string>) => Set<string>) => void;
   currentFilePath: string | null;
   rootDir: string;
   onFileClick: (filePath: string) => void;
@@ -1064,12 +1138,6 @@ function TreeContainer({
 } & TreeContext) {
   const treeRef = useRef<HTMLDivElement>(null);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
-  // Track expanded folders — default expand depth 0
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
-    const set = new Set<string>();
-    for (const e of tree) if (e.type === "folder") set.add(e.path);
-    return set;
-  });
 
   // When a "New File/Folder" is started inside a folder (not the root), make
   // sure that folder is expanded so its inline CreateInput is visible. After a
@@ -1086,7 +1154,7 @@ function TreeContainer({
       next.add(parent);
       return next;
     });
-  }, [creatingIn, rootDir]);
+  }, [creatingIn, rootDir, setExpandedPaths]);
 
   // Flatten visible items for keyboard navigation
   const flatItems = useCallback((): FileTreeEntry[] => {
@@ -1107,14 +1175,17 @@ function TreeContainer({
     return items;
   }, [tree, expandedPaths]);
 
-  const toggleExpanded = useCallback((path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }, []);
+  const toggleExpanded = useCallback(
+    (path: string) => {
+      setExpandedPaths((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        return next;
+      });
+    },
+    [setExpandedPaths],
+  );
 
   // Find parent folder of an entry
   const findParent = useCallback(
@@ -1837,6 +1908,23 @@ function MarkdownFileIcon() {
     >
       <path d="M4.5 2h5l3 3v8.5a1 1 0 01-1 1h-7a1 1 0 01-1-1V3a1 1 0 011-1z" />
       <path d="M9.5 2v3h3" />
+    </svg>
+  );
+}
+
+function CollapseAllIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 2.5L8 6l3.5-3.5" />
+      <path d="M4.5 13.5L8 10l3.5 3.5" />
     </svg>
   );
 }

@@ -8,6 +8,7 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TaskItem, LabeledItem } from "@pennivo/core";
 import { TasksPanel } from "../TasksPanel";
+import { toWorkspaceRelativePath } from "../tasksScope";
 
 // "Today" for every test below. Chosen so the fixture's due dates land one
 // per agenda bucket: weekEnd = today+6 = 2026-10-14, tomorrow = 2026-10-09.
@@ -353,6 +354,56 @@ describe("TasksPanel", () => {
         line: 1, // TaskItem.line (0) + 1, matching GlobalSearchJumpTarget's 1-based convention
         fileOffset: 10,
         query: "Pay rent #urgent",
+        listItem: {
+          text: expect.stringContaining("Pay rent"),
+          kind: "task",
+          occurrence: 0,
+        },
+      });
+    });
+
+    it("clicking the second of two same-text items passes occurrence 1 with kind and rawText", async () => {
+      const mk = (line: number, charOffset: number): TaskItem => ({
+        path: "dup.md",
+        line,
+        charOffset,
+        checked: false,
+        rawText: "task  3 #x",
+        displayText: "task 3 #x",
+        labels: ["x"],
+        due: null,
+        done: null,
+        indent: 0,
+      });
+      const plain: LabeledItem = {
+        path: "dup.md",
+        line: 1,
+        charOffset: 5,
+        rawText: "task  3 #x",
+        displayText: "task 3 #x",
+        labels: ["x"],
+        due: null,
+        indent: 0,
+      };
+      const onOpenTask = vi.fn();
+      render(
+        <TasksPanel
+          {...baseProps}
+          onLoad={vi.fn(async () => ({
+            items: [mk(4, 40), mk(9, 90)],
+            labeledItems: [plain],
+          }))}
+          onOpenTask={onOpenTask}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getAllByText("task 3")).toHaveLength(2),
+      );
+      fireEvent.click(screen.getAllByText("task 3")[1]);
+      expect(onOpenTask).toHaveBeenCalledTimes(1);
+      expect(onOpenTask.mock.calls[0][1]).toMatchObject({
+        fileOffset: 90,
+        listItem: { text: "task  3 #x", kind: "task", occurrence: 1 },
       });
     });
 
@@ -395,11 +446,14 @@ describe("TasksPanel", () => {
       const region = screen.getByRole("region", { name: "Tasks" });
       fireEvent.keyDown(region, { key: "ArrowDown" });
       fireEvent.keyDown(region, { key: "Enter" });
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/alpha.md", {
-        line: 1,
-        fileOffset: 10,
-        query: "Pay rent #urgent",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/alpha.md",
+        expect.objectContaining({
+          line: 1,
+          fileOffset: 10,
+          query: "Pay rent #urgent",
+        }),
+      );
     });
 
     it("ArrowUp before any selection jumps to the last row", async () => {
@@ -413,11 +467,14 @@ describe("TasksPanel", () => {
       fireEvent.keyDown(region, { key: "Enter" });
       // "Clean garage" is the last row (Later bucket's "Plan trip" is
       // followed by the No date bucket's "Clean garage", the final flat item).
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/charlie.md", {
-        line: 3,
-        fileOffset: 25,
-        query: "Clean garage #home",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/charlie.md",
+        expect.objectContaining({
+          line: 3,
+          fileOffset: 25,
+          query: "Clean garage #home",
+        }),
+      );
     });
 
     it("Escape clears an active filter, then closes on the next Escape", async () => {
@@ -595,11 +652,14 @@ describe("TasksPanel", () => {
       ).not.toBeInTheDocument();
 
       fireEvent.click(row as Element);
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/errands.md", {
-        line: 1,
-        fileOffset: 0,
-        query: "Renew passport #errands",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/errands.md",
+        expect.objectContaining({
+          line: 1,
+          fileOffset: 0,
+          query: "Renew passport #errands",
+        }),
+      );
     });
 
     it("applies the selected label chips to dated bullets", async () => {
@@ -872,11 +932,14 @@ describe("TasksPanel", () => {
       );
 
       fireEvent.click(screen.getByText("Big rewrite idea"));
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/notes.md", {
-        line: 2, // LabeledItem.line (1) + 1
-        fileOffset: 20,
-        query: "Big rewrite idea #ideas",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/notes.md",
+        expect.objectContaining({
+          line: 2, // LabeledItem.line (1) + 1
+          fileOffset: 20,
+          query: "Big rewrite idea #ideas",
+        }),
+      );
     });
 
     it("clicking a labeled TASK (in Labels mode) jumps the same way as in Tasks mode", async () => {
@@ -897,11 +960,14 @@ describe("TasksPanel", () => {
       );
 
       fireEvent.click(screen.getByText("Buy groceries"));
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/bravo.md", {
-        line: 2, // TaskItem.line (1) + 1
-        fileOffset: 15,
-        query: "Buy groceries #home",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/bravo.md",
+        expect.objectContaining({
+          line: 2, // TaskItem.line (1) + 1
+          fileOffset: 15,
+          query: "Buy groceries #home",
+        }),
+      );
     });
 
     it("ArrowDown then Enter opens the first row of the first label group", async () => {
@@ -926,11 +992,14 @@ describe("TasksPanel", () => {
       fireEvent.keyDown(region, { key: "Enter" });
 
       // First group alphabetically is "#errands" (Renew passport).
-      expect(onOpenTask).toHaveBeenCalledWith("/work/space/errands.md", {
-        line: 1,
-        fileOffset: 0,
-        query: "Renew passport #errands",
-      });
+      expect(onOpenTask).toHaveBeenCalledWith(
+        "/work/space/errands.md",
+        expect.objectContaining({
+          line: 1,
+          fileOffset: 0,
+          query: "Renew passport #errands",
+        }),
+      );
     });
 
     it("prunes a selected label the Tasks mode does not offer (checked-only label)", async () => {
@@ -979,6 +1048,262 @@ describe("TasksPanel", () => {
       await waitFor(() =>
         expect(screen.queryByText(/Loading tasks/)).not.toBeInTheDocument(),
       );
+    });
+  });
+
+  describe("Scope toggle (All files | This file)", () => {
+    const scopeProps = {
+      ...baseProps,
+      onLoad: vi.fn(async () => ({
+        items: makeItems(),
+        labeledItems: makeLabeledItems(),
+      })),
+    };
+
+    it("defaults to All files and shows every file's items", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/alpha.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      expect(screen.getByRole("radio", { name: "All files" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+      expect(screen.getByText("Plan trip")).toBeInTheDocument();
+    });
+
+    it("controlled mode: scope prop drives the filter and onScopeChange fires", async () => {
+      const onScopeChange = vi.fn();
+      const { rerender } = render(
+        <TasksPanel
+          {...scopeProps}
+          currentFilePath="/work/space/bravo.md"
+          scope="file"
+          onScopeChange={onScopeChange}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Buy groceries")).toBeInTheDocument(),
+      );
+      expect(screen.getByRole("radio", { name: "This file" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("radio", { name: "All files" }));
+      expect(onScopeChange).toHaveBeenCalledWith("all");
+      // Parent has not accepted the change yet, so the prop still wins.
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+
+      rerender(
+        <TasksPanel
+          {...scopeProps}
+          currentFilePath="/work/space/bravo.md"
+          scope="all"
+          onScopeChange={onScopeChange}
+        />,
+      );
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
+    });
+
+    it("controlled mode does not write internal state", async () => {
+      const onScopeChange = vi.fn();
+      render(
+        <TasksPanel
+          {...scopeProps}
+          currentFilePath="/work/space/bravo.md"
+          scope="all"
+          onScopeChange={onScopeChange}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+      expect(onScopeChange).toHaveBeenCalledWith("file");
+      expect(screen.getByRole("radio", { name: "All files" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
+
+    it("ArrowRight/ArrowLeft move the scope selection and focus", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/bravo.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      const all = screen.getByRole("radio", { name: "All files" });
+      const file = screen.getByRole("radio", { name: "This file" });
+      all.focus();
+      fireEvent.keyDown(all, { key: "ArrowRight" });
+      expect(file).toHaveAttribute("aria-checked", "true");
+      expect(file).toHaveFocus();
+      fireEvent.keyDown(file, { key: "ArrowLeft" });
+      expect(all).toHaveAttribute("aria-checked", "true");
+      expect(all).toHaveFocus();
+    });
+
+    it("arrow keys skip the disabled This file option", async () => {
+      render(<TasksPanel {...scopeProps} currentFilePath={null} />);
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      const all = screen.getByRole("radio", { name: "All files" });
+      all.focus();
+      fireEvent.keyDown(all, { key: "ArrowRight" });
+      expect(all).toHaveAttribute("aria-checked", "true");
+      expect(all).toHaveFocus();
+    });
+
+    it("This file filters tasks and label chip counts to the open document", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/bravo.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+
+      expect(screen.getByText("Buy groceries")).toBeInTheDocument();
+      expect(screen.getByText("Review PR")).toBeInTheDocument();
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+      expect(screen.queryByText("Plan trip")).not.toBeInTheDocument();
+
+      // bravo.md carries one #home and one #urgent task; other files' labels vanish.
+      const chips = screen.getByRole("group", { name: "Filter by label" });
+      expect(chips.textContent).toContain("#home1");
+      expect(chips.textContent).toContain("#urgent1");
+      expect(chips.textContent).not.toContain("#errands");
+      expect(chips.textContent).not.toContain("#ideas");
+
+      // Back to All restores everything.
+      fireEvent.click(screen.getByRole("radio", { name: "All files" }));
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
+    });
+
+    it("This file filters Labels mode groups too", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/notes.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+
+      expect(screen.getByText("Big rewrite idea")).toBeInTheDocument();
+      expect(screen.getByText("Reorganize the pantry")).toBeInTheDocument();
+      expect(screen.queryByText("Renew passport")).not.toBeInTheDocument();
+      expect(screen.queryByText("Buy groceries")).not.toBeInTheDocument();
+    });
+
+    it("shows the file-scoped empty states", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/empty.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+      expect(screen.getByText("No tasks in this file")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Labels" }));
+      expect(
+        screen.getByText("No labeled items in this file"),
+      ).toBeInTheDocument();
+    });
+
+    it("disables This file when no file is open, and falls back to showing everything", async () => {
+      const { rerender } = render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/bravo.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+
+      rerender(<TasksPanel {...scopeProps} currentFilePath={null} />);
+      const thisFile = screen.getByRole("radio", { name: "This file" });
+      expect(thisFile).toBeDisabled();
+      expect(thisFile).toHaveAttribute("title", "Open a file to focus on it");
+      expect(screen.getByText("Pay rent")).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "All files" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+
+      // Scope is not reset: reopening a file re-engages the filter.
+      rerender(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/bravo.md" />,
+      );
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+    });
+
+    it("follows the current file when it changes", async () => {
+      const { rerender } = render(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/bravo.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+      expect(screen.getByText("Review PR")).toBeInTheDocument();
+      rerender(
+        <TasksPanel {...scopeProps} currentFilePath="/work/space/charlie.md" />,
+      );
+      expect(screen.getByText("Plan trip")).toBeInTheDocument();
+      expect(screen.queryByText("Review PR")).not.toBeInTheDocument();
+    });
+
+    it("shows an outside-workspace message when the open file is not under the root", async () => {
+      render(
+        <TasksPanel {...scopeProps} currentFilePath="/elsewhere/alpha.md" />,
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Pay rent")).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByRole("radio", { name: "This file" }));
+      expect(
+        screen.getByText("The open file is outside this workspace"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Pay rent")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("toWorkspaceRelativePath", () => {
+    it("handles Windows-style paths", () => {
+      expect(toWorkspaceRelativePath("C:\\notes\\sub\\a.md", "C:\\notes")).toBe(
+        "sub/a.md",
+      );
+      expect(toWorkspaceRelativePath("C:\\notes\\a.md", "C:\\notes\\")).toBe(
+        "a.md",
+      );
+    });
+    it("handles POSIX-style and mixed separators", () => {
+      expect(toWorkspaceRelativePath("/w/s/sub/a.md", "/w/s")).toBe("sub/a.md");
+      expect(toWorkspaceRelativePath("/w/s/sub/a.md", "/w/s/")).toBe(
+        "sub/a.md",
+      );
+      expect(toWorkspaceRelativePath("C:/notes/a.md", "C:\\notes")).toBe(
+        "a.md",
+      );
+    });
+    it("matches the prefix case-insensitively for Windows drive paths only", () => {
+      expect(toWorkspaceRelativePath("c:/ws/a.md", "C:\\ws")).toBe("a.md");
+      expect(toWorkspaceRelativePath("/WS/a.md", "/ws")).toBeNull();
+    });
+    it("returns null outside the workspace, on sibling-prefix, or missing input", () => {
+      expect(toWorkspaceRelativePath("/other/a.md", "/w/s")).toBeNull();
+      expect(toWorkspaceRelativePath("/w/s2/a.md", "/w/s")).toBeNull();
+      expect(toWorkspaceRelativePath("/w/s", "/w/s")).toBeNull();
+      expect(toWorkspaceRelativePath(null, "/w/s")).toBeNull();
+      expect(toWorkspaceRelativePath("/w/s/a.md", null)).toBeNull();
     });
   });
 });
