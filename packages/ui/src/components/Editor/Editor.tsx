@@ -36,6 +36,7 @@ import {
 } from "./dueDatePickerPlugin";
 import { DueDatePicker, type DueDatePickerAnchor } from "./DueDatePicker";
 import { tablePlugin } from "./tablePlugin";
+import { imageViewerPlugin } from "./imageViewerPlugin";
 import { createFindReplacePlugin } from "../FindReplace/FindReplace.plugin";
 import { getPlatform } from "../../platform";
 import "./Editor.css";
@@ -728,6 +729,7 @@ export function Editor({
       .use(dueDatePickerSync)
       .use(tablePlugin)
       .use(findReplacePlugin)
+      .use(imageViewerPlugin(() => !isMobileRuntime))
       .config((ctx) => {
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
           onWordCountChange?.(countWords(markdown));

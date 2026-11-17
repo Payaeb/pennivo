@@ -307,6 +307,54 @@
   margin: 12px 0;
 }
 
+/* Image viewer affordance: double-click opens it (see imageViewerPlugin.ts). */
+@media (hover: hover) {
+  .ProseMirror img {
+    cursor: zoom-in;
+  }
+}
+
+/* Hover badge, appended to document.body by imageViewerPlugin so the editor
+   DOM is never touched. Sits below the viewer (10050) and the toolbars. */
+.pennivo-image-badge {
+  position: fixed;
+  z-index: 40;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-overlay) 92%, transparent);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  animation: pennivo-image-badge-in 120ms ease-out both;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.pennivo-image-badge[hidden] {
+  display: none;
+}
+
+.pennivo-image-badge:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@keyframes pennivo-image-badge-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* ── Task lists (GFM checkboxes) ── */
 .ProseMirror li[data-checked] {
   list-style: none;

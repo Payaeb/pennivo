@@ -1,0 +1,251 @@
+/* ─── Image viewer (lightbox) ───
+ *
+ * The page is "lifted away" rather than blacked out: the backdrop is the
+ * theme's own background at ~90% with a light blur, so the document still
+ * reads as a faint ghost behind the image. Dark themes sit slightly deeper.
+ * Every colour derives from tokens.css so all four themes follow for free.
+ */
+
+.iv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050; /* above PrivacyDialog (10001), below CommandPalette (10100) */
+  -webkit-app-region: no-drag;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  outline: none;
+  animation: iv-in 140ms ease-out both;
+}
+
+[data-theme="dark"] .iv-overlay {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+@keyframes iv-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes iv-in-reduced {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.iv-overlay--reduced {
+  animation-name: iv-in-reduced;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iv-overlay {
+    animation-name: iv-in-reduced;
+  }
+}
+
+/* ── Stage + image ── */
+
+.iv-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.iv-stage--dragging {
+  cursor: grabbing;
+}
+
+.iv-stage--idle {
+  cursor: default;
+}
+
+.iv-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  max-height: none;
+  transform-origin: 0 0;
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 24px 56px -16px color-mix(in srgb, var(--text-primary) 26%, transparent),
+    0 4px 14px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+[data-theme="dark"] .iv-img {
+  box-shadow: 0 0 0 1px var(--border-mid);
+}
+
+/* Past ~400% show real pixels instead of a smeared bilinear blur. */
+.iv-img--crisp {
+  image-rendering: pixelated;
+}
+
+.iv-img--ready {
+  opacity: 1;
+}
+
+.iv-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── Caption ── */
+
+.iv-caption {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  max-width: min(46vw, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--text-primary) 72%, transparent);
+  pointer-events: none;
+}
+
+/* ── Controls ── */
+
+.iv-fade {
+  transition: opacity 180ms ease;
+}
+
+.iv-overlay--idle .iv-fade:not(:has(:focus-visible)):not(:focus-visible) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.iv-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-lg);
+  width: 36px;
+  height: 36px;
+}
+
+.iv-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 28px -10px
+    color-mix(in srgb, var(--text-primary) 28%, transparent);
+  max-width: calc(100vw - 24px);
+}
+
+.iv-btn,
+.iv-readout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: color-mix(in srgb, var(--text-primary) 72%, transparent);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.iv-btn--text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.iv-readout {
+  min-width: 56px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.iv-btn:hover:not(:disabled),
+.iv-readout:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.iv-btn:active:not(:disabled),
+.iv-readout:active:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.iv-btn[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.iv-btn:disabled,
+.iv-readout:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.iv-btn:focus-visible,
+.iv-readout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.iv-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: var(--border-mid);
+}
+
+.iv-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

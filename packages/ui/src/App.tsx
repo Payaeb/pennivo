@@ -27,6 +27,11 @@ import {
   type BulletZoomInfo,
 } from "./components/Editor/bulletZoomPlugin";
 import { revealPosition } from "./components/Editor/collapsibleListPlugin";
+import {
+  OPEN_IMAGE_VIEWER_EVENT,
+  type ImageViewerRequest,
+} from "./components/Editor/imageViewerPlugin";
+import { ImageViewer } from "./components/ImageViewer";
 import { TextSelection } from "@milkdown/prose/state";
 import { findListItemByText } from "./utils/findListItemByText";
 import { ZoomBreadcrumb } from "./components/Editor/ZoomBreadcrumb";
@@ -263,6 +268,14 @@ function AppContent() {
     new Set(),
   );
   const [focusMode, setFocusMode] = useState(false);
+  // Image viewer (lightbox): request comes from imageViewerPlugin's
+  // CustomEvent (double-click or hover badge). The ref lets window-level
+  // handlers that must stand down while it is open skip re-subscribing.
+  const [imageViewer, setImageViewer] = useState<ImageViewerRequest | null>(
+    null,
+  );
+  const imageViewerOpenRef = useRef(false);
+  imageViewerOpenRef.current = imageViewer != null;
   // --- Bullet zoom (Phase 18a) ---
   // Session-only, per-editor-instance view state mirrored from
   // bulletZoomKey's plugin state (read in handleViewUpdate on every view
@@ -2293,6 +2306,36 @@ function AppContent() {
     [scheduleAutoSave],
   );
 
+  // --- Image viewer ---
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<ImageViewerRequest>).detail;
+      if (detail?.src) setImageViewer(detail);
+    };
+    window.addEventListener(OPEN_IMAGE_VIEWER_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_IMAGE_VIEWER_EVENT, onOpen);
+  }, []);
+
+  // A viewer left open over a different document would show a stale image.
+  useEffect(() => {
+    setImageViewer(null);
+  }, [filePath]);
+
+  const closeImageViewer = useCallback(() => {
+    setImageViewer(null);
+    // The viewer restores focus to the element that had it; if that was the
+    // body (e.g. the image was clicked), hand focus back to the editor
+    // without scrolling.
+    queueMicrotask(() => {
+      if (document.activeElement && document.activeElement !== document.body)
+        return;
+      const editor = getInstance();
+      editor?.action((ctx) => {
+        ctx.get(editorViewCtx).dom.focus({ preventScroll: true });
+      });
+    });
+  }, [getInstance]);
+
   // --- Focus mode toggle ---
   const toggleFocusMode = useCallback(() => {
     setFocusMode((prev) => {
@@ -2624,6 +2667,8 @@ function AppContent() {
     if (!focusMode && !bulletZoomActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // The image viewer owns Esc while open (closes only itself).
+      if (imageViewerOpenRef.current) return;
       // Let the link popover, titlebar menu, find bar, or command palette handle Escape first
       if (linkPopover) return;
       if (ganttEditor) return;
@@ -2748,6 +2793,8 @@ function AppContent() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      // The image viewer zooms the image, not the app.
+      if (imageViewerOpenRef.current) return;
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
         platform.zoomIn();
@@ -2762,6 +2809,7 @@ function AppContent() {
 
     const handleWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      if (imageViewerOpenRef.current) return;
       e.preventDefault();
       if (e.deltaY < 0) platform.zoomIn();
       else if (e.deltaY > 0) platform.zoomOut();
@@ -4409,6 +4457,23 @@ function AppContent() {
             <span>Drop to open</span>
           </div>
         </div>
+      )}
+      {imageViewer && (
+        <ImageViewer
+          key={imageViewer.src}
+          src={imageViewer.src}
+          alt={imageViewer.alt}
+          onClose={closeImageViewer}
+          fullScreen={
+            platform.platformName === "electron"
+              ? {
+                  ownedByApp: focusMode,
+                  set: platform.setFullScreen,
+                  isActive: platform.isFullScreen,
+                }
+              : undefined
+          }
+        />
       )}
       <CommandPalette
         visible={commandPaletteOpen}

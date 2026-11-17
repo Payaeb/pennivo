@@ -57,6 +57,18 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Export",
     items: [{ action: "Export HTML", keys: "Ctrl+Shift+E" }],
   },
+  {
+    title: "Image Viewer",
+    items: [
+      { action: "Open (double-click image)", keys: "Dbl-click" },
+      { action: "Close", keys: "Esc" },
+      { action: "Zoom In / Out", keys: "Plus / Minus" },
+      { action: "Fit to Window", keys: "0" },
+      { action: "Actual Size (100%)", keys: "1" },
+      { action: "Pan", keys: "Arrows" },
+      { action: "Full Screen", keys: "F" },
+    ],
+  },
 ];
 
 function renderKeys(keys: string) {
