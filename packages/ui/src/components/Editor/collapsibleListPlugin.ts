@@ -3,7 +3,7 @@ import { Plugin, PluginKey, TextSelection } from "@milkdown/prose/state";
 import { Decoration, DecorationSet } from "@milkdown/prose/view";
 import type { Node, ResolvedPos } from "@milkdown/prose/model";
 import type { EditorView } from "@milkdown/prose/view";
-import type { EditorState } from "@milkdown/prose/state";
+import type { EditorState, Transaction } from "@milkdown/prose/state";
 
 const collapsibleKey = new PluginKey("collapsible-list");
 
@@ -39,9 +39,13 @@ export function isPositionHiddenByCollapse(
 }
 
 function collapsedAncestorIndices(state: EditorState, pos: number): number[] {
+  return collapsedAncestorIndicesIn(state.doc, pos);
+}
+
+function collapsedAncestorIndicesIn(doc: Node, pos: number): number[] {
   const out: number[] = [];
-  if (pos < 0 || pos > state.doc.content.size) return out;
-  const $pos = state.doc.resolve(pos);
+  if (pos < 0 || pos > doc.content.size) return out;
+  const $pos = doc.resolve(pos);
   // The innermost list_item is the target's OWN item: its text is visible
   // whether or not its children are collapsed, so leave that user choice
   // alone and only expand the strict ancestors that actually hide it.
@@ -54,10 +58,61 @@ function collapsedAncestorIndices(state: EditorState, pos: number): number[] {
       continue;
     }
     if (!hasNestedList(node)) continue;
-    const idx = collapsibleIndexOf(state, $pos.before(d));
+    const idx = collapsibleIndexIn(doc, $pos.before(d));
     if (idx !== -1 && collapsedIndices.has(idx)) out.push(idx);
   }
   return out;
+}
+
+function collapsiblePositions(doc: Node): number[] {
+  const out: number[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === "list_item" && hasNestedList(node)) out.push(pos);
+  });
+  return out;
+}
+
+/**
+ * Collapse state is stored by ordinal index among collapsible items, and that
+ * ordinal shifts whenever an edit changes which items are collapsible (an item
+ * gaining its first child by indent, or losing its last by outdent). Without
+ * re-keying, the shifted ordinal lands on a different item and collapses it.
+ * Carry each collapsed item across the transaction by position instead, then
+ * re-derive the indices in the new doc. Items that were deleted, or that are
+ * no longer collapsible, drop out; newly collapsible items start expanded.
+ */
+function remapCollapsedThrough(tr: Transaction, oldDoc: Node): void {
+  if (collapsedIndices.size === 0) return;
+  const oldPositions = collapsiblePositions(oldDoc);
+  const carried = new Set<number>();
+  oldPositions.forEach((pos, idx) => {
+    if (!collapsedIndices.has(idx)) return;
+    // Map the position just inside the item: node-markup rewrites (e.g.
+    // ordered-list label refresh) replace the item boundary but preserve the
+    // content, so the boundary itself can report "deleted" while the inside
+    // survives.
+    const res = tr.mapping.mapResult(pos + 1, 1);
+    if (res.deleted) return;
+    const $mapped = tr.doc.resolve(res.pos);
+    if ($mapped.parent.type.name === "list_item") {
+      carried.add($mapped.before($mapped.depth));
+    }
+  });
+  collapsedIndices.clear();
+  collapsiblePositions(tr.doc).forEach((pos, idx) => {
+    if (carried.has(pos)) collapsedIndices.add(idx);
+  });
+}
+
+/**
+ * After an edit, never leave the caret hidden inside a collapsed item (e.g.
+ * indenting a bullet under a collapsed sibling): expand those ancestors.
+ */
+function revealSelectionAfter(tr: Transaction): void {
+  if (collapsedIndices.size === 0) return;
+  for (const idx of collapsedAncestorIndicesIn(tr.doc, tr.selection.head)) {
+    collapsedIndices.delete(idx);
+  }
 }
 
 /**
@@ -87,7 +142,11 @@ export const collapsibleListPlugin = $prose(
         init(_, state) {
           return buildDecorations(state.doc);
         },
-        apply(tr, oldDeco) {
+        apply(tr, oldDeco, oldState) {
+          if (tr.docChanged) {
+            remapCollapsedThrough(tr, oldState.doc);
+            revealSelectionAfter(tr);
+          }
           if (tr.docChanged || tr.getMeta(collapsibleKey)) {
             return buildDecorations(tr.doc);
           }
@@ -241,9 +300,13 @@ function findListItemDepth($pos: ResolvedPos): number {
 }
 
 function collapsibleIndexOf(state: EditorState, listItemPos: number): number {
+  return collapsibleIndexIn(state.doc, listItemPos);
+}
+
+function collapsibleIndexIn(doc: Node, listItemPos: number): number {
   let counter = 0;
   let found = -1;
-  state.doc.descendants((node, pos) => {
+  doc.descendants((node, pos) => {
     if (found !== -1) return false;
     if (node.type.name !== "list_item") return true;
     if (!hasNestedList(node)) return true;

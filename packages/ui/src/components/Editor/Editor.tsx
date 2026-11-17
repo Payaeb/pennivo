@@ -9,6 +9,7 @@ import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { history } from "@milkdown/plugin-history";
+import { tabFocusGuardPlugin } from "./tabFocusGuardPlugin";
 import { $prose } from "@milkdown/utils";
 import { Plugin, Selection } from "@milkdown/prose/state";
 import { InputRule, inputRules } from "@milkdown/prose/inputrules";
@@ -721,6 +722,7 @@ export function Editor({
       .use(mermaidPlugin)
       .use(collapsibleListPlugin)
       .use(bulletZoomPlugin)
+      .use(tabFocusGuardPlugin)
       .use(taskMetaChipsPlugin)
       .use(dueDatePickerPlugin)
       .use(dueDatePickerSync)
