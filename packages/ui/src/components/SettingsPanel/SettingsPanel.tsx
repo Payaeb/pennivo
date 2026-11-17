@@ -6,11 +6,23 @@ import { migrateRecoverySettings, type RecoverySettings } from "@pennivo/core";
 import { RecoverySection } from "./RecoverySection";
 import { McpSection } from "./McpSection";
 import { migrateMcpSettings, type McpSettings } from "./mcpSettings";
+import {
+  applyEditorFontFamily,
+  applyEditorFontSize,
+} from "../../utils/startupAppearance";
+import {
+  DEFAULT_EDITOR_WIDTH,
+  EDITOR_WIDTH_LABELS,
+  EDITOR_WIDTH_PRESETS,
+  migrateEditorWidth,
+  type EditorWidth,
+} from "../../utils/editorWidth";
 import "./SettingsPanel.css";
 
 export interface AppSettings {
   editorFontSize: number;
   editorFontFamily: string;
+  editorWidth: EditorWidth;
   autoSave: boolean;
   autoSaveDelay: number;
   spellcheck: boolean;
@@ -22,6 +34,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   editorFontSize: 16,
   editorFontFamily: "serif",
+  editorWidth: DEFAULT_EDITOR_WIDTH,
   autoSave: true,
   autoSaveDelay: 3,
   spellcheck: true,
@@ -77,7 +90,11 @@ export function SettingsPanel({
     if (!visible) return;
     platform.getSettings().then((saved: Record<string, unknown>) => {
       if (saved && typeof saved === "object") {
-        setSettings((prev) => ({ ...prev, ...saved }));
+        setSettings((prev) => ({
+          ...prev,
+          ...saved,
+          editorWidth: migrateEditorWidth(saved.editorWidth),
+        }));
         const recRaw = (saved as Record<string, unknown>).recovery;
         setRecoverySettings(migrateRecoverySettings(recRaw));
         setMcpSettings(
@@ -153,26 +170,17 @@ export function SettingsPanel({
     [onChange],
   );
 
-  // Apply font size and family to CSS custom properties
+  // Apply font size and family to CSS custom properties (same helpers the
+  // startup path uses, so a saved value looks identical before and after the
+  // panel is first opened).
   useEffect(() => {
     if (!loaded) return;
-    document.documentElement.style.setProperty(
-      "--text-base",
-      `${settings.editorFontSize}px`,
-    );
+    applyEditorFontSize(settings.editorFontSize);
   }, [settings.editorFontSize, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
-    const families: Record<string, string> = {
-      serif: '"Georgia", "Times New Roman", serif',
-      "sans-serif": '"Segoe UI", system-ui, sans-serif',
-      monospace: '"Cascadia Code", "Fira Code", "Consolas", monospace',
-    };
-    document.documentElement.style.setProperty(
-      "--font-editor",
-      families[settings.editorFontFamily] || families["serif"],
-    );
+    applyEditorFontFamily(settings.editorFontFamily);
   }, [settings.editorFontFamily, loaded]);
 
   // Apply spellcheck setting
@@ -312,6 +320,32 @@ export function SettingsPanel({
                 <option value="serif">Serif (Georgia)</option>
                 <option value="sans-serif">Sans-serif (Segoe UI)</option>
                 <option value="monospace">Monospace (Cascadia Code)</option>
+              </select>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-label">
+                Editor Width
+                <span className="settings-label-desc">
+                  How wide the text column is. Full fills the window.
+                </span>
+              </div>
+              <select
+                className="settings-select"
+                aria-label="Editor width"
+                value={settings.editorWidth}
+                onChange={(e) =>
+                  updateSetting(
+                    "editorWidth",
+                    migrateEditorWidth(e.target.value),
+                  )
+                }
+              >
+                {EDITOR_WIDTH_PRESETS.map((id) => (
+                  <option key={id} value={id}>
+                    {EDITOR_WIDTH_LABELS[id]}
+                  </option>
+                ))}
               </select>
             </div>
 

@@ -1,4 +1,5 @@
 export { App } from "./App";
+export { applyStartupAppearance } from "./utils/startupAppearance";
 export { Editor } from "./components/Editor/Editor";
 export { AppShell } from "./components/AppShell/AppShell";
 export { Toolbar } from "./components/Toolbar/Toolbar";

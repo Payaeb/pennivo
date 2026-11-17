@@ -33,6 +33,7 @@ import {
 } from "./components/Editor/imageViewerPlugin";
 import { ImageViewer } from "./components/ImageViewer";
 import { TextSelection } from "@milkdown/prose/state";
+import { applyEditorWidth, migrateEditorWidth } from "./utils/editorWidth";
 import { findListItemByText } from "./utils/findListItemByText";
 import { ZoomBreadcrumb } from "./components/Editor/ZoomBreadcrumb";
 import {
@@ -808,6 +809,9 @@ function AppContent() {
       }
       if (typeof settings.recordCompletionDates === "boolean") {
         setRecordCompletionDates(settings.recordCompletionDates);
+      }
+      if ("editorWidth" in settings) {
+        applyEditorWidth(migrateEditorWidth(settings.editorWidth));
       }
     },
     [],
