@@ -129,4 +129,34 @@ describe("buildContextMenu", () => {
     });
     expect(items[items.length - 1].kind).not.toBe("separator");
   });
+
+  describe("link scheme handling", () => {
+    const hostile = [
+      "file:///C:/Windows/System32/calc.exe",
+      "\\\\host\\share\\x",
+      "javascript:alert(1)",
+      "ms-msdt:x",
+      "search-ms:query=x",
+      "mailto:a@b.c",
+    ];
+    it.each(hostile)(
+      "does not offer Open Link for %s but keeps Copy Link Address",
+      (linkURL) => {
+        const kinds = buildContextMenu({ ...minimal, linkURL }).map(
+          (i) => i.kind,
+        );
+        expect(kinds).not.toContain("openLink");
+        expect(kinds).toContain("copyLink");
+      },
+    );
+
+    it("still offers Open Link for http and https links", () => {
+      for (const linkURL of ["https://example.com/a b", "http://example.com"]) {
+        const kinds = buildContextMenu({ ...minimal, linkURL }).map(
+          (i) => i.kind,
+        );
+        expect(kinds).toContain("openLink");
+      }
+    });
+  });
 });

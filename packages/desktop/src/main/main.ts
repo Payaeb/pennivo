@@ -15,6 +15,7 @@ import { autoUpdater } from "electron-updater";
 import {
   applyArchiveDefaults,
   buildContextMenu,
+  isSafeExternalUrl,
   decodeImageUrlSpaces,
   encodeImageUrlSpaces,
   extractReferencedFolders,
@@ -356,11 +357,24 @@ async function sumDirectoryBytes(root: string): Promise<number> {
   return total;
 }
 
+/**
+ * The only place the app hands a URL to the OS. Both the Ctrl+click IPC and
+ * the right-click "Open Link" item go through here, so the scheme check
+ * (`isSafeExternalUrl`: http/https only) cannot differ between them.
+ */
+function openExternalChecked(url: unknown): void {
+  if (isSafeExternalUrl(url)) {
+    void shell.openExternal(url);
+  }
+}
+
 // --- Settings persistence ---
 interface AppSettings {
   firstRun?: boolean;
   editorFontSize?: number;
   editorFontFamily?: string;
+  /** "narrow" | "default" | "wide" | "full"; validated in the renderer. */
+  editorWidth?: string;
   autoSave?: boolean;
   autoSaveDelay?: number;
   spellcheck?: boolean;
@@ -1202,7 +1216,7 @@ function createWindow() {
           case "openLink":
             return {
               label: item.label,
-              click: () => shell.openExternal(item.url),
+              click: () => openExternalChecked(item.url),
             };
           case "copyLink":
           case "copyImageAddress":
@@ -1445,12 +1459,7 @@ function registerIpcHandlers() {
 
   // Open external URL in default browser
   ipcMain.on("shell:open-external", (_e, url: string) => {
-    if (
-      typeof url === "string" &&
-      (url.startsWith("https://") || url.startsWith("http://"))
-    ) {
-      shell.openExternal(url);
-    }
+    openExternalChecked(url);
   });
 
   // Dirty state tracking (renderer tells main)

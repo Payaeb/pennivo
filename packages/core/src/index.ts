@@ -181,3 +181,4 @@ export {
   scanMetaTokens,
   parseListItemText,
 } from "./tasks";
+export { isSafeExternalUrl } from "./externalUrl";

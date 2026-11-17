@@ -2,6 +2,8 @@
 // it can be unit-tested without booting Electron; the desktop main process
 // adapts the spec into Electron MenuItems.
 
+import { isSafeExternalUrl } from "./externalUrl";
+
 export interface ContextMenuInput {
   isEditable: boolean;
   misspelledWord?: string;
@@ -88,7 +90,11 @@ export function buildContextMenu(input: ContextMenuInput): ContextMenuItem[] {
   }
 
   if (input.linkURL) {
-    items.push({ kind: "openLink", label: "Open Link", url: input.linkURL });
+    // Open Link is only offered for web links. The main process re-checks the
+    // same guard before launching, so this is not the only defence.
+    if (isSafeExternalUrl(input.linkURL)) {
+      items.push({ kind: "openLink", label: "Open Link", url: input.linkURL });
+    }
     items.push({
       kind: "copyLink",
       label: "Copy Link Address",
