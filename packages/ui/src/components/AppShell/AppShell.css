@@ -93,10 +93,6 @@
   padding-top: var(--editor-padding-v);
 }
 
-.app-shell--focus .app-editor-column {
-  max-width: 620px;
-}
-
 /* Chrome header (titlebar + toolbar) auto-hides together */
 .app-shell--focus .titlebar,
 .app-shell--focus .app-toolbar-row {

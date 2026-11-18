@@ -297,6 +297,31 @@ test("a wide preset in a small window fills the width with no horizontal scroll"
   await close();
 });
 
+test("focus mode uses the chosen editor width", async () => {
+  test.setTimeout(120_000);
+  await launch();
+  await setWindowSize(1400, 900);
+  await window.keyboard.press("Control+Shift+P");
+  await expect(window.locator(".command-palette-input")).toBeFocused();
+  await window.keyboard.type("Toggle Focus Mode");
+  await window.keyboard.press("Enter");
+  await expect(window.locator(".app-shell--focus")).toHaveCount(1);
+  await window.waitForTimeout(800);
+  for (const preset of PRESETS) {
+    await chooseWidth(preset);
+    await expect(window.locator(".app-shell--focus")).toHaveCount(1);
+    const m = await measure();
+    expect(
+      Math.abs(m.col - expectedWidth(preset, m, false)),
+      `focus ${preset}`,
+    ).toBeLessThanOrEqual(1);
+  }
+  await chooseWidth("default");
+  await window.keyboard.press("Escape");
+  await expect(window.locator(".app-shell--focus")).toHaveCount(0);
+  await close();
+});
+
 test("the choice persists to settings.json and survives a restart", async () => {
   test.setTimeout(120_000);
   await launch();
