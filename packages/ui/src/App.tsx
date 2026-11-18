@@ -12,6 +12,7 @@ import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/core";
 import { applyStreamingUpdate } from "./components/Editor/streamingUpdate";
 import { shouldStream } from "./components/Editor/streamingGate";
 import DOMPurify from "dompurify";
+import { sanitizeEditorHtmlForExport } from "./utils/exportSanitize";
 import { callCommand, replaceAll } from "@milkdown/utils";
 import { lift } from "@milkdown/prose/commands";
 import type { EditorView } from "@milkdown/prose/view";
@@ -2361,33 +2362,61 @@ function AppContent() {
   }, []);
 
   // --- Export helpers ---
-  const getEditorHtml = useCallback((): string => {
-    if (loading) return "";
-    const editor = getInstance();
-    if (!editor) return "";
-    let html = "";
-    editor.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      html = view.dom.innerHTML;
-    });
-    // Sanitize before sending to main process for export
-    return DOMPurify.sanitize(html, {
-      USE_PROFILES: { html: true, svg: true, svgFilters: true },
-      ADD_TAGS: ["foreignObject", "style"],
-      ADD_ATTR: [
-        "class",
-        "data-type",
-        "colspan",
-        "rowspan",
-        "dominant-baseline",
-        "text-anchor",
-        "transform",
-        "marker-end",
-        "marker-start",
-        "clip-path",
-      ],
-    });
-  }, [loading, getInstance]);
+  const getEditorHtml = useCallback(
+    (forPdf: boolean = false): string => {
+      if (loading) return "";
+      const editor = getInstance();
+      if (!editor) return "";
+      let html = "";
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        // Drop editor-only chrome (collapse handles, badges, decoration classes)
+        // from a detached copy; the live DOM is never touched.
+        html = sanitizeEditorHtmlForExport(view.dom.innerHTML);
+      });
+      // Sanitize before sending to main process for export. DOMPurify drops
+      // unknown URI schemes, which would strip every local image (its src is a
+      // pennivo-file:/// URL that the export step rewrites to file:///). PDF
+      // export keeps that one scheme on <img src> only, for this call. HTML
+      // export never carries a local path, so it keeps DOMPurify's stripping.
+      const keepLocalImageSrc = (
+        node: Element,
+        data: { attrName: string; attrValue: string; forceKeepAttr?: boolean },
+      ) => {
+        if (
+          node.nodeName === "IMG" &&
+          data.attrName === "src" &&
+          /^pennivo-file:\/\/\//i.test(data.attrValue)
+        ) {
+          data.forceKeepAttr = true;
+        }
+      };
+      if (forPdf) DOMPurify.addHook("uponSanitizeAttribute", keepLocalImageSrc);
+      try {
+        return DOMPurify.sanitize(html, {
+          USE_PROFILES: { html: true, svg: true, svgFilters: true },
+          ADD_TAGS: ["foreignObject", "style"],
+          ADD_ATTR: [
+            "class",
+            "data-type",
+            "colspan",
+            "rowspan",
+            "dominant-baseline",
+            "text-anchor",
+            "transform",
+            "marker-end",
+            "marker-start",
+            "clip-path",
+          ],
+        });
+      } finally {
+        if (forPdf) {
+          DOMPurify.removeHook("uponSanitizeAttribute", keepLocalImageSrc);
+        }
+      }
+    },
+    [loading, getInstance],
+  );
 
   const doExportHtml = useCallback(async () => {
     const html = getEditorHtml();
@@ -2399,7 +2428,7 @@ function AppContent() {
   }, [getEditorHtml, filename, showToast]);
 
   const doExportPdf = useCallback(async () => {
-    const html = getEditorHtml();
+    const html = getEditorHtml(true);
     if (!html) return;
     const result = await platform.exportPdf(html, filename);
     if (result) showToast("Exported as PDF");

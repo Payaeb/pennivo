@@ -568,7 +568,7 @@ export function createCapacitorPlatform(): PennivoPlatform {
     },
 
     exportPdf: async (html, title) => {
-      const styledHtml = wrapHtmlWithStyles(html, title);
+      const styledHtml = wrapHtmlWithStyles(html, title, true);
       return printHtmlAsPdf(styledHtml);
     },
 

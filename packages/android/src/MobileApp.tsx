@@ -36,6 +36,7 @@ import {
   COLOR_SCHEMES,
   LinkActionSheet,
   applyListConversion,
+  sanitizeEditorHtmlForExport,
 } from "@pennivo/ui";
 import type { ColorScheme, ThemeMode } from "@pennivo/ui";
 import {
@@ -240,7 +241,7 @@ function MobileEditorContent({
       let html = "";
       editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
-        html = view.dom.innerHTML;
+        html = sanitizeEditorHtmlForExport(view.dom.innerHTML);
       });
       return html;
     };

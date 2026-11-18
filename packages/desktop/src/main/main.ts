@@ -27,6 +27,8 @@ import {
   defaultWorkspacePrefs,
   extractTaskItems,
   extractLabeledItems,
+  migrateUnchosenFontSize,
+  FONT_SIZE_MIGRATION_KEY,
   type LabeledItem,
   type RecoverySettings,
   type SearchOptions,
@@ -73,6 +75,7 @@ import { startMcpHostBridge, stopMcpHostBridge } from "./mcpHostBridge";
 import {
   readFileSync,
   writeFileSync,
+  renameSync,
   statSync,
   watch,
   type FSWatcher,
@@ -372,6 +375,11 @@ function openExternalChecked(url: unknown): void {
 interface AppSettings {
   firstRun?: boolean;
   editorFontSize?: number;
+  /**
+   * True once the one-time reset of an unchosen saved font size 16 to the
+   * default 17 has run (see `migrateUnchosenFontSize`). Never cleared.
+   */
+  fontSizeDefaultMigrated?: boolean;
   editorFontFamily?: string;
   /** "narrow" | "default" | "wide" | "full"; validated in the renderer. */
   editorWidth?: string;
@@ -422,9 +430,38 @@ function getSettingsPath(): string {
 function readSettings(): AppSettings {
   try {
     const data = readFileSync(getSettingsPath(), "utf-8");
-    return JSON.parse(data);
+    const parsed: unknown = JSON.parse(data);
+    // Valid JSON that is not an object (null, a number, ...) is corrupt.
+    return parsed !== null && typeof parsed === "object"
+      ? (parsed as AppSettings)
+      : {};
   } catch {
     return {};
+  }
+}
+
+/**
+ * One-time startup migration (before any window or `settings:get`): a saved
+ * font size 16 written by versions up to 1.7.0 becomes 17, once, so the first
+ * paint after updating is the real default. A missing or non-object settings
+ * file is left untouched; `settings:set` stamps the marker on first write.
+ */
+function migrateFontSizeOnStartup(): void {
+  try {
+    const target = getSettingsPath();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(target, "utf-8"));
+    } catch {
+      return;
+    }
+    const { settings, changed } = migrateUnchosenFontSize(parsed);
+    if (!changed) return;
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(tmp, JSON.stringify(settings, null, 2), "utf-8");
+    renameSync(tmp, target);
+  } catch (err) {
+    console.error("[Pennivo] font size migration failed:", err);
   }
 }
 
@@ -931,9 +968,27 @@ function stopFolderWatcher() {
   refreshOpenFileWatcher();
 }
 
-function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
-  // Convert pennivo-file:// protocol URLs to file:// for standalone HTML
-  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///");
+// Remove any local-path src (pennivo-file: or file:) from <img> tags so an
+// exported HTML file never carries a path from the author's machine.
+function stripLocalImageSrc(html: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) =>
+    tag.replace(
+      /\ssrc=(?:"(?:pennivo-file|file):[^"]*"|'(?:pennivo-file|file):[^']*')/gi,
+      "",
+    ),
+  );
+}
+
+function wrapHtmlWithStyles(
+  bodyHtml: string,
+  title: string,
+  forPdf: boolean = false,
+): string {
+  // PDF: convert pennivo-file:// URLs to file:// so the hidden window can load
+  // them. HTML: local image paths are dropped, never written to the file.
+  let html = forPdf
+    ? bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///")
+    : stripLocalImageSrc(bodyHtml);
   // Override dark-mode fill colors in mermaid SVG <style> blocks for light export background
   html = html.replace(
     /(<style>[^<]*?{[^}]*?)fill:#[Ee][0-9A-Fa-f]{5};/g,
@@ -2804,6 +2859,9 @@ function registerIpcHandlers() {
     }
     await mutateSettings((current) => ({
       ...rest,
+      // Every settings:set write carries the marker, so a later deliberately
+      // chosen 16 is never reset (also covers fresh installs).
+      [FONT_SIZE_MIGRATION_KEY]: true,
       recovery: nextRecovery ?? previous.recovery,
       // Preserve whatever the workspaces:* handlers last wrote to disk.
       workspaces: current.workspaces,
@@ -3086,7 +3144,7 @@ function registerIpcHandlers() {
   ipcMain.handle(
     "export:pdf",
     async (_e, args: { html: string; title: string }) => {
-      const styledHtml = wrapHtmlWithStyles(args.html, args.title);
+      const styledHtml = wrapHtmlWithStyles(args.html, args.title, true);
       const defaultName = args.title.replace(/\.md$/i, "") + ".pdf";
 
       // Write to temp file so the hidden window can load it
@@ -3149,6 +3207,9 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.whenReady().then(() => {
+  // Must run before the renderer's first settings:get.
+  migrateFontSizeOnStartup();
+
   // Handle pennivo-file:// protocol — serves local files by absolute path
   protocol.handle("pennivo-file", (request) => {
     // URL format: pennivo-file:///C:/path/to/image.png

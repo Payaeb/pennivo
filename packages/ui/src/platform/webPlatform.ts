@@ -170,7 +170,7 @@ export function createWebPlatform(): PennivoPlatform {
     },
     exportPdf: async (html, title) => {
       // No native PDF in plain browser — fall back to print dialog
-      const styledHtml = wrapHtmlWithStyles(html, title);
+      const styledHtml = wrapHtmlWithStyles(html, title, true);
       try {
         const w = window.open("", "_blank");
         if (!w) return null;

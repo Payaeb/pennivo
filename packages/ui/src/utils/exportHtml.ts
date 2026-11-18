@@ -7,13 +7,34 @@
  */
 
 /**
+ * Remove any local-path `src` (pennivo-file: or file:) from <img> tags so a
+ * shared HTML file never carries a path from the author's machine.
+ */
+export function stripLocalImageSrc(html: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) =>
+    tag.replace(
+      /\ssrc=(?:"(?:pennivo-file|file):[^"]*"|'(?:pennivo-file|file):[^']*')/gi,
+      "",
+    ),
+  );
+}
+
+/**
  * Wraps raw editor HTML in a full standalone document with embedded styles.
  * The resulting HTML has no external dependencies and renders identically to
- * the in-app preview.
+ * the in-app preview. Local images are kept only when `forPdf` is true (the
+ * PDF is rendered from a local temp file); HTML export never includes them.
  */
-export function wrapHtmlWithStyles(bodyHtml: string, title: string): string {
-  // Convert pennivo-file:// protocol URLs to file:// for standalone HTML
-  let html = bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///");
+export function wrapHtmlWithStyles(
+  bodyHtml: string,
+  title: string,
+  forPdf: boolean = false,
+): string {
+  // PDF: convert pennivo-file:// URLs to file:// so the renderer can load
+  // them. HTML: drop local image paths entirely.
+  let html = forPdf
+    ? bodyHtml.replace(/pennivo-file:\/\/\//g, "file:///")
+    : stripLocalImageSrc(bodyHtml);
 
   // Override dark-mode fill colors in mermaid SVG <style> blocks for light export background
   html = html.replace(

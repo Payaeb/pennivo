@@ -22,6 +22,7 @@ export {
   cmFindExtension,
 } from "./components/FindReplace/cmFindReplace";
 export { wrapHtmlWithStyles } from "./utils/exportHtml";
+export { sanitizeEditorHtmlForExport } from "./utils/exportSanitize";
 export { LinkActionSheet } from "./components/LinkActionSheet/LinkActionSheet";
 export type { LinkActionSheetProps } from "./components/LinkActionSheet/LinkActionSheet";
 export { GlobalSearchPanel } from "./components/GlobalSearch/GlobalSearchPanel";
