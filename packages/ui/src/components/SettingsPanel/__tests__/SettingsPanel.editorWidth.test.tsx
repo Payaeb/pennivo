@@ -102,4 +102,17 @@ describe("Editor width setting", () => {
     await waitFor(() => expect(mockPlatform.getSettings).toHaveBeenCalled());
     expect(select.value).toBe("default");
   });
+
+  it("opening Settings with no saved font size leaves the rendered size alone", async () => {
+    document.documentElement.style.removeProperty("--text-base");
+    renderPanel();
+    await getControl();
+    expect(document.documentElement.style.getPropertyValue("--text-base")).toBe(
+      "",
+    );
+    const slider = document.querySelector(
+      "input.settings-slider",
+    ) as HTMLInputElement;
+    expect(slider.value).toBe("17");
+  });
 });

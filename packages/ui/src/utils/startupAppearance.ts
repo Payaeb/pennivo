@@ -40,9 +40,14 @@ export function applyEditorFontFamily(
   family: unknown,
   root: HTMLElement = document.documentElement,
 ): void {
-  const value =
-    EDITOR_FONT_FAMILIES[typeof family === "string" ? family : "serif"] ??
-    EDITOR_FONT_FAMILIES["serif"]!;
+  // Own keys only: "constructor" or "__proto__" must not resolve to a
+  // prototype member.
+  const key =
+    typeof family === "string" &&
+    Object.prototype.hasOwnProperty.call(EDITOR_FONT_FAMILIES, family)
+      ? family
+      : "serif";
+  const value = EDITOR_FONT_FAMILIES[key]!;
   if (root.style.getPropertyValue("--font-editor") !== value) {
     root.style.setProperty("--font-editor", value);
   }

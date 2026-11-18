@@ -67,6 +67,18 @@ describe("applyAppearanceSettings", () => {
   });
 });
 
+describe("prototype-named families", () => {
+  it("fall back to the serif stack", () => {
+    for (const f of ["constructor", "__proto__", "toString"]) {
+      root().style.removeProperty("--font-editor");
+      applyEditorFontFamily(f);
+      expect(root().style.getPropertyValue("--font-editor")).toContain(
+        "Georgia",
+      );
+    }
+  });
+});
+
 describe("single helpers", () => {
   it("applyEditorFontSize / applyEditorFontFamily set the same properties the panel uses", () => {
     applyEditorFontSize(18);

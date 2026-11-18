@@ -182,3 +182,9 @@ export {
   parseListItemText,
 } from "./tasks";
 export { isSafeExternalUrl } from "./externalUrl";
+
+export {
+  type FontSizeMigrationResult,
+  FONT_SIZE_MIGRATION_KEY,
+  migrateUnchosenFontSize,
+} from "./fontSizeMigration";

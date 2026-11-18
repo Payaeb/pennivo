@@ -21,6 +21,8 @@ import "./SettingsPanel.css";
 
 export interface AppSettings {
   editorFontSize: number;
+  /** Set by the main process once the one-time 16 to 17 reset ran; kept as-is. */
+  fontSizeDefaultMigrated?: boolean;
   editorFontFamily: string;
   editorWidth: EditorWidth;
   autoSave: boolean;
@@ -32,7 +34,7 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  editorFontSize: 16,
+  editorFontSize: 17,
   editorFontFamily: "serif",
   editorWidth: DEFAULT_EDITOR_WIDTH,
   autoSave: true,
@@ -175,6 +177,15 @@ export function SettingsPanel({
   // panel is first opened).
   useEffect(() => {
     if (!loaded) return;
+    // Never write the untouched default: opening Settings must not add an
+    // inline override the user did not choose.
+    const root = document.documentElement;
+    if (
+      settings.editorFontSize === DEFAULT_SETTINGS.editorFontSize &&
+      root.style.getPropertyValue("--text-base") === ""
+    ) {
+      return;
+    }
     applyEditorFontSize(settings.editorFontSize);
   }, [settings.editorFontSize, loaded]);
 
